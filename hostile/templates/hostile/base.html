@@ -1,0 +1,237 @@
+{% extends 'allianceauth/base-bs5.html' %}
+{% load i18n static %}
+
+{% block page_title %}{% translate "Hostile Intel" %}{% endblock %}
+
+{% block header_nav_brand %}{% translate "Hostile Intel" %}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'hostile/css/hostile.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <!-- Sub-navigation Bar -->
+    <div class="card mb-4 bg-dark text-white border-secondary hostile-card">
+        <div class="card-body p-2 d-flex flex-wrap justify-content-between align-items-center">
+            <ul class="nav nav-pills gap-1">
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.url_name == 'index' %}active{% endif %}" href="{% url 'hostile:index' %}" data-hostile-loading="{% translate 'Loading Dashboard' %}" data-hostile-loading-detail="{% translate 'Gathering hostile intelligence metrics and active timers...' %}">
+                        <i class="fas fa-tachometer-alt me-1"></i> {% translate "Dashboard" %}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.url_name == 'structures' %}active{% endif %}" href="{% url 'hostile:structures' %}" data-hostile-loading="{% translate 'Loading Structures' %}" data-hostile-loading-detail="{% translate 'Fetching hostile structures registry and timer states...' %}">
+                        <i class="fas fa-monument me-1"></i> {% translate "Structures" %}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.url_name == 'doctrines' %}active{% endif %}" href="{% url 'hostile:doctrines' %}" data-hostile-loading="{% translate 'Loading Stagings & Doctrines' %}" data-hostile-loading-detail="{% translate 'Loading forward operating bases and fleet doctrine fittings...' %}">
+                        <i class="fas fa-fighter-jet me-1"></i> {% translate "Stagings & Doctrines" %}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.url_name == 'timers' %}active{% endif %}" href="{% url 'hostile:timers' %}" data-hostile-loading="{% translate 'Loading Timer Board' %}" data-hostile-loading-detail="{% translate 'Calculating upcoming structure reinforcement windows...' %}">
+                        <i class="fas fa-stopwatch me-1"></i> {% translate "Timer Board" %}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.url_name == 'sov_timers' %}active{% endif %}" href="{% url 'hostile:sov_timers' %}" data-hostile-loading="{% translate 'Loading Sov Timers' %}" data-hostile-loading-detail="{% translate 'Fetching active sovereignty campaign timers and defender scores...' %}">
+                        <i class="fas fa-flag me-1"></i> {% translate "Sov Timers" %}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.url_name == 'calculator' %}active{% endif %}" href="{% url 'hostile:calculator' %}" data-hostile-loading="{% translate 'Loading Timer Calculator' %}" data-hostile-loading-detail="{% translate 'Initializing Upwell reinforcement calculation engine...' %}">
+                        <i class="fas fa-calculator me-1"></i> {% translate "Reinforce Calculator" %}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.url_name == 'systems' %}active{% endif %}" href="{% url 'hostile:systems' %}" data-hostile-loading="{% translate 'Loading System Intel' %}" data-hostile-loading-detail="{% translate 'Querying solar system activity, camp reports, and gate statistics...' %}">
+                        <i class="fas fa-crosshairs me-1"></i> {% translate "System Intel & Camps" %}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.url_name == 'pilots' %}active{% endif %}" href="{% url 'hostile:pilots' %}" data-hostile-loading="{% translate 'Loading Pilot Dossiers' %}" data-hostile-loading-detail="{% translate 'Loading hostile character profiles, affiliations, and sightings...' %}">
+                        <i class="fas fa-user-secret me-1"></i> {% translate "Pilot Dossiers" %}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if 'threat_scan' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'hostile:threat_scans' %}" data-hostile-loading="{% translate 'Loading Threat Scanner' %}" data-hostile-loading-detail="{% translate 'Fetching recent threat profiles and parser...' %}">
+                        <i class="fas fa-radar me-1"></i> {% translate "Local Threat Scan" %}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.url_name == 'alliances' %}active{% endif %}" href="{% url 'hostile:alliances' %}" data-hostile-loading="{% translate 'Loading Alliances & Sov' %}" data-hostile-loading-detail="{% translate 'Loading tracked hostile alliances, corporations, and sovereignty data...' %}">
+                        <i class="fas fa-globe-americas me-1"></i> {% translate "Alliances & Sov" %}
+                    </a>
+                </li>
+                {% if perms.hostile.manage_intel %}
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.url_name == 'audit_logs' %}active{% endif %}" href="{% url 'hostile:audit_logs' %}" data-hostile-loading="{% translate 'Loading Audit Logs' %}" data-hostile-loading-detail="{% translate 'Retrieving intelligence audit records...' %}">
+                        <i class="fas fa-history me-1"></i> {% translate "Audit Logs" %}
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+            <div>
+                <button type="button" class="btn btn-sm btn-outline-info px-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#smartPasteModal">
+                    <i class="fas fa-paste me-1"></i> {% translate "Smart Ingest" %}
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="hostile-intel-container">
+        {% block details %}{% endblock %}
+    </div>
+</div>
+
+<!-- Universal Smart Paste Modal -->
+<div class="modal fade" id="smartPasteModal" tabindex="-1" aria-labelledby="smartPasteModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content bg-dark text-white border-secondary">
+            <form action="{% url 'hostile:smart_paste' %}" method="post" data-hostile-loading="{% translate 'Processing Intel' %}" data-hostile-loading-detail="{% translate 'Parsing clipboard intel and routing records...' %}">
+                {% csrf_token %}
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title" id="smartPasteModalLabel">
+                        <i class="fas fa-magic text-warning me-2"></i>{% translate "Smart Intel Ingestion" %}
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small">
+                        {% translate "Paste raw D-Scan text, Structure Show-Info clipboard, Data Analyzer timer hack results, or EFT / ship scanner module fittings. The smart classifier automatically routes modules, vulnerability hours, core statuses, and grids into the intel database." %}
+                    </p>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">{% translate "Raw Clipboard Text" %}</label>
+                        <textarea name="intel_text" class="form-control font-monospace bg-black text-light border-secondary" rows="8" placeholder="Paste D-Scan, Structure Inspect text, Data Analyzer timer hack (e.g. Hour (+- 3 hrs): 02:00), or [Keepstar, Fit] fitting here..." required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% translate "Cancel" %}</button>
+                    <button type="submit" class="btn btn-warning fw-bold">
+                        <i class="fas fa-upload me-1"></i> {% translate "Process & Save Intel" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Fitting Modal Container -->
+<div class="modal fade" id="fittingInspectModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content bg-dark text-white border-secondary" id="fittingInspectModalContent">
+            <!-- Dynamic Content Loaded via AJAX / Fetch -->
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_javascript %}
+{% include "hostile/includes/page_loading_overlay.html" %}
+<script src="{% static 'hostile/js/hostile_searchable_select.js' %}"></script>
+<script src="{% static 'hostile/js/hostile_countdown.js' %}"></script>
+<script>
+function attachSolarSystemAutocomplete(inputId, selectId, datalistId, clearBtnId) {
+    const inputEl = document.getElementById(inputId);
+    const selectEl = document.getElementById(selectId);
+    const datalistEl = document.getElementById(datalistId);
+    const clearBtnEl = clearBtnId ? document.getElementById(clearBtnId) : null;
+
+    if (!inputEl || !selectEl) return;
+
+    // Initialize input text if select already has a selected option
+    if (selectEl.selectedIndex >= 0 && selectEl.options[selectEl.selectedIndex]) {
+        const txt = selectEl.options[selectEl.selectedIndex].text;
+        if (txt && !txt.startsWith("---") && !inputEl.value) {
+            inputEl.value = txt;
+        }
+    }
+
+    inputEl.addEventListener('input', function() {
+        const val = inputEl.value.trim();
+        if (val.length >= 2) {
+            fetch(`/hostile/api/solar-systems/?q=${encodeURIComponent(val)}&limit=15`)
+                .then(r => r.json())
+                .then(d => {
+                    if (d.results && datalistEl) {
+                        datalistEl.innerHTML = '';
+                        d.results.forEach(s => {
+                            const opt = document.createElement('option');
+                            opt.value = s.name;
+                            opt.dataset.id = s.id;
+                            datalistEl.appendChild(opt);
+                        });
+                    }
+                })
+                .catch(() => {});
+        }
+        if (selectEl.options) {
+            for (let i = 0; i < selectEl.options.length; i++) {
+                if (selectEl.options[i].text.toLowerCase() === val.toLowerCase()) {
+                    selectEl.selectedIndex = i;
+                    break;
+                }
+            }
+        }
+    });
+
+    if (clearBtnEl) {
+        clearBtnEl.addEventListener('click', function() {
+            inputEl.value = '';
+            selectEl.selectedIndex = 0;
+        });
+    }
+}
+
+function loadFittingModal(structureId) {
+    const modalContent = document.getElementById('fittingInspectModalContent');
+    modalContent.innerHTML = '<div class="p-5 text-center"><i class="fas fa-spinner fa-spin fa-2x text-warning"></i><p class="mt-2 text-muted">Loading fitting layout...</p></div>';
+    const modal = new bootstrap.Modal(document.getElementById('fittingInspectModal'));
+    modal.show();
+
+    fetch(`/hostile/structures/${structureId}/fitting-modal/`)
+        .then(response => response.text())
+        .then(html => {
+            modalContent.innerHTML = html;
+        })
+        .catch(err => {
+            modalContent.innerHTML = '<div class="p-4 text-center text-danger"><i class="fas fa-exclamation-triangle fa-2x"></i><p class="mt-2">Failed to load fitting details.</p></div>';
+        });
+}
+
+function loadDoctrineFitModal(fitId) {
+    const modalContent = document.getElementById('fittingInspectModalContent');
+    modalContent.innerHTML = '<div class="p-5 text-center"><i class="fas fa-spinner fa-spin fa-2x text-warning"></i><p class="mt-2 text-muted">Loading doctrine fitting layout...</p></div>';
+    const modal = new bootstrap.Modal(document.getElementById('fittingInspectModal'));
+    modal.show();
+
+    fetch(`/hostile/doctrines/fits/${fitId}/fitting-modal/`)
+        .then(response => response.text())
+        .then(html => {
+            modalContent.innerHTML = html;
+        })
+        .catch(err => {
+            modalContent.innerHTML = '<div class="p-4 text-center text-danger"><i class="fas fa-exclamation-triangle fa-2x"></i><p class="mt-2">Failed to load doctrine fit details.</p></div>';
+        });
+}
+
+function copyToClipboard(text) {
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(() => {
+            alert('Fitting copied to clipboard in standard EFT format!');
+        });
+    } else {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        alert('Fitting copied to clipboard!');
+    }
+}
+</script>
+{% endblock %}

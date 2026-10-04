@@ -1,0 +1,478 @@
+{% extends 'hostile/base.html' %}
+{% load i18n humanize %}
+
+{% block details %}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h4 class="mb-0 fw-bold"><i class="fas fa-fighter-jet text-info me-2"></i>{% translate "Hostile Stagings & Fleet Doctrines" %}</h4>
+        <p class="text-muted small mb-0">{% translate "Track forward deployment bases, lowsec/null staging hubs, primary doctrines, and example fittings with zKillboard links." %}</p>
+    </div>
+    <div class="d-flex gap-2">
+        <button type="button" class="btn btn-primary btn-sm fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#addStagingModal">
+            <i class="fas fa-map-marker-alt me-1"></i> {% translate "Add Staging System" %}
+        </button>
+        <button type="button" class="btn btn-info btn-sm fw-bold text-white shadow-sm" data-bs-toggle="modal" data-bs-target="#addDoctrineModal">
+            <i class="fas fa-plus me-1"></i> {% translate "Add Doctrine" %}
+        </button>
+    </div>
+</div>
+
+<!-- Section: Staging Systems -->
+<div class="card mb-4 bg-dark text-white border-secondary hostile-card shadow-sm">
+    <div class="card-header hostile-card-header d-flex justify-content-between align-items-center">
+        <h6 class="mb-0 fw-bold text-uppercase text-info tracking-wider">
+            <i class="fas fa-crosshairs me-2"></i>{% translate "Hostile Staging Hubs & FOBs" %}
+        </h6>
+        <span class="badge bg-secondary rounded-pill">{{ stagings.count }} {% translate "Active Stagings" %}</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-dark table-hover align-middle mb-0">
+                <thead class="table-dark text-uppercase small text-muted border-secondary">
+                    <tr>
+                        <th>{% translate "Solar System" %}</th>
+                        <th>{% translate "Hostile Entity" %}</th>
+                        <th>{% translate "Staging Type" %}</th>
+                        <th>{% translate "Staging Citadel / Base" %}</th>
+                        <th>{% translate "Max Form (Sub / Cap / Super)" %}</th>
+                        <th>{% translate "Staged Doctrines" %}</th>
+                        <th>{% translate "Status" %}</th>
+                        <th class="text-end">{% translate "Actions" %}</th>
+                    </tr>
+                </thead>
+                <tbody class="border-secondary">
+                    {% for staging in stagings %}
+                    <tr>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <span class="badge bg-secondary font-mono me-2">{{ staging.solar_system.security_status|floatformat:1 }}</span>
+                                <div>
+                                    <strong class="text-light fs-6">{{ staging.solar_system.name }}</strong>
+                                    {% if staging.is_primary %}
+                                        <span class="badge badge-subtle-danger ms-1"><i class="fas fa-star text-warning me-1"></i>{% translate "Primary Staging" %}</span>
+                                    {% endif %}
+                                    <div class="small text-muted font-mono">{{ staging.solar_system.constellation.region.name }}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            {% if staging.alliance %}
+                                <div class="d-flex align-items-center">
+                                    <a href="{% url 'hostile:alliance_detail' staging.alliance.id %}">
+                                        <img src="https://images.evetech.net/alliances/{{ staging.alliance.alliance_id }}/logo?size=32" alt="{{ staging.alliance.alliance_name }}" class="rounded me-2 border border-secondary" style="width: 24px; height: 24px;">
+                                    </a>
+                                    <a href="{% url 'hostile:alliance_detail' staging.alliance.id %}" class="text-light fw-bold text-decoration-none hover-primary">
+                                        {{ staging.alliance.alliance_name }}
+                                    </a>
+                                    {% if staging.alliance.ticker %}<span class="badge bg-secondary small ms-1">[{{ staging.alliance.ticker }}]</span>{% endif %}
+                                </div>
+                            {% elif staging.corporation %}
+                                <a href="{% url 'hostile:corporation_detail' staging.corporation.id %}" class="text-light fw-bold text-decoration-none hover-primary">
+                                    {{ staging.corporation.corporation_name }}
+                                </a>
+                            {% else %}
+                                <span class="text-muted">{% translate "Hostile Fleet" %}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge {% if staging.is_primary %}badge-subtle-danger{% else %}badge-subtle-info{% endif %}">
+                                {{ staging.get_staging_type_display }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if staging.structure %}
+                                <span class="text-info">{{ staging.structure.name }}</span>
+                                <span class="small text-muted">({{ staging.structure.structure_type.name }})</span>
+                            {% else %}
+                                <span class="text-muted small">{% translate "Unknown" %}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="font-mono small d-flex align-items-center gap-1">
+                                <span class="badge bg-dark border border-secondary text-light" title="Subcaps: {{ staging.estimated_subcap_form }}">{{ staging.estimated_subcap_form|default:"-" }}</span> /
+                                <span class="badge bg-dark border border-secondary text-warning" title="Capitals: {{ staging.estimated_cap_form }}">{{ staging.estimated_cap_form|default:"-" }}</span> /
+                                <span class="badge bg-dark border border-secondary text-danger" title="Supers: {{ staging.estimated_super_form }}">{{ staging.estimated_super_form|default:"-" }}</span>
+                                {% if staging.is_form_overridden %}
+                                    <span class="badge bg-secondary" style="font-size: 0.6rem;" title="{% translate 'Manual Override' %}">Manual</span>
+                                {% else %}
+                                    <span class="badge bg-info text-dark" style="font-size: 0.6rem;" title="{% translate 'Estimated from entity zKill stats' %}">zKill</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td>
+                            <div class="d-flex flex-wrap gap-1">
+                                {% for doc in staging.doctrines.all %}
+                                    <span class="badge badge-subtle-teal small">{{ doc.name }}</span>
+                                {% empty %}
+                                    <span class="text-muted small italic">{% translate "No doctrines assigned" %}</span>
+                                {% endfor %}
+                            </div>
+                        </td>
+                        <td>
+                            {% if staging.is_verified %}
+                                <span class="badge badge-subtle-teal"><i class="fas fa-check-circle me-1"></i>{% translate "Verified" %}</span>
+                            {% else %}
+                                <span class="badge badge-subtle-warning"><i class="fas fa-question-circle me-1"></i>{% translate "Unverified" %}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <div class="d-inline-flex gap-1">
+                                {% if perms.hostile.manage_intel and not staging.is_verified %}
+                                <form action="{% url 'hostile:staging_verify' staging.id %}" method="post" class="d-inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-outline-success btn-xs py-0 px-2" title="Verify Staging Hub">
+                                        <i class="fas fa-check"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                                {% if perms.hostile.manage_intel or staging.created_by == request.user %}
+                                <a href="{% url 'hostile:staging_edit' staging.id %}" class="btn btn-outline-primary btn-xs py-0 px-2" title="{% translate 'Edit Staging' %}">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                {% endif %}
+                                {% if perms.hostile.manage_intel %}
+                                <a href="{% url 'hostile:staging_delete' staging.id %}" class="btn btn-outline-danger btn-xs py-0 px-2" title="{% translate 'Delete Staging' %}">
+                                    <i class="fas fa-trash-alt"></i>
+                                </a>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center py-4 text-muted">
+                            <i class="fas fa-map-marker-alt fa-2x mb-2 text-secondary"></i>
+                            <p class="mb-0">{% translate "No hostile staging systems recorded yet." %}</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Section: Hostile Doctrines -->
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0 fw-bold"><i class="fas fa-shield-alt text-warning me-2"></i>{% translate "Hostile Fleet Doctrines & Compositions" %}</h5>
+</div>
+
+<div class="row g-4">
+    {% for doctrine in doctrines %}
+    <div class="col-lg-6 col-xl-4">
+        <div class="card bg-dark text-white border-secondary hostile-card h-100 shadow-sm">
+            <div class="card-header hostile-card-header d-flex justify-content-between align-items-start">
+                <div>
+                    <h6 class="card-title mb-1 fw-bold text-light fs-6">{{ doctrine.name }}</h6>
+                    <div class="small text-muted">
+                        {% if doctrine.alliance %}
+                            <a href="{% url 'hostile:alliance_detail' doctrine.alliance.id %}" class="text-info text-decoration-none">
+                                <i class="fas fa-globe-americas me-1"></i>{{ doctrine.alliance.alliance_name }}
+                            </a>
+                        {% elif doctrine.corporation %}
+                            <a href="{% url 'hostile:corporation_detail' doctrine.corporation.id %}" class="text-info text-decoration-none">
+                                <i class="fas fa-building me-1"></i>{{ doctrine.corporation.corporation_name }}
+                            </a>
+                        {% else %}
+                            {% translate "General Hostile" %}
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="d-flex align-items-center gap-1">
+                    <span class="badge badge-subtle-warning">{{ doctrine.get_role_type_display }}</span>
+                    {% if perms.hostile.manage_intel or doctrine.created_by == request.user %}
+                    <a href="{% url 'hostile:doctrine_edit' doctrine.id %}" class="btn btn-outline-primary btn-xs py-0 px-1" title="{% translate 'Edit Doctrine' %}">
+                        <i class="fas fa-edit"></i>
+                    </a>
+                    {% endif %}
+                    {% if perms.hostile.manage_intel %}
+                    <a href="{% url 'hostile:doctrine_delete' doctrine.id %}" class="btn btn-outline-danger btn-xs py-0 px-1" title="{% translate 'Delete Doctrine' %}">
+                        <i class="fas fa-trash-alt"></i>
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card-body">
+                {% if doctrine.primary_ship_types %}
+                <div class="mb-3">
+                    <div class="small text-muted text-uppercase fw-bold mb-1">{% translate "Primary Ships & Core Comp" %}</div>
+                    <div class="p-2 rounded bg-black bg-opacity-40 border border-secondary small text-info font-mono">
+                        {{ doctrine.primary_ship_types }}
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if doctrine.description %}
+                <p class="small text-light mb-3 bg-dark bg-opacity-50 p-2 rounded border border-secondary border-opacity-50">
+                    {{ doctrine.description|linebreaksbr }}
+                </p>
+                {% endif %}
+
+                <!-- Staged Systems Tags -->
+                <div class="mb-3">
+                    <div class="small text-muted text-uppercase fw-bold mb-1">{% translate "Active Staging Theaters" %}</div>
+                    <div class="d-flex flex-wrap gap-1">
+                        {% if doctrine.is_general_doctrine %}
+                            <span class="badge badge-subtle-secondary small"><i class="fas fa-globe me-1"></i>{% translate "Alliance-Wide (General)" %}</span>
+                        {% endif %}
+                        {% for st in doctrine.stagings.all %}
+                            <span class="badge badge-subtle-info small"><i class="fas fa-map-marker-alt me-1"></i>{{ st.solar_system.name }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Example Fits with zKillboard links and EFT inspection -->
+                <div class="mb-2">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div class="small text-muted text-uppercase fw-bold">{% translate "Example Fittings" %} ({{ doctrine.example_fits.count }})</div>
+                        <button type="button" class="btn btn-outline-info btn-xs py-0 px-2" data-bs-toggle="modal" data-bs-target="#addFitModal{{ doctrine.id }}">
+                            <i class="fas fa-plus me-1"></i>{% translate "Add Fit" %}
+                        </button>
+                    </div>
+
+                    <div class="list-group list-group-flush bg-transparent">
+                        {% for fit in doctrine.example_fits.all %}
+                        <div class="list-group-item bg-black bg-opacity-30 border-secondary px-2 py-2 d-flex justify-content-between align-items-center rounded mb-1">
+                            <div class="d-flex align-items-center min-w-0 me-2">
+                                {% if fit.ship_type %}
+                                    <img src="https://images.evetech.net/types/{{ fit.ship_type.id }}/icon?size=32" alt="{{ fit.ship_type.name }}" class="rounded me-2 border border-secondary" style="width: 28px; height: 28px;">
+                                {% else %}
+                                    <i class="fas fa-space-shuttle me-2 text-muted"></i>
+                                {% endif %}
+                                <div class="text-truncate">
+                                    <div class="small fw-bold text-light text-truncate">{{ fit.name }}</div>
+                                    {% if fit.role %}
+                                        <span class="badge badge-subtle-teal py-0 px-1" style="font-size: 0.7rem;">{{ fit.role }}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="d-flex gap-1 flex-shrink-0 align-items-center">
+                                {% if fit.zkill_link %}
+                                    <a href="{{ fit.zkill_link }}" target="_blank" class="badge badge-subtle-danger text-decoration-none py-1 px-2" title="View killmail example on zKillboard">
+                                        <i class="fas fa-crosshairs me-1"></i>zKill
+                                    </a>
+                                {% endif %}
+                                {% if fit.eft_format %}
+                                    <button type="button" class="btn btn-outline-info btn-xs py-0 px-2" onclick="loadDoctrineFitModal({{ fit.id }})" title="View interactive slot layout">
+                                        <i class="fas fa-wrench"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary btn-xs py-0 px-2" onclick="copyToClipboard('{{ fit.eft_format|escapejs }}')" title="Copy EFT to clipboard">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                {% endif %}
+                                {% if perms.hostile.manage_intel or fit.created_by == request.user %}
+                                <a href="{% url 'hostile:doctrine_fit_edit' fit.id %}" class="btn btn-outline-primary btn-xs py-0 px-1" title="{% translate 'Edit Fit' %}">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                {% endif %}
+                                {% if perms.hostile.manage_intel %}
+                                <a href="{% url 'hostile:doctrine_fit_delete' fit.id %}" class="btn btn-outline-danger btn-xs py-0 px-1" title="{% translate 'Delete Fit' %}">
+                                    <i class="fas fa-trash-alt"></i>
+                                </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div class="text-muted small italic py-1">{% translate "No example fits attached yet." %}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer hostile-card-header border-secondary d-flex justify-content-between align-items-center small text-muted">
+                <span>Updated {{ doctrine.updated_at|naturaltime }}</span>
+                {% if perms.hostile.manage_intel and not doctrine.is_verified %}
+                <form action="{% url 'hostile:doctrine_verify' doctrine.id %}" method="post" class="d-inline">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline-success btn-xs py-0 px-2">
+                        <i class="fas fa-check me-1"></i>{% translate "Verify" %}
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for adding example fit to this specific doctrine -->
+    <div class="modal fade" id="addFitModal{{ doctrine.id }}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content bg-dark text-white border-secondary">
+                <form action="{% url 'hostile:doctrine_fit_add' doctrine.id %}" method="post">
+                    {% csrf_token %}
+                    <div class="modal-header border-secondary">
+                        <h5 class="modal-title"><i class="fas fa-plus text-info me-2"></i>{% translate "Add Example Fit" %} - {{ doctrine.name }}</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <input type="hidden" name="doctrine" value="{{ doctrine.id }}">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">{% translate "Fit Name / Title" %}</label>
+                            <input type="text" name="name" class="form-control" placeholder="e.g. Main DPS Dual 800mm TFI" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">{% translate "Role Tag" %}</label>
+                            <input type="text" name="role" class="form-control" placeholder="DPS, Logi, Tackle, Boosts">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">{% translate "zKillboard Link" %}</label>
+                            <input type="url" name="zkill_link" class="form-control" placeholder="https://zkillboard.com/kill/12345678/">
+                            <div class="form-text text-muted small">{% translate "Link to an example killmail on zKillboard featuring this fitting." %}</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">{% translate "EFT Format Fitting Block" %}</label>
+                            <textarea name="eft_format" class="form-control font-monospace" rows="6" placeholder="Paste [Tempest Fleet Issue, Main DPS] EFT fitting here..."></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-secondary">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% translate "Cancel" %}</button>
+                        <button type="submit" class="btn btn-info text-white fw-bold">{% translate "Save Fit" %}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-12 text-center py-5 text-muted">
+        <i class="fas fa-shield-alt fa-3x mb-3 text-secondary"></i>
+        <p>{% translate "No hostile fleet doctrines recorded yet." %}</p>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Modal: Add Staging System -->
+<div class="modal fade" id="addStagingModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white border-secondary">
+            <form action="{% url 'hostile:staging_add' %}" method="post">
+                {% csrf_token %}
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title"><i class="fas fa-map-marker-alt text-primary me-2"></i>{% translate "Add Staging System" %}</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">{% translate "Solar System" %}</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-black text-muted border-secondary"><i class="fas fa-map-marker-alt"></i></span>
+                            <input type="text" id="stagingSystemSearchInput" class="form-control text-light bg-black border-secondary" placeholder="{% translate 'Search staging solar system...' %}" list="stagingSystemsDatalist" autocomplete="off" required>
+                            <button class="btn btn-outline-secondary" type="button" id="clearStagingSystemBtn" title="Clear"><i class="fas fa-times"></i></button>
+                        </div>
+                        <div class="d-none">
+                            {{ staging_form.solar_system }}
+                        </div>
+                        <datalist id="stagingSystemsDatalist"></datalist>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-bold">{% translate "Alliance" %}</label>
+                            {{ staging_form.alliance }}
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-bold">{% translate "Corporation" %}</label>
+                            {{ staging_form.corporation }}
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-8">
+                            <label class="form-label fw-bold">{% translate "Staging Type" %}</label>
+                            {{ staging_form.staging_type }}
+                        </div>
+                        <div class="col-4 d-flex align-items-center pt-3">
+                            <div class="form-check">
+                                {{ staging_form.is_primary }}
+                                <label class="form-check-label fw-bold" for="{{ staging_form.is_primary.id_for_label }}">{% translate "Primary" %}</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">{% translate "Staging Structure / Citadel (Optional)" %}</label>
+                        {{ staging_form.structure }}
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-4">
+                            <label class="form-label small fw-bold">{% translate "Max Subcaps" %}</label>
+                            {{ staging_form.max_subcap_form }}
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label small fw-bold">{% translate "Max Capitals" %}</label>
+                            {{ staging_form.max_cap_form }}
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label small fw-bold">{% translate "Max Supers" %}</label>
+                            {{ staging_form.max_super_form }}
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">{% translate "Tactical Notes" %}</label>
+                        {{ staging_form.notes }}
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% translate "Cancel" %}</button>
+                    <button type="submit" class="btn btn-primary fw-bold">{% translate "Save Staging" %}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Add Doctrine -->
+<div class="modal fade" id="addDoctrineModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content bg-dark text-white border-secondary">
+            <form action="{% url 'hostile:doctrine_add' %}" method="post">
+                {% csrf_token %}
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title"><i class="fas fa-fighter-jet text-info me-2"></i>{% translate "Add Fleet Doctrine" %}</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">{% translate "Doctrine Name" %}</label>
+                        {{ doctrine_form.name }}
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-bold">{% translate "Alliance" %}</label>
+                            {{ doctrine_form.alliance }}
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-bold">{% translate "Role Type" %}</label>
+                            {{ doctrine_form.role_type }}
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">{% translate "Primary Ship Types & Comps" %}</label>
+                        {{ doctrine_form.primary_ship_types }}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">{% translate "Staging Systems Where Deployed" %}</label>
+                        {{ doctrine_form.stagings }}
+                        <div class="form-check mt-2">
+                            {{ doctrine_form.is_general_doctrine }}
+                            <label class="form-check-label small" for="{{ doctrine_form.is_general_doctrine.id_for_label }}">
+                                {% translate "Used generally across multiple theaters (Alliance-Wide)" %}
+                            </label>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">{% translate "Engagement Profile / Tactics / Counterplay Notes" %}</label>
+                        {{ doctrine_form.description }}
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% translate "Cancel" %}</button>
+                    <button type="submit" class="btn btn-info text-white fw-bold">{% translate "Save Doctrine" %}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% block extra_javascript %}
+{{ block.super }}
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    attachSolarSystemAutocomplete("stagingSystemSearchInput", "id_solar_system", "stagingSystemsDatalist", "clearStagingSystemBtn");
+});
+</script>
+{% endblock %}
+{% endblock %}

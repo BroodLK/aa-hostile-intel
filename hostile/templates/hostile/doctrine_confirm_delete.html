@@ -1,0 +1,56 @@
+{% extends 'hostile/base.html' %}
+{% load i18n %}
+
+{% block details %}
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="card bg-dark text-white border-danger hostile-card shadow-sm">
+            <div class="card-header bg-danger bg-opacity-25 border-danger d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-bold text-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>{% translate "Confirm Doctrine Deletion" %}
+                </h5>
+                <a href="{% url 'hostile:doctrines' %}" class="btn btn-sm btn-outline-secondary">
+                    <i class="fas fa-times me-1"></i>{% translate "Cancel" %}
+                </a>
+            </div>
+            <div class="card-body">
+                <p class="lead fs-6 mb-3">
+                    {% blocktranslate with name=doctrine.name %}Are you sure you want to permanently delete the fleet doctrine <strong>{{ name }}</strong>?{% endblocktranslate %}
+                </p>
+
+                <div class="bg-black bg-opacity-50 p-3 rounded border border-secondary mb-3">
+                    <div class="row g-2 small">
+                        <div class="col-4 text-muted text-uppercase fw-bold">{% translate "Doctrine:" %}</div>
+                        <div class="col-8 text-light fw-bold">{{ doctrine.name }}</div>
+
+                        <div class="col-4 text-muted text-uppercase fw-bold">{% translate "Type:" %}</div>
+                        <div class="col-8 text-light">{{ doctrine.get_doctrine_type_display }}</div>
+
+                        <div class="col-4 text-muted text-uppercase fw-bold">{% translate "Owner / Group:" %}</div>
+                        <div class="col-8 text-light">{{ doctrine.owner_name }}</div>
+
+                        <div class="col-4 text-muted text-uppercase fw-bold">{% translate "Fits:" %}</div>
+                        <div class="col-8 text-info font-mono">{{ doctrine.example_fits.count }} example fit(s)</div>
+                    </div>
+                </div>
+
+                <div class="alert alert-warning py-2 small mb-4">
+                    <i class="fas fa-info-circle me-1"></i>{% translate "Warning: Deleting this doctrine will permanently remove all example ship fittings and EFT entries linked to it." %}
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center">
+                    <a href="{% url 'hostile:doctrines' %}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left me-1"></i>{% translate "Go Back" %}
+                    </a>
+                    <form action="{% url 'hostile:doctrine_delete' doctrine.id %}" method="post">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger fw-bold px-4">
+                            <i class="fas fa-trash-alt me-1"></i>{% translate "Delete Doctrine" %}
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

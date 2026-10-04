@@ -1,0 +1,796 @@
+{% extends 'hostile/base.html' %}
+{% load i18n humanize %}
+
+{% block details %}
+<!-- Hero Triage & Operational Staging Bar -->
+<div class="tactical-triage-hero p-3 p-md-4 mb-4">
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
+        <div>
+            <div class="d-flex align-items-center gap-2 mb-1">
+                <span class="badge bg-danger text-light px-2 py-1 font-mono fw-bold"><i class="fas fa-satellite-dish me-1"></i>{% translate "LIVE INTEL" %}</span>
+                <h4 class="mb-0 fw-bold text-white text-uppercase tracking-wider">{% translate "Tactical Operations Command" %}</h4>
+            </div>
+            <p class="text-muted small mb-0">{% translate "Unified real-time hostile observation, threat monitoring, and reinforcement triage." %}</p>
+        </div>
+
+        <div class="d-flex flex-wrap align-items-center gap-2">
+            <!-- Home Staging Anchor Selector -->
+            <form method="get" action="{% url 'hostile:index' %}" class="d-flex align-items-center mb-0">
+                <div class="input-group input-group-sm flex-nowrap">
+                    <span class="input-group-text bg-black text-warning border-secondary"><i class="fas fa-crosshairs me-1"></i>{% translate "Staging" %}</span>
+                    <select name="origin" class="form-select bg-black text-light border-secondary font-mono" onchange="this.form.submit()" style="min-width: 170px;">
+                        {% if not selected_origin_id %}
+                            <option value="">{% translate "Select Home Staging..." %}</option>
+                        {% endif %}
+                        {% for sys in reference_systems %}
+                            <option value="{{ sys.id }}" {% if sys.id == selected_origin_id %}selected{% endif %}>
+                                {{ sys.name }} ({{ sys.constellation.region.name|default:"Space" }})
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </form>
+
+            <!-- Auto-Refresh Indicator & Sync Button -->
+            <button type="button" class="btn btn-outline-info btn-sm shadow-sm" id="btnDashboardSync" onclick="window.location.reload();">
+                <i class="fas fa-sync-alt me-1"></i><span id="dashboardSyncLabel">{% translate "Sync" %}</span> (<span id="dashboardSyncTimer">60s</span>)
+            </button>
+        </div>
+    </div>
+
+    <!-- Quick Action Deck & Smart Paste / Search Bar -->
+    <div class="row g-2 align-items-center">
+        <!-- Omnisearch Input -->
+        <div class="col-12 col-md-6 col-lg-5">
+            <div class="input-group">
+                <span class="input-group-text bg-black text-muted border-secondary"><i class="fas fa-search"></i></span>
+                <input type="text" id="dashboardOmnisearch" class="form-control bg-black text-light border-secondary" placeholder="{% translate 'Instant search systems, timers, camps, doctrines, or alliances...' %}" autocomplete="off">
+                <button class="btn btn-outline-secondary border-secondary d-none" type="button" id="btnClearOmnisearch">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Fast Action Buttons -->
+        <div class="col-12 col-md-6 col-lg-7 d-flex flex-wrap gap-2 justify-content-md-end">
+            <button type="button" class="btn btn-sm btn-outline-info px-3 shadow-sm" data-bs-toggle="collapse" data-bs-target="#inlineSmartPasteCollapse">
+                <i class="fas fa-clipboard-check me-1"></i>{% translate "Smart Ingest" %}
+            </button>
+            <a href="{% url 'hostile:threat_scans' %}" class="btn btn-sm btn-outline-danger px-3 shadow-sm">
+                <i class="fas fa-user-secret me-1"></i>{% translate "Threat Scan" %}
+            </a>
+            <a href="{% url 'hostile:system_observation_add' %}" class="btn btn-sm btn-outline-warning px-3 shadow-sm">
+                <i class="fas fa-crosshairs me-1"></i>{% translate "New Sitrep" %}
+            </a>
+            <a href="{% url 'hostile:timer_add' %}" class="btn btn-sm btn-outline-danger px-3 shadow-sm">
+                <i class="fas fa-stopwatch me-1"></i>{% translate "New Timer" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- Inline Smart Paste Collapsible Dropzone -->
+    <div class="collapse mt-3" id="inlineSmartPasteCollapse">
+        <div class="card bg-black border-secondary shadow-sm">
+            <div class="card-body p-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="small fw-bold text-info"><i class="fas fa-magic me-1"></i>{% translate "Direct Clipboard Parser (Local Scan, D-Scan, EFT Fit, Show-Info, or Timer)" %}</span>
+                    <button type="button" class="btn-close btn-close-white btn-sm" data-bs-toggle="collapse" data-bs-target="#inlineSmartPasteCollapse"></button>
+                </div>
+                <form method="post" action="{% url 'hostile:smart_paste' %}">
+                    {% csrf_token %}
+                    <div class="mb-2">
+                        <textarea name="intel_text" rows="3" class="form-control triage-paste-input" placeholder="{% translate 'Paste raw clipboard intelligence here (e.g. Local pilots list, D-Scan table, EFT Fitting block, or Structure show-info)...' %}" required></textarea>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div class="small text-muted">
+                            <i class="fas fa-info-circle me-1"></i>{% translate "Auto-detects format and routes directly to Threat Scans, Structure Registry, or Fittings." %}
+                        </div>
+                        <button type="submit" class="btn btn-sm btn-outline-info fw-bold px-4">
+                            <i class="fas fa-bolt me-1"></i>{% translate "Parse & Ingest Intelligence" %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Temporal Urgency KPI Deck (Actionable Operational Metrics) -->
+<div class="row g-3 mb-4">
+    <!-- Group 1: Sovereignty & Structure Campaign Timers (3 Related Counters) -->
+    <div class="col-12 col-xl-6">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+            <div class="small fw-bold text-uppercase text-muted font-mono d-flex align-items-center">
+                <i class="fas fa-stopwatch me-1 text-danger"></i>{% translate "Sovereignty & Structure Campaign Timers" %}
+            </div>
+            <a href="{% url 'hostile:sov_timers' %}" class="small text-info text-decoration-none">
+                <i class="fas fa-flag me-1"></i>{% translate "Sov Timers" %} &rarr;
+            </a>
+        </div>
+        <div class="row g-2">
+            <!-- 1. Active Sov Campaigns -->
+            <div class="col-4">
+                <a href="{% url 'hostile:sov_timers' %}" class="text-decoration-none" data-hostile-loading="{% translate 'Loading Sovereignty Timers' %}" data-hostile-loading-detail="{% translate 'Calculating live contest scores and campaigns...' %}">
+                    <div class="hostile-stat-card h-100 {% if stats.active_sov_contests_count > 0 %}pulse-glow-info{% endif %}">
+                        <div class="hostile-stat-icon text-info" style="background-color: rgba(56, 189, 248, 0.12); border-color: rgba(56, 189, 248, 0.25);">
+                            <i class="fas fa-flag text-info"></i>
+                        </div>
+                        <div>
+                            <div class="hostile-stat-value text-info">{{ stats.active_sov_contests_count }}</div>
+                            <div class="hostile-stat-label">{% translate "Active Sov Campaigns" %}</div>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <!-- 2. Timers < 6 Hours -->
+            <div class="col-4">
+                <a href="{% url 'hostile:timers' %}" class="text-decoration-none" data-hostile-loading="{% translate 'Loading Timer Board' %}" data-hostile-loading-detail="{% translate 'Filtering structure timers under 6 hours...' %}">
+                    <div class="hostile-stat-card h-100 {% if stats.timers_6h_count > 0 %}pulse-glow-danger{% endif %}">
+                        <div class="hostile-stat-icon text-danger" style="background-color: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.4);">
+                            <i class="fas fa-hourglass-half text-danger"></i>
+                        </div>
+                        <div>
+                            <div class="hostile-stat-value text-danger">{{ stats.timers_6h_count }}</div>
+                            <div class="hostile-stat-label">{% translate "Timers < 6 Hours" %}</div>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <!-- 3. Timers < 24h -->
+            <div class="col-4">
+                <a href="{% url 'hostile:timers' %}" class="text-decoration-none" data-hostile-loading="{% translate 'Loading Timer Board' %}" data-hostile-loading-detail="{% translate 'Calculating upcoming 24-hour reinforcement windows...' %}">
+                    <div class="hostile-stat-card shadow-sm h-100">
+                        <div class="hostile-stat-icon text-warning" style="background-color: rgba(245, 158, 11, 0.12); border-color: rgba(245, 158, 11, 0.25);">
+                            <i class="fas fa-stopwatch text-warning"></i>
+                        </div>
+                        <div>
+                            <div class="hostile-stat-value text-warning">{{ stats.timers_24h_count }}</div>
+                            <div class="hostile-stat-label">{% translate "Timers < 24h" %}</div>
+                        </div>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Group 2: Tactical Sightings & Tracked Hostiles -->
+    <div class="col-12 col-xl-6">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+            <div class="small fw-bold text-uppercase text-muted font-mono d-flex align-items-center">
+                <i class="fas fa-crosshairs me-1 text-warning"></i>{% translate "Tactical Sightings & Tracked Hostiles" %}
+            </div>
+            <a href="{% url 'hostile:systems' %}" class="small text-warning text-decoration-none">
+                <i class="fas fa-shield-alt me-1"></i>{% translate "Sitreps" %} &rarr;
+            </a>
+        </div>
+        <div class="row g-2">
+            <!-- 4. Active Gate Camps (Next to Hotspots) with hoverable explanation icon -->
+            <div class="col-4">
+                <a href="{% url 'hostile:systems' %}" class="text-decoration-none" data-hostile-loading="{% translate 'Loading System Intelligence' %}" data-hostile-loading-detail="{% translate 'Retrieving active gate camps and bubble fields...' %}">
+                    <div class="hostile-stat-card shadow-sm h-100">
+                        <div class="hostile-stat-icon text-danger" style="background-color: rgba(239, 68, 68, 0.12); border-color: rgba(239, 68, 68, 0.25);">
+                            <i class="fas fa-shield-virus text-danger"></i>
+                        </div>
+                        <div>
+                            <div class="hostile-stat-value text-danger">{{ stats.active_camps_count }}</div>
+                            <div class="hostile-stat-label d-flex align-items-center flex-wrap">
+                                <span>{% translate "Active Gate Camps" %}</span>
+                                <i class="fas fa-question-circle ms-1 text-muted" data-bs-toggle="tooltip" data-bs-placement="top" title="{% translate 'Active Gate Camps: Tactical sitreps reported in the last 24 hours that are either pinned by intel officers or classified as HIGH/EXTREME threat levels (interdiction bubbles, heavy gate camps).' %}"></i>
+                            </div>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <!-- 5. Hotspots (7d) with hoverable explanation icon -->
+            <div class="col-4">
+                <a href="{% url 'hostile:systems' %}" class="text-decoration-none" data-hostile-loading="{% translate 'Loading System Intelligence' %}" data-hostile-loading-detail="{% translate 'Retrieving hostile hotspots and clusters...' %}">
+                    <div class="hostile-stat-card shadow-sm h-100">
+                        <div class="hostile-stat-icon text-primary" style="background-color: rgba(99, 102, 241, 0.12); border-color: rgba(99, 102, 241, 0.25);">
+                            <i class="fas fa-fire text-primary"></i>
+                        </div>
+                        <div>
+                            <div class="hostile-stat-value text-primary">{{ stats.hostile_hotspots_count }}</div>
+                            <div class="hostile-stat-label d-flex align-items-center flex-wrap">
+                                <span>{% translate "Hotspots (7d)" %}</span>
+                                <i class="fas fa-question-circle ms-1 text-muted" data-bs-toggle="tooltip" data-bs-placement="top" title="{% translate 'Hotspots (7d): Systems with concentrated hostile presence over the past 7 days, calculated from distinct active hostile structures (+3 pts) and logged gate camps/sitreps (+1 to +2 pts).' %}"></i>
+                            </div>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <!-- 6. Supers / Cynos (Tracked Assets, Clickable to Pilot Dossiers) -->
+            <div class="col-4">
+                <a href="{% url 'hostile:pilots' %}" class="text-decoration-none" data-hostile-loading="{% translate 'Loading Pilot Dossiers' %}" data-hostile-loading-detail="{% translate 'Filtering tracked supercapital and cyno pilot dossiers...' %}">
+                    <div class="hostile-stat-card shadow-sm h-100 hostile-stat-card-clickable" title="{% translate 'Click to view tracked supercapital and cyno pilot dossiers' %}">
+                        <div class="hostile-stat-icon text-danger" style="background-color: rgba(239, 68, 68, 0.12); border-color: rgba(239, 68, 68, 0.25);">
+                            <i class="fas fa-user-secret text-danger"></i>
+                        </div>
+                        <div>
+                            <div class="hostile-stat-value text-danger">
+                                <span class="text-danger" title="{% translate 'Tracked Super/Titan Pilots' %}">{{ stats.supers_count }}</span>
+                                <span class="text-muted fs-6">/</span>
+                                <span class="text-warning" title="{% translate 'Tracked Cyno Alts' %}">{{ stats.cynos_count }}</span>
+                            </div>
+                            <div class="hostile-stat-label d-flex align-items-center flex-wrap">
+                                <span>{% translate "Tracked Assets" %}</span>
+                                <i class="fas fa-question-circle ms-1 text-muted" data-bs-toggle="tooltip" data-bs-placement="top" title="{% translate 'Tracked Assets: Total number of identified hostile supercarrier/titan pilots and verified cynosural beacon alts registered in Pilot Dossiers. Click to view full dossier registry.' %}"></i>
+                            </div>
+                            <div class="text-muted font-mono" style="font-size: 0.65rem;">
+                                {% translate "Supers / Cynos" %} <i class="fas fa-external-link-alt ms-1 text-info" style="font-size: 0.6rem;"></i>
+                            </div>
+                        </div>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Two-Column Operational Split -->
+<div class="row g-4" id="dashboardMainGrid">
+    <!-- LEFT COLUMN: Immediate Operational Threats -->
+    <div class="col-12 col-xl-6 d-flex flex-column gap-4">
+        <!-- 1. Urgent Hostile Timers (< 48h with Live Countdowns & Ping Generator) -->
+        <div class="card bg-dark text-white border-secondary hostile-card shadow-sm dashboard-searchable-card" data-card-category="timers">
+            <div class="card-header hostile-card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold text-uppercase text-danger d-flex align-items-center">
+                    <i class="fas fa-stopwatch me-2 text-danger"></i>{% translate "Urgent Hostile Timers" %}
+                    <span class="badge bg-danger text-light ms-2 font-mono">{{ upcoming_timers|length }}</span>
+                </h6>
+                <a href="{% url 'hostile:timers' %}" class="btn btn-outline-danger btn-xs py-0 px-2" data-hostile-loading="{% translate 'Loading Timer Board' %}" data-hostile-loading-detail="{% translate 'Calculating upcoming reinforcement windows...' %}">{% translate "Full Board" %}</a>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush bg-transparent">
+                    {% for timer in upcoming_timers %}
+                    <div class="list-group-item bg-transparent text-white border-secondary p-3 timer-item-row"
+                         data-search-text="{{ timer.target_name|lower }} {{ timer.solar_system.name|lower }} {{ timer.solar_system.constellation.region.name|lower }} {{ timer.timer_type|lower }} {{ timer.defender_display|lower }}">
+                        <div class="d-flex justify-content-between align-items-start mb-2 flex-wrap gap-2">
+                            <div>
+                                <div class="d-flex align-items-center gap-2 flex-wrap">
+                                    <span class="fw-bold fs-6 text-light">{{ timer.target_name }}</span>
+                                    {% if timer.timer_type == "ARMOR" %}
+                                        <span class="badge badge-subtle-warning">ARMOR</span>
+                                    {% elif timer.timer_type == "HULL" %}
+                                        <span class="badge badge-subtle-danger">HULL</span>
+                                    {% elif timer.timer_type == "ANCHORING" %}
+                                        <span class="badge badge-subtle-info">ANCHORING</span>
+                                    {% elif timer.timer_type == "UNANCHORING" %}
+                                        <span class="badge badge-subtle-secondary">UNANCHORING</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ timer.timer_type }}</span>
+                                    {% endif %}
+                                    {% if timer.is_verified %}
+                                        <span class="badge badge-subtle-teal" title="{% translate 'Verified by Intel Officer' %}"><i class="fas fa-check"></i></span>
+                                    {% endif %}
+                                </div>
+                                <div class="small text-muted font-mono mt-1">
+                                    <span class="text-info">{{ timer.solar_system.name|default:"Unknown" }}</span>
+                                    ({{ timer.solar_system.constellation.region.name|default:"Space" }}) &bull;
+                                    {% if timer.distance_data and timer.distance_data.jumps is not None %}
+                                        <span class="text-warning fw-bold"><i class="fas fa-route me-1"></i>{{ timer.distance_data.display }}</span> &bull;
+                                    {% endif %}
+                                    <span>{{ timer.timer_datetime|date:"Y-m-d H:i" }} UTC</span>
+                                </div>
+                            </div>
+                            <div class="text-end d-flex flex-column align-items-end gap-1">
+                                <span class="badge bg-danger p-2 fs-6 countdown-timer font-mono shadow-sm" data-expiry="{{ timer.timer_datetime|date:'c' }}">
+                                    {{ timer.timer_datetime|naturaltime }}
+                                </span>
+                                <button type="button" class="btn btn-outline-secondary btn-xs py-0 px-2 ping-copy-btn text-muted"
+                                        title="{% translate 'Copy FC Fleet Ping string' %}"
+                                        data-ping-text="🔴 [HOSTILE TIMER] {{ timer.target_name }} ({{ timer.timer_type }}) | {{ timer.solar_system.name }} ({{ timer.solar_system.constellation.region.name|default:'Space' }}) | Expiring: {{ timer.timer_datetime|date:'Y-m-d H:i' }} UTC{% if timer.distance_data and timer.distance_data.jumps is not None %} | Range: {{ timer.distance_data.display }}{% endif %}">
+                                    <i class="fas fa-bullhorn me-1"></i>{% translate "Copy Ping" %}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="p-4 text-center text-muted">
+                        <i class="fas fa-shield-alt fa-2x mb-2 text-secondary"></i>
+                        <p class="mb-0">{% translate "No urgent structure or sovereignty timers in the near horizon." %}</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Active Gate Camps & Tactical Sitreps -->
+        <div class="card bg-dark text-white border-secondary hostile-card shadow-sm dashboard-searchable-card" data-card-category="camps">
+            <div class="card-header hostile-card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold text-uppercase text-warning d-flex align-items-center">
+                    <i class="fas fa-crosshairs me-2 text-warning"></i>{% translate "Active Gate Camps & System Sitreps" %}
+                    <span class="badge bg-warning text-dark ms-2 font-mono">{{ pinned_observations|length|add:recent_observations|length }}</span>
+                </h6>
+                <a href="{% url 'hostile:systems' %}" class="btn btn-outline-warning btn-xs py-0 px-2" data-hostile-loading="{% translate 'Loading System Intel' %}" data-hostile-loading-detail="{% translate 'Querying solar system activity, camp reports, and gate statistics...' %}">{% translate "View All" %}</a>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush bg-transparent">
+                    {% for obs in pinned_observations %}
+                    <div class="list-group-item bg-transparent text-white border-secondary p-3 border-start border-4 border-warning sitrep-item-row"
+                         data-search-text="{{ obs.solar_system.name|lower }} {{ obs.threat_level|lower }} {{ obs.observation_text|lower }}">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                                <span class="fw-bold fs-6 text-warning">{{ obs.solar_system.name }}</span>
+                                <span class="badge bg-black text-muted border border-secondary ms-1">Sec: {{ obs.solar_system.security_status|floatformat:1 }}</span>
+                                {% if obs.distance_data and obs.distance_data.jumps is not None %}
+                                    <span class="badge badge-subtle-teal ms-1"><i class="fas fa-route me-1"></i>{{ obs.distance_data.display }}</span>
+                                {% endif %}
+                                {% if obs.threat_level == "EXTREME" %}
+                                    <span class="badge badge-subtle-danger ms-1">EXTREME THREAT</span>
+                                {% elif obs.threat_level == "HIGH" %}
+                                    <span class="badge badge-subtle-danger ms-1">HIGH THREAT</span>
+                                {% elif obs.threat_level == "MEDIUM" %}
+                                    <span class="badge badge-subtle-warning ms-1">MEDIUM</span>
+                                {% else %}
+                                    <span class="badge badge-subtle-secondary ms-1">LOW</span>
+                                {% endif %}
+                                <span class="badge bg-warning text-dark ms-1"><i class="fas fa-thumbtack"></i> Pinned</span>
+                            </div>
+                            <span class="badge {{ obs.decay_badge_class|default:'badge-subtle-secondary' }}">{{ obs.decay_badge|default:'ACTIVE' }}</span>
+                        </div>
+                        <p class="mb-2 text-light small">{{ obs.observation_text|linebreaksbr }}</p>
+                        <div class="d-flex justify-content-between align-items-center small text-muted flex-wrap gap-2">
+                            <div>
+                                {% for tag in obs.tags.all %}
+                                    <span class="badge bg-{{ tag.color_class }} me-1">{{ tag.name }}</span>
+                                {% endfor %}
+                                {% if obs.local_scan %}
+                                    <a href="{% url 'hostile:threat_scan_detail' obs.local_scan.id %}" class="badge {% if obs.local_scan.threat_level == 'CRITICAL' or obs.local_scan.threat_level == 'HIGH' %}badge-subtle-danger{% else %}badge-subtle-info{% endif %} text-decoration-none me-1">
+                                        <i class="fas fa-radar me-1"></i>Scan: {{ obs.local_scan.pilot_count }}p (Blops {{ obs.local_scan.blops_drop_chance }}%)
+                                    </a>
+                                {% endif %}
+                                {% if obs.dscan_summary and obs.dscan_summary.total_ships %}
+                                    <span class="badge badge-subtle-secondary me-1"><i class="fas fa-satellite me-1"></i>{{ obs.dscan_summary.total_ships }} ships</span>
+                                {% endif %}
+                                {% if obs.active_hours %}
+                                    <span class="text-info"><i class="far fa-clock me-1"></i>{{ obs.active_hours }}</span>
+                                {% endif %}
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
+                                <span>{{ obs.display_time_seen|naturaltime }} by {{ obs.created_by.username|default:"Intel Scout" }}</span>
+                                <button type="button" class="btn btn-outline-secondary btn-xs py-0 px-2 ping-copy-btn text-muted"
+                                        title="{% translate 'Copy Sitrep Broadcast' %}"
+                                        data-ping-text="⚠️ [GATE CAMP / SITREP] {{ obs.solar_system.name }} (Sec: {{ obs.solar_system.security_status|floatformat:1 }}) - {{ obs.threat_level }} Threat | {{ obs.observation_text|truncatechars:120 }}{% if obs.distance_data and obs.distance_data.jumps is not None %} | Range: {{ obs.distance_data.display }}{% endif %}">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+
+                    {% for obs in recent_observations %}
+                    <div class="list-group-item bg-transparent text-white border-secondary p-3 {{ obs.decay_class }} sitrep-item-row"
+                         data-search-text="{{ obs.solar_system.name|lower }} {{ obs.threat_level|lower }} {{ obs.observation_text|lower }}">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                                <span class="fw-bold fs-6 text-warning">{{ obs.solar_system.name }}</span>
+                                <span class="badge bg-black text-muted border border-secondary ms-1">Sec: {{ obs.solar_system.security_status|floatformat:1 }}</span>
+                                {% if obs.distance_data and obs.distance_data.jumps is not None %}
+                                    <span class="badge badge-subtle-teal ms-1"><i class="fas fa-route me-1"></i>{{ obs.distance_data.display }}</span>
+                                {% endif %}
+                                {% if obs.threat_level == "EXTREME" %}
+                                    <span class="badge badge-subtle-danger ms-1">EXTREME</span>
+                                {% elif obs.threat_level == "HIGH" %}
+                                    <span class="badge badge-subtle-danger ms-1">HIGH</span>
+                                {% elif obs.threat_level == "MEDIUM" %}
+                                    <span class="badge badge-subtle-warning ms-1">MEDIUM</span>
+                                {% else %}
+                                    <span class="badge badge-subtle-secondary ms-1">LOW</span>
+                                {% endif %}
+                            </div>
+                            <span class="badge {{ obs.decay_badge_class|default:'badge-subtle-secondary' }}">{{ obs.decay_badge|default:'LOGGED' }}</span>
+                        </div>
+                        <p class="mb-2 text-light small">{{ obs.observation_text|linebreaksbr }}</p>
+                        <div class="d-flex justify-content-between align-items-center small text-muted flex-wrap gap-2">
+                            <div>
+                                {% for tag in obs.tags.all %}
+                                    <span class="badge bg-{{ tag.color_class }} me-1">{{ tag.name }}</span>
+                                {% endfor %}
+                                {% if obs.local_scan %}
+                                    <a href="{% url 'hostile:threat_scan_detail' obs.local_scan.id %}" class="badge {% if obs.local_scan.threat_level == 'CRITICAL' or obs.local_scan.threat_level == 'HIGH' %}badge-subtle-danger{% else %}badge-subtle-info{% endif %} text-decoration-none me-1">
+                                        <i class="fas fa-radar me-1"></i>Scan: {{ obs.local_scan.pilot_count }}p (Blops {{ obs.local_scan.blops_drop_chance }}%)
+                                    </a>
+                                {% endif %}
+                                {% if obs.dscan_summary and obs.dscan_summary.total_ships %}
+                                    <span class="badge badge-subtle-secondary me-1"><i class="fas fa-satellite me-1"></i>{{ obs.dscan_summary.total_ships }} ships</span>
+                                {% endif %}
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
+                                <span>{{ obs.display_time_seen|naturaltime }} by {{ obs.created_by.username|default:"Scout" }}</span>
+                                <button type="button" class="btn btn-outline-secondary btn-xs py-0 px-2 ping-copy-btn text-muted"
+                                        title="{% translate 'Copy Sitrep Broadcast' %}"
+                                        data-ping-text="⚠️ [GATE CAMP / SITREP] {{ obs.solar_system.name }} (Sec: {{ obs.solar_system.security_status|floatformat:1 }}) - {{ obs.threat_level }} Threat | {{ obs.observation_text|truncatechars:120 }}{% if obs.distance_data and obs.distance_data.jumps is not None %} | Range: {{ obs.distance_data.display }}{% endif %}">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+
+                    {% if not pinned_observations and not recent_observations %}
+                    <div class="p-4 text-center text-muted">
+                        <i class="fas fa-shield-alt fa-2x mb-2 text-secondary"></i>
+                        <p class="mb-0">{% translate "No active gate camps or pinned tactical warnings recorded." %}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Recent High-Threat Local Scans -->
+        {% if recent_threat_scans %}
+        <div class="card bg-dark text-white border-secondary hostile-card shadow-sm dashboard-searchable-card" data-card-category="threat-scans">
+            <div class="card-header hostile-card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold text-uppercase text-danger d-flex align-items-center">
+                    <i class="fas fa-user-secret me-2 text-danger"></i>{% translate "Recent Local Threat Scans" %}
+                </h6>
+                <a href="{% url 'hostile:threat_scans' %}" class="btn btn-outline-danger btn-xs py-0 px-2">{% translate "All Scans" %}</a>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush bg-transparent">
+                    {% for scan in recent_threat_scans %}
+                    <div class="list-group-item bg-transparent text-white border-secondary p-3 scan-item-row"
+                         data-search-text="{{ scan.solar_system.name|lower }} {{ scan.threat_level|lower }}">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <div>
+                                <span class="fw-bold fs-6 text-light">{{ scan.solar_system.name|default:"Unknown System" }}</span>
+                                {% if scan.threat_level == "CRITICAL" or scan.threat_level == "HIGH" %}
+                                    <span class="badge badge-subtle-danger ms-1">{{ scan.threat_level }}</span>
+                                {% elif scan.threat_level == "MODERATE" %}
+                                    <span class="badge badge-subtle-warning ms-1">MODERATE</span>
+                                {% else %}
+                                    <span class="badge badge-subtle-secondary ms-1">LOW</span>
+                                {% endif %}
+                                {% if scan.distance_data and scan.distance_data.jumps is not None %}
+                                    <span class="badge badge-subtle-teal ms-1"><i class="fas fa-route me-1"></i>{{ scan.distance_data.display }}</span>
+                                {% endif %}
+                            </div>
+                            <span class="small text-muted">{{ scan.created_at|naturaltime }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mt-2 small flex-wrap gap-2">
+                            <div class="d-flex gap-3">
+                                <span><i class="fas fa-users text-muted me-1"></i>{{ scan.pilot_count }} pilots ({{ scan.hostile_count }} hostiles)</span>
+                                <span class="text-warning"><i class="fas fa-user-ninja me-1"></i>Blops: {{ scan.blops_drop_chance }}%</span>
+                                <span class="text-danger"><i class="fas fa-meteor me-1"></i>Cap Drop: {{ scan.cap_drop_chance }}%</span>
+                            </div>
+                            <a href="{% url 'hostile:threat_scan_detail' scan.id %}" class="btn btn-outline-info btn-xs py-0 px-2">
+                                <i class="fas fa-chart-line me-1"></i>{% translate "View Scan" %}
+                            </a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- RIGHT COLUMN: Strategic Landscape & Posture -->
+    <div class="col-12 col-xl-6 d-flex flex-column gap-4">
+        <!-- 1. Hostile Operational Hotspots (Top Active Systems) -->
+        <div class="card bg-dark text-white border-secondary hostile-card shadow-sm dashboard-searchable-card" data-card-category="hotspots">
+            <div class="card-header hostile-card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold text-uppercase text-primary d-flex align-items-center">
+                    <i class="fas fa-fire me-2 text-primary"></i>{% translate "Hostile Operational Hotspots" %}
+                    <span class="badge bg-primary text-light ms-2 font-mono">7 Days</span>
+                </h6>
+                <a href="{% url 'hostile:systems' %}" class="btn btn-outline-primary btn-xs py-0 px-2">{% translate "Systems Intel" %}</a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover mb-0 align-middle">
+                        <thead>
+                            <tr class="text-muted small text-uppercase">
+                                <th>{% translate "System" %}</th>
+                                <th>{% translate "Range" %}</th>
+                                <th>{% translate "Structures" %}</th>
+                                <th>{% translate "Camps" %}</th>
+                                <th>{% translate "Posture" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for spot in sorted_hotspots %}
+                            <tr class="hotspot-item-row" data-search-text="{{ spot.system.name|lower }} {{ spot.system.constellation.region.name|lower }}">
+                                <td>
+                                    <span class="fw-bold text-warning">{{ spot.system.name }}</span>
+                                    <span class="small text-muted d-block">{{ spot.system.constellation.region.name|default:"Space" }} (Sec: {{ spot.system.security_status|floatformat:1 }})</span>
+                                </td>
+                                <td class="font-mono small">
+                                    {% if spot.distance_data and spot.distance_data.jumps is not None %}
+                                        <span class="text-info">{{ spot.distance_data.display }}</span>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge badge-subtle-teal font-mono">{{ spot.structures_count }}</span>
+                                </td>
+                                <td>
+                                    <span class="badge {% if spot.camps_count > 0 %}badge-subtle-danger{% else %}badge-subtle-secondary{% endif %} font-mono">{{ spot.camps_count }}</span>
+                                </td>
+                                <td>
+                                    {% if spot.is_staging %}
+                                        <span class="badge badge-subtle-danger"><i class="fas fa-crosshairs me-1"></i>Staging</span>
+                                    {% else %}
+                                        <span class="badge badge-subtle-secondary">Active Corridor</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center py-4 text-muted">{% translate "No hostile activity clusters detected in the past 7 days." %}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Active Sovereignty Contests -->
+        {% if active_sov_campaigns %}
+        <div class="card bg-dark text-white border-secondary hostile-card shadow-sm dashboard-searchable-card" data-card-category="sov">
+            <div class="card-header hostile-card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold text-uppercase text-info d-flex align-items-center">
+                    <i class="fas fa-flag me-2 text-info"></i>{% translate "Active Sovereignty Battles" %}
+                    <span class="badge bg-info text-dark ms-2 font-mono">{{ active_sov_campaigns|length }}</span>
+                </h6>
+                <a href="{% url 'hostile:sov_timers' %}" class="btn btn-outline-info btn-xs py-0 px-2">{% translate "Sov Board" %}</a>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush bg-transparent">
+                    {% for sov in active_sov_campaigns %}
+                    <div class="list-group-item bg-transparent text-white border-secondary p-3 sov-item-row"
+                         data-search-text="{{ sov.solar_system.name|lower }} {{ sov.structure_event_name|lower }} {{ sov.defender_display|lower }}">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div>
+                                <span class="fw-bold text-light fs-6">{{ sov.structure_event_name|default:"Sovereignty Event" }}</span>
+                                <span class="badge badge-subtle-teal ms-1 font-mono">{{ sov.solar_system.name }}</span>
+                                {% if sov.distance_data and sov.distance_data.jumps is not None %}
+                                    <span class="badge bg-black text-muted border border-secondary ms-1"><i class="fas fa-route me-1"></i>{{ sov.distance_data.display }}</span>
+                                {% endif %}
+                            </div>
+                            {% if sov.is_ongoing or sov.has_started %}
+                                <span class="badge bg-danger pulse-glow-danger font-mono">
+                                    <i class="fas fa-satellite-dish me-1"></i>{% translate "ON-GOING" %}
+                                </span>
+                            {% else %}
+                                <span class="badge bg-info countdown-timer font-mono" data-expiry="{{ sov.timer_datetime|date:'c' }}">
+                                    {{ sov.timer_datetime|naturaltime }}
+                                </span>
+                            {% endif %}
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center small text-muted">
+                            <div>
+                                <span>Defender: <strong class="text-warning">{{ sov.defender_display }}</strong></span>
+                            </div>
+                            <div>
+                                <span class="badge badge-subtle-info font-mono">Score: {{ sov.defender_percent|default:"60" }}% / {{ sov.attacker_percent|default:"40" }}%</span>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- 3. Hostile Staging Hubs & Doctrines -->
+        <div class="card bg-dark text-white border-secondary hostile-card shadow-sm dashboard-searchable-card" data-card-category="stagings">
+            <div class="card-header hostile-card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold text-uppercase text-info d-flex align-items-center">
+                    <i class="fas fa-crosshairs me-2 text-info"></i>{% translate "Hostile Forward Stagings" %}
+                </h6>
+                <a href="{% url 'hostile:doctrines' %}" class="btn btn-outline-info btn-xs py-0 px-2">{% translate "All Stagings" %}</a>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush bg-transparent">
+                    {% for staging in recent_stagings %}
+                    <div class="list-group-item bg-transparent text-white border-secondary p-3 staging-item-row"
+                         data-search-text="{{ staging.solar_system.name|lower }} {{ staging.owner_name|lower }}">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <div>
+                                <span class="fw-bold fs-6 text-light">{{ staging.solar_system.name }}</span>
+                                {% if staging.is_primary %}
+                                    <span class="badge badge-subtle-danger ms-1">Primary Staging</span>
+                                {% else %}
+                                    <span class="badge badge-subtle-info ms-1">{{ staging.get_staging_type_display }}</span>
+                                {% endif %}
+                                {% if staging.distance_data and staging.distance_data.jumps is not None %}
+                                    <span class="badge badge-subtle-teal ms-1 font-mono"><i class="fas fa-route me-1"></i>{{ staging.distance_data.display }}</span>
+                                {% endif %}
+                            </div>
+                            <span class="badge badge-subtle-teal font-mono">{{ staging.doctrines.count }} doctrines</span>
+                        </div>
+                        <div class="small text-muted">
+                            {{ staging.owner_name }} &bull; Sec: {{ staging.solar_system.security_status|floatformat:1 }}
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="p-4 text-center text-muted">{% translate "No hostile staging hubs recorded." %}</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Hostile Fleet Doctrines -->
+        <div class="card bg-dark text-white border-secondary hostile-card shadow-sm dashboard-searchable-card" data-card-category="doctrines">
+            <div class="card-header hostile-card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold text-uppercase text-warning d-flex align-items-center">
+                    <i class="fas fa-shield-alt me-2 text-warning"></i>{% translate "Hostile Fleet Doctrines" %}
+                </h6>
+                <a href="{% url 'hostile:doctrines' %}" class="btn btn-outline-warning btn-xs py-0 px-2">{% translate "All Doctrines" %}</a>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush bg-transparent">
+                    {% for doctrine in recent_doctrines %}
+                    <div class="list-group-item bg-transparent text-white border-secondary p-3 doctrine-item-row"
+                         data-search-text="{{ doctrine.name|lower }} {{ doctrine.owner_name|lower }} {{ doctrine.primary_ship_types|lower }}">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <strong class="text-light">{{ doctrine.name }}</strong>
+                            <span class="badge badge-subtle-warning">{{ doctrine.get_role_type_display }}</span>
+                        </div>
+                        <div class="small text-muted mb-1">
+                            {{ doctrine.owner_name }} &bull; {{ doctrine.example_fits.count }} example fit(s)
+                        </div>
+                        {% if doctrine.primary_ship_types %}
+                            <div class="small font-mono text-info p-1 rounded bg-black bg-opacity-30 border border-secondary border-opacity-50 text-truncate">
+                                {{ doctrine.primary_ship_types }}
+                            </div>
+                        {% endif %}
+                    </div>
+                    {% empty %}
+                    <div class="p-4 text-center text-muted">{% translate "No fleet doctrines recorded." %}</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bottom Full-Width Section: Real-Time Live Intelligence Stream -->
+<div class="row mt-2">
+    <div class="col-12">
+        <div class="card bg-dark text-white border-secondary hostile-card shadow-sm">
+            <div class="card-header hostile-card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold text-uppercase text-light d-flex align-items-center">
+                    <i class="fas fa-stream me-2 text-info"></i>{% translate "Real-Time Intelligence Feed" %}
+                </h6>
+                <span class="badge bg-black text-muted border border-secondary small">{% translate "Latest 10 Ingestions" %}</span>
+            </div>
+            <div class="card-body p-4">
+                <div class="live-intel-timeline">
+                    {% for event in intel_feed %}
+                    <div class="live-intel-item pb-2">
+                        <div class="live-intel-dot"></div>
+                        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                            <div>
+                                <span class="fw-bold text-light"><i class="fas {{ event.icon }} me-1"></i>{{ event.title }}</span>
+                                <span class="badge {{ event.badge_class }} ms-1 font-mono">{{ event.badge }}</span>
+                                <p class="text-muted small mb-0 mt-1">{{ event.text }}</p>
+                            </div>
+                            <div class="text-end">
+                                <span class="small text-muted font-mono">{{ event.timestamp|naturaltime }} by {{ event.user }}</span>
+                                <div class="mt-1">
+                                    <a href="{{ event.link }}" class="btn btn-outline-secondary btn-xs py-0 px-2 text-info">
+                                        <i class="fas fa-arrow-right me-1"></i>{% translate "Inspect" %}
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="text-center py-3 text-muted">
+                        <i class="fas fa-inbox fa-2x mb-2 text-secondary"></i>
+                        <p class="mb-0">{% translate "No tactical events logged yet." %}</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Copy Toast Notification Container -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1080;">
+    <div id="copyToast" class="toast align-items-center text-white bg-dark border-info shadow-lg" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body">
+                <i class="fas fa-check-circle text-info me-2"></i><span id="copyToastMessage">{% translate "Copied to clipboard!" %}</span>
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    // 0. Initialize Bootstrap Tooltips
+    if (typeof bootstrap !== "undefined" && bootstrap.Tooltip) {
+        const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+    }
+
+    // 1. One-click Copy Ping / Sitrep generator
+    const copyToastEl = document.getElementById("copyToast");
+    const copyToastMsg = document.getElementById("copyToastMessage");
+    let toastInstance = null;
+    if (copyToastEl && typeof bootstrap !== "undefined") {
+        toastInstance = new bootstrap.Toast(copyToastEl, { delay: 2500 });
+    }
+
+    document.querySelectorAll(".ping-copy-btn").forEach(btn => {
+        btn.addEventListener("click", function(e) {
+            e.preventDefault();
+            const pingText = this.dataset.pingText;
+            if (pingText) {
+                navigator.clipboard.writeText(pingText).then(() => {
+                    if (copyToastMsg) copyToastMsg.textContent = "{% translate 'Tactical ping copied to clipboard!' %}";
+                    if (toastInstance) toastInstance.show();
+                }).catch(err => {
+                    console.error("Failed to copy ping:", err);
+                });
+            }
+        });
+    });
+
+    // 2. Real-Time Dashboard Omnisearch Filter
+    const omnisearchInput = document.getElementById("dashboardOmnisearch");
+    const btnClearSearch = document.getElementById("btnClearOmnisearch");
+    const searchableRows = document.querySelectorAll(".timer-item-row, .sitrep-item-row, .scan-item-row, .hotspot-item-row, .staging-item-row, .doctrine-item-row");
+
+    function filterDashboardItems() {
+        const query = omnisearchInput ? omnisearchInput.value.toLowerCase().trim() : "";
+        if (btnClearSearch) {
+            if (query) {
+                btnClearSearch.classList.remove("d-none");
+            } else {
+                btnClearSearch.classList.add("d-none");
+            }
+        }
+
+        searchableRows.forEach(row => {
+            const text = row.dataset.searchText || row.textContent.toLowerCase();
+            if (!query || text.includes(query)) {
+                row.classList.remove("d-none");
+            } else {
+                row.classList.add("d-none");
+            }
+        });
+    }
+
+    if (omnisearchInput) {
+        omnisearchInput.addEventListener("input", filterDashboardItems);
+    }
+    if (btnClearSearch) {
+        btnClearSearch.addEventListener("click", function() {
+            if (omnisearchInput) {
+                omnisearchInput.value = "";
+                filterDashboardItems();
+            }
+        });
+    }
+
+    // 3. Dynamic Auto-Sync 60s Ticker
+    let syncCountdown = 60;
+    const syncTimerEl = document.getElementById("dashboardSyncTimer");
+    setInterval(function() {
+        syncCountdown--;
+        if (syncCountdown <= 0) {
+            syncCountdown = 60;
+            // Background reload if user is not typing in a form
+            const activeEl = document.activeElement;
+            const isTyping = activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA");
+            if (!isTyping) {
+                window.location.reload();
+            }
+        }
+        if (syncTimerEl) {
+            syncTimerEl.textContent = syncCountdown + "s";
+        }
+    }, 1000);
+});
+</script>
+{% endblock %}

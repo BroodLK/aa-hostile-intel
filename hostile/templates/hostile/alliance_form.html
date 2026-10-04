@@ -1,0 +1,195 @@
+{% extends 'hostile/base.html' %}
+{% load i18n %}
+
+{% block details %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card bg-dark text-white border-secondary hostile-card shadow-sm">
+            <div class="card-header hostile-card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-bold">
+                    <i class="fas fa-globe-americas text-primary me-2"></i>
+                    {% if alliance %}{% translate "Edit Hostile Alliance:" %} {{ alliance.alliance_name }}{% else %}{% translate "Add Hostile Alliance" %}{% endif %}
+                </h5>
+                <a href="{% url 'hostile:alliances' %}" class="btn btn-sm btn-outline-secondary">
+                    <i class="fas fa-times me-1"></i>{% translate "Cancel" %}
+                </a>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger py-2 small mb-3">{{ form.non_field_errors }}</div>
+                    {% endif %}
+                    <div class="row g-3">
+                        <div class="col-md-5">
+                            <label class="form-label text-muted small fw-bold text-uppercase">
+                                <i class="fas fa-signature text-primary me-1"></i>{% translate "Alliance Name" %}
+                            </label>
+                            <div class="input-group">
+                                {{ form.alliance_name }}
+                                <button type="button" class="btn btn-outline-info" id="btnLookupAllianceName" title="{% translate 'Lookup Name & Auto-fill' %}">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                            </div>
+                            {% if form.alliance_name.errors %}<div class="text-danger small mt-1">{{ form.alliance_name.errors }}</div>{% endif %}
+                            <div class="form-text text-muted small">{% translate "Search by name (e.g. Pandemic Horde, Goonswarm Federation)" %}</div>
+                        </div>
+                        <div class="col-md-2 d-flex flex-column justify-content-center align-items-center text-center">
+                            <span class="badge bg-secondary px-3 py-2 fw-bold font-mono">{% translate "OR" %}</span>
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label text-muted small fw-bold text-uppercase">
+                                <i class="fas fa-hashtag text-info me-1"></i>{% translate "Alliance ID" %}
+                            </label>
+                            <div class="input-group">
+                                {{ form.alliance_id }}
+                                <button type="button" class="btn btn-outline-info" id="btnLookupAllianceId" title="{% translate 'Lookup ID & Auto-fill' %}">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                            </div>
+                            {% if form.alliance_id.errors %}<div class="text-danger small mt-1">{{ form.alliance_id.errors }}</div>{% endif %}
+                            <div class="form-text text-muted small">{% translate "Direct CCP ID (e.g. 99005338)" %}</div>
+                        </div>
+
+                        <div class="col-12" id="allianceLookupStatus" style="display: none;">
+                            <div class="alert alert-info py-2 small mb-0 d-flex align-items-center">
+                                <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                <span id="allianceLookupText">{% translate "Looking up entity details..." %}</span>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Ticker" %}</label>
+                            {{ form.ticker }}
+                            {% if form.ticker.errors %}<div class="text-danger small mt-1">{{ form.ticker.errors }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Coalition Affiliation" %}</label>
+                            {{ form.coalition }}
+                            {% if form.coalition.errors %}<div class="text-danger small mt-1">{{ form.coalition.errors }}</div>{% endif %}
+                            <div class="form-check form-switch mt-2">
+                                {{ form.is_coalition_leader }}
+                                <label class="form-check-label small fw-bold text-warning" for="id_is_coalition_leader">
+                                    <i class="fas fa-crown me-1"></i>{% translate "Coalition Leader / Exec Alliance" %}
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Primary Operational Timezone" %}</label>
+                            {{ form.primary_timezone }}
+                            {% if form.primary_timezone.errors %}<div class="text-danger small mt-1">{{ form.primary_timezone.errors }}</div>{% endif %}
+                            <div class="form-check form-switch mt-2">
+                                {{ form.override_timezone }}
+                                <label class="form-check-label small fw-bold text-info" for="id_override_timezone">
+                                    <i class="fas fa-lock me-1"></i>{% translate "Lock Manual Override" %}
+                                </label>
+                            </div>
+                            <div class="form-text text-muted small">{% translate "If not locked, TZ auto-detects from zKill kills and structure timers." %}</div>
+                        </div>
+
+                        <div class="col-12"><hr class="border-secondary my-2"></div>
+
+                        <div class="col-12">
+                            <div class="form-check form-switch mb-2">
+                                {{ form.is_friendly }}
+                                <label class="form-check-label fw-bold text-success" for="id_is_friendly">
+                                    <i class="fas fa-handshake me-1"></i>{% translate "Flag as Friendly / Ignored Alliance" %}
+                                </label>
+                            </div>
+                            <div class="form-text text-muted small mb-2">{% translate "If flagged as friendly, pilots and structures of this alliance are excluded/ignored across threat scans and hostile intel tracking." %}</div>
+                            <div class="form-check form-switch">
+                                {{ form.is_alt_alliance }}
+                                <label class="form-check-label fw-bold text-warning" for="id_is_alt_alliance">
+                                    <i class="fas fa-shield-alt me-1"></i>{% translate "Flag as Alt / Holding Alliance" %}
+                                </label>
+                            </div>
+                            <div class="form-text text-muted small">{% translate "Enable if this alliance is an alt holding entity, structure holder, or proxy alliance for a main coalition member." %}</div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Main / Parent Alliance" %}</label>
+                            {{ form.main_alliance }}
+                            {% if form.main_alliance.errors %}<div class="text-danger small mt-1">{{ form.main_alliance.errors }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">
+                                <i class="fas fa-chess-king text-danger me-1"></i>{% translate "Sovereignty Capital" %}
+                            </label>
+                            {{ form.sov_capital }}
+                            {% if form.sov_capital.errors %}<div class="text-danger small mt-1">{{ form.sov_capital.errors }}</div>{% endif %}
+                            <div class="form-text text-muted small">{% translate "Designated sovereignty capital (automatically creates or updates the primary staging system)." %}</div>
+                        </div>
+                        <div class="col-12"><hr class="border-secondary my-2"></div>
+                        <div class="col-12">
+                            <h6 class="text-uppercase fw-bold text-muted small mb-1">{% translate "Fleet Escalation & Max Formup Capacity" %}</h6>
+                            <p class="text-muted small">{% translate "Define or override estimated maximum formup numbers for subcap fleets, capital escalations (Dreads/FAX), and supercapital deployments." %}</p>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Max Subcap Form" %}</label>
+                            {{ form.max_subcap_form }}
+                            {% if form.max_subcap_form.errors %}<div class="text-danger small mt-1">{{ form.max_subcap_form.errors }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Max Capital Form (Dreads/FAX)" %}</label>
+                            {{ form.max_cap_form }}
+                            {% if form.max_cap_form.errors %}<div class="text-danger small mt-1">{{ form.max_cap_form.errors }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Max Super Form (Supers/Titans)" %}</label>
+                            {{ form.max_super_form }}
+                            {% if form.max_super_form.errors %}<div class="text-danger small mt-1">{{ form.max_super_form.errors }}</div>{% endif %}
+                        </div>
+                        <div class="col-12 d-flex justify-content-end gap-2 mt-4">
+                            <a href="{% url 'hostile:alliances' %}" class="btn btn-outline-secondary">{% translate "Cancel" %}</a>
+                            <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i>{% translate "Save Alliance Intel" %}</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% block extra_javascript %}
+{{ block.super }}
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const nameInput = document.getElementById("id_alliance_name");
+    const idInput = document.getElementById("id_alliance_id");
+    const tickerInput = document.getElementById("id_ticker");
+    const btnName = document.getElementById("btnLookupAllianceName");
+    const btnId = document.getElementById("btnLookupAllianceId");
+    const statusDiv = document.getElementById("allianceLookupStatus");
+    const statusText = document.getElementById("allianceLookupText");
+
+    function doLookup(query) {
+        if (!query || !query.trim()) return;
+        statusDiv.style.display = "block";
+        statusText.textContent = `Resolving alliance '${query}' from internal database / ESI...`;
+
+        fetch(`/hostile/api/alliance-resolve/?query=${encodeURIComponent(query.trim())}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.success && data.alliance) {
+                    const a = data.alliance;
+                    if (a.alliance_name) nameInput.value = a.alliance_name;
+                    if (a.alliance_id) idInput.value = a.alliance_id;
+                    if (a.ticker) tickerInput.value = a.ticker;
+                    statusText.textContent = `Found: ${a.alliance_name} [${a.ticker || ''}] (ID: ${a.alliance_id})`;
+                    setTimeout(() => { statusDiv.style.display = "none"; }, 3000);
+                } else {
+                    statusText.textContent = data.error || "Alliance not found.";
+                    setTimeout(() => { statusDiv.style.display = "none"; }, 3000);
+                }
+            })
+            .catch(err => {
+                statusText.textContent = "Error resolving alliance.";
+                setTimeout(() => { statusDiv.style.display = "none"; }, 3000);
+            });
+    }
+
+    if (btnName) btnName.addEventListener("click", () => doLookup(nameInput.value));
+    if (btnId) btnId.addEventListener("click", () => doLookup(idInput.value));
+});
+</script>
+{% endblock %}
+{% endblock %}

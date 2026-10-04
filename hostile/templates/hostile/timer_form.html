@@ -1,0 +1,88 @@
+{% extends 'hostile/base.html' %}
+{% load i18n %}
+
+{% block details %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card bg-dark text-white border-secondary hostile-card shadow-sm">
+            <div class="card-header hostile-card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-bold">
+                    <i class="fas fa-clock text-warning me-2"></i>
+                    {% if timer %}{% translate "Edit Structure / Sovereignty Timer" %}{% else %}{% translate "Add Structure Timer" %}{% endif %}
+                </h5>
+                <a href="{% url 'hostile:timers' %}" class="btn btn-sm btn-outline-secondary">
+                    <i class="fas fa-times me-1"></i>{% translate "Cancel" %}
+                </a>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger py-2 small mb-3">{{ form.non_field_errors }}</div>
+                    {% endif %}
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">
+                                <i class="fas fa-tag text-info me-1"></i>{% translate "Timer Type" %}
+                            </label>
+                            {{ form.timer_type }}
+                            {% if form.timer_type.errors %}<div class="text-danger small mt-1">{{ form.timer_type.errors }}</div>{% endif %}
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">
+                                <i class="fas fa-calendar-alt text-primary me-1"></i>{% translate "Timer Exit Datetime (UTC)" %}
+                            </label>
+                            {{ form.timer_datetime }}
+                            {% if form.timer_datetime.errors %}<div class="text-danger small mt-1">{{ form.timer_datetime.errors }}</div>{% endif %}
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">
+                                <i class="fas fa-monument text-secondary me-1"></i>{% translate "Linked Structure (Optional)" %}
+                            </label>
+                            {{ form.structure }}
+                            {% if form.structure.errors %}<div class="text-danger small mt-1">{{ form.structure.errors }}</div>{% endif %}
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">
+                                <i class="fas fa-map-marker-alt text-danger me-1"></i>{% translate "Solar System" %}
+                            </label>
+                            {{ form.solar_system }}
+                            {% if form.solar_system.errors %}<div class="text-danger small mt-1">{{ form.solar_system.errors }}</div>{% endif %}
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label text-muted small fw-bold text-uppercase">
+                                <i class="fas fa-sticky-note text-warning me-1"></i>{% translate "Tactical Notes / Sitrep" %}
+                            </label>
+                            {{ form.notes }}
+                            {% if form.notes.errors %}<div class="text-danger small mt-1">{{ form.notes.errors }}</div>{% endif %}
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mt-4">
+                        {% if timer %}
+                        <a href="{% url 'hostile:timer_delete' timer.id %}" class="btn btn-outline-danger btn-sm">
+                            <i class="fas fa-trash-alt me-1"></i>{% translate "Delete Timer" %}
+                        </a>
+                        {% else %}
+                        <div></div>
+                        {% endif %}
+                        <div class="d-flex gap-2">
+                            <a href="{% url 'hostile:timers' %}" class="btn btn-secondary">
+                                {% translate "Cancel" %}
+                            </a>
+                            <button type="submit" class="btn btn-primary fw-bold px-4">
+                                <i class="fas fa-save me-1"></i>{% translate "Save Timer" %}
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

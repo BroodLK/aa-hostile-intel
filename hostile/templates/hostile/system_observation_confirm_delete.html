@@ -1,0 +1,56 @@
+{% extends 'hostile/base.html' %}
+{% load i18n %}
+
+{% block details %}
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="card bg-dark text-white border-danger hostile-card shadow-sm">
+            <div class="card-header bg-danger bg-opacity-25 border-danger d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-bold text-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>{% translate "Confirm Observation Deletion" %}
+                </h5>
+                <a href="{% url 'hostile:systems' %}" class="btn btn-sm btn-outline-secondary">
+                    <i class="fas fa-times me-1"></i>{% translate "Cancel" %}
+                </a>
+            </div>
+            <div class="card-body">
+                <p class="lead fs-6 mb-3">
+                    {% blocktranslate with system=observation.solar_system.name %}Are you sure you want to permanently delete the threat observation in <strong>{{ system }}</strong>?{% endblocktranslate %}
+                </p>
+
+                <div class="bg-black bg-opacity-50 p-3 rounded border border-secondary mb-3">
+                    <div class="row g-2 small">
+                        <div class="col-4 text-muted text-uppercase fw-bold">{% translate "Solar System:" %}</div>
+                        <div class="col-8 text-info font-mono">{{ observation.solar_system.name|default:"Unknown" }}</div>
+
+                        <div class="col-4 text-muted text-uppercase fw-bold">{% translate "Threat Level:" %}</div>
+                        <div class="col-8 text-light fw-bold">{{ observation.get_threat_level_display }}</div>
+
+                        <div class="col-4 text-muted text-uppercase fw-bold">{% translate "Camp / Cyno:" %}</div>
+                        <div class="col-8 text-light">
+                            {% if observation.has_gate_camp %}<span class="badge bg-danger">{% translate "Gate Camp" %}</span>{% endif %}
+                            {% if observation.has_cyno_beacon %}<span class="badge bg-warning text-dark">{% translate "Cyno Beacon" %}</span>{% endif %}
+                            {% if not observation.has_gate_camp and not observation.has_cyno_beacon %}<span class="text-muted">{% translate "None" %}</span>{% endif %}
+                        </div>
+
+                        <div class="col-4 text-muted text-uppercase fw-bold">{% translate "Reported By:" %}</div>
+                        <div class="col-8 text-light">{{ observation.created_by.username|default:"Anonymous" }}</div>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center">
+                    <a href="{% url 'hostile:systems' %}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left me-1"></i>{% translate "Go Back" %}
+                    </a>
+                    <form action="{% url 'hostile:system_observation_delete' observation.id %}" method="post">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger fw-bold px-4">
+                            <i class="fas fa-trash-alt me-1"></i>{% translate "Delete Observation" %}
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

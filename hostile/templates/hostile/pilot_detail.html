@@ -1,0 +1,421 @@
+{% extends 'hostile/base.html' %}
+{% load i18n humanize %}
+
+{% block details %}
+<!-- Navigation and Quick Breadcrumb -->
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <a href="{% url 'hostile:pilots' %}" class="btn btn-sm btn-outline-secondary mb-2">
+            <i class="fas fa-arrow-left me-1"></i>{% translate "Back to Pilot Dossiers" %}
+        </a>
+        <h4 class="mb-0 fw-bold d-flex align-items-center gap-2">
+            <i class="fas fa-id-card text-info"></i>
+            <span>{{ pilot.character_name }}</span>
+            {% if pilot.is_verified %}
+                <span class="badge bg-success fs-6"><i class="fas fa-check-circle me-1"></i>{% translate "Verified Dossier" %}</span>
+            {% else %}
+                <span class="badge bg-warning text-dark fs-6"><i class="fas fa-question-circle me-1"></i>{% translate "Unverified" %}</span>
+            {% endif %}
+        </h4>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="{% url 'hostile:pilot_sync_zkill' pilot.id %}" class="btn btn-sm btn-outline-info" title="{% translate 'Refresh zKillboard stats & behavioral tags' %}">
+            <i class="fas fa-sync-alt me-1"></i>{% translate "Sync zKill" %}
+        </a>
+        {% if perms.hostile.manage_intel and not pilot.is_verified %}
+        <a href="{% url 'hostile:pilot_verify' pilot.id %}" class="btn btn-sm btn-outline-success">
+            <i class="fas fa-check me-1"></i>{% translate "Verify Dossier" %}
+        </a>
+        {% endif %}
+        {% if can_edit %}
+        <a href="{% url 'hostile:pilot_edit' pilot.id %}" class="btn btn-sm btn-secondary">
+            <i class="fas fa-edit me-1"></i>{% translate "Edit Pilot" %}
+        </a>
+        {% endif %}
+        {% if perms.hostile.manage_intel %}
+        <a href="{% url 'hostile:pilot_delete' pilot.id %}" class="btn btn-sm btn-outline-danger">
+            <i class="fas fa-trash-alt me-1"></i>{% translate "Delete Dossier" %}
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Main Pilot Dossier Header Card -->
+<div class="card bg-dark text-white border-secondary hostile-card shadow-sm mb-4">
+    <div class="card-body p-4">
+        <div class="row align-items-center g-4">
+            <div class="col-auto text-center">
+                <img src="https://images.evetech.net/characters/{{ pilot.character_id }}/portrait?size=128" alt="{{ pilot.character_name }}" class="rounded-circle border border-secondary shadow-sm mb-2" style="width: 100px; height: 100px;">
+                {% if pilot.danger_ratio or pilot.gang_ratio %}
+                <div class="d-flex justify-content-center">
+                    <div class="danger-meter-container" data-bs-toggle="tooltip" title="{% translate 'Danger Ratio' %}: {{ pilot.danger_ratio }}% ({{ pilot.gang_ratio }}% {% translate 'Gang' %})">
+                        {% for filled in pilot.danger_boxes %}
+                            <div class="danger-box {% if filled %}filled-{{ pilot.danger_level_class }}{% endif %}"></div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="small text-muted font-mono mt-1">{{ pilot.danger_ratio }}% Danger</div>
+                {% endif %}
+            </div>
+            <div class="col">
+                <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                    <h3 class="mb-0 fw-bold text-light">{{ pilot.character_name }}</h3>
+                    {% if pilot.is_alt %}
+                        <span class="badge bg-warning text-dark fs-6"><i class="fas fa-user-secret me-1"></i>{% translate "Known Alt" %}</span>
+                    {% else %}
+                        <span class="badge bg-primary fs-6"><i class="fas fa-user me-1"></i>{% translate "Main Character" %}</span>
+                    {% endif %}
+                    {% if pilot.is_out_of_corp %}
+                        <span class="badge badge-subtle-danger fs-6"><i class="fas fa-mask me-1"></i>{% translate "Undercover / Out of Corp" %}</span>
+                    {% endif %}
+                </div>
+
+                <div class="small text-muted mb-2">
+                    <span class="text-secondary"><i class="fas fa-building me-1"></i>{% translate "Corporation" %}:</span>
+                    <strong class="text-light">{{ pilot.display_corporation_name|default:"Unknown Corporation" }}</strong>
+                    {% if pilot.corporation_ticker %}
+                        <span class="text-info fw-bold font-mono">[{{ pilot.corporation_ticker }}]</span>
+                    {% endif %}
+                    {% if pilot.alliance_name %}
+                        &bull; <span class="text-secondary"><i class="fas fa-globe me-1"></i>{% translate "In-Game Alliance" %}:</span>
+                        <strong class="text-light">{{ pilot.alliance_name }}</strong>
+                        {% if pilot.alliance_ticker %}
+                            <span class="text-warning fw-bold font-mono">&lt;{{ pilot.alliance_ticker }}&gt;</span>
+                        {% endif %}
+                    {% endif %}
+                </div>
+
+                {% if pilot.associated_alliance_name %}
+                    <div class="mb-2">
+                        <span class="badge badge-subtle-danger font-mono p-2">
+                            <i class="fas fa-mask me-1"></i>{% translate "Hostile Alt Tracking:" %} {{ pilot.associated_alliance_name }}
+                            {% if associated_alliance %}
+                                &bull; <a href="{% url 'hostile:alliance_detail' associated_alliance.id %}" class="text-danger fw-bold text-decoration-underline">{% translate "View Alliance Dossier" %}</a>
+                            {% endif %}
+                        </span>
+                    </div>
+                {% endif %}
+
+                {% if pilot.is_alt and pilot.main_character %}
+                    <div class="alert alert-dark border-secondary p-2 mb-2 d-flex align-items-center gap-2">
+                        <i class="fas fa-link text-warning"></i>
+                        <span>{% translate "Alt of Main Character:" %}</span>
+                        <a href="{% url 'hostile:pilot_detail' pilot.main_character.id %}" class="fw-bold text-info text-decoration-underline">
+                            {{ pilot.main_character.character_name }}
+                        </a>
+                        {% if pilot.alt_confidence %}
+                            <span class="badge {% if pilot.alt_confidence == 'HIGH' %}bg-danger{% elif pilot.alt_confidence == 'MEDIUM' %}bg-warning text-dark{% else %}bg-secondary{% endif %} ms-auto">
+                                {{ pilot.alt_confidence }} {% translate "Confidence" %}
+                            </span>
+                        {% endif %}
+                    </div>
+                {% endif %}
+
+                <div class="d-flex flex-wrap gap-3 text-muted small font-mono mt-3">
+                    <span><i class="fas fa-hashtag me-1"></i>ID: {{ pilot.character_id }}</span>
+                    {% if pilot.security_status is not None %}
+                        <span class="{% if pilot.security_status < 0 %}text-danger{% else %}text-success{% endif %} fw-semibold">
+                            <i class="fas fa-shield-alt me-1"></i>Sec: {{ pilot.formatted_sec_status }}
+                        </span>
+                    {% endif %}
+                    {% if pilot.birthday %}
+                        <span><i class="fas fa-birthday-cake me-1"></i>Age: {{ pilot.birthday|date:"Y-m-d" }}{% if pilot.age_years %} ({{ pilot.age_years }}y){% endif %}</span>
+                    {% endif %}
+                    {% if pilot.last_seen_system %}
+                        <span class="text-warning"><i class="fas fa-map-marker-alt me-1"></i>Last Seen: {{ pilot.last_seen_system.name }}</span>
+                    {% endif %}
+                    <a href="https://zkillboard.com/character/{{ pilot.character_id }}/" target="_blank" rel="noopener noreferrer" class="text-danger text-decoration-none">
+                        <i class="fas fa-skull-crossbones me-1"></i>zKillboard <i class="fas fa-external-link-alt fa-xs"></i>
+                    </a>
+                    <a href="https://evewho.com/character/{{ pilot.character_id }}" target="_blank" rel="noopener noreferrer" class="text-info text-decoration-none">
+                        <i class="fas fa-users me-1"></i>Evewho <i class="fas fa-external-link-alt fa-xs"></i>
+                    </a>
+                </div>
+            </div>
+            <div class="col-lg-auto text-lg-end">
+                <div class="text-muted small">
+                    <i class="fas fa-calendar-alt me-1"></i>{% translate "Registered:" %} {{ pilot.created_at|date:"Y-m-d" }}
+                </div>
+                {% if pilot.last_seen_date %}
+                <div class="text-muted small mt-1">
+                    <i class="fas fa-clock me-1"></i>{% translate "Last Active:" %} {{ pilot.last_seen_date|date:"Y-m-d H:i" }} UTC
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Left Column: Combat Intelligence & Behavioral Roles -->
+    <div class="col-lg-7">
+        <!-- Behavioral Classification Badges Deck -->
+        <div class="card bg-dark text-white border-secondary hostile-card shadow-sm mb-4">
+            <div class="card-header bg-black bg-opacity-25 border-secondary d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold"><i class="fas fa-user-tag text-info me-2"></i>{% translate "Tactical Behavioral Classification" %}</h6>
+                <span class="badge bg-secondary font-mono">{{ pilot.zkill_labels|length }} Tags</span>
+            </div>
+            <div class="card-body">
+                <div class="d-flex flex-wrap gap-2 mb-3">
+                    {% if pilot.is_fc %}
+                        <span class="badge badge-zkill-fc p-2 fs-6"><i class="fas fa-crown me-1"></i>{{ pilot.fc_display }}</span>
+                    {% endif %}
+                    {% if pilot.is_bait %}
+                        <span class="badge badge-zkill-bait p-2 fs-6"><i class="fas fa-fish me-1"></i>{{ pilot.bait_display }}</span>
+                    {% endif %}
+                    {% if pilot.is_blops_pilot %}
+                        <span class="badge badge-zkill-blops p-2 fs-6"><i class="fas fa-user-ninja me-1"></i>{{ pilot.blops_display }}</span>
+                    {% endif %}
+                    {% if pilot.is_cyno_alt %}
+                        <span class="badge badge-zkill-cyno p-2 fs-6"><i class="fas fa-broadcast-tower me-1"></i>{{ pilot.cyno_display }}</span>
+                    {% endif %}
+                    {% if pilot.is_titan_pilot %}
+                        <span class="badge badge-zkill-titan p-2 fs-6"><i class="fas fa-sun me-1"></i>{{ pilot.titan_display }}</span>
+                    {% endif %}
+                    {% if pilot.is_super_pilot %}
+                        <span class="badge badge-zkill-super p-2 fs-6"><i class="fas fa-chess-queen me-1"></i>{{ pilot.super_display }}</span>
+                    {% endif %}
+                    {% if pilot.is_dread_pilot %}
+                        <span class="badge badge-zkill-dread p-2 fs-6"><i class="fas fa-crosshairs me-1"></i>{% translate "Dreadnought" %}</span>
+                    {% endif %}
+                    {% if pilot.is_fax_pilot %}
+                        <span class="badge badge-zkill-fax p-2 fs-6"><i class="fas fa-plus-square me-1"></i>{% translate "Force Auxiliary (FAX)" %}</span>
+                    {% endif %}
+                    {% if pilot.is_capital_pilot and not pilot.is_dread_pilot and not pilot.is_fax_pilot and not pilot.is_super_pilot and not pilot.is_titan_pilot %}
+                        <span class="badge badge-zkill-capital p-2 fs-6"><i class="fas fa-shield-alt me-1"></i>{{ pilot.capital_display }}</span>
+                    {% endif %}
+                    {% if pilot.is_awox %}
+                        <span class="badge badge-zkill-awox p-2 fs-6"><i class="fas fa-skull-crossbones me-1"></i>{{ pilot.awox_display }}</span>
+                    {% endif %}
+                    {% if pilot.is_alliance_awox %}
+                        <span class="badge badge-zkill-awox p-2 fs-6"><i class="fas fa-skull-crossbones me-1"></i>{{ pilot.alliance_awox_display }}</span>
+                    {% endif %}
+                    {% if pilot.is_faction_awox %}
+                        <span class="badge badge-zkill-awox p-2 fs-6"><i class="fas fa-skull-crossbones me-1"></i>{{ pilot.faction_awox_display }}</span>
+                    {% endif %}
+                    {% if pilot.is_ganker %}
+                        <span class="badge badge-zkill-ganker p-2 fs-6"><i class="fas fa-bolt me-1"></i>{{ pilot.ganker_display }}</span>
+                    {% endif %}
+                    {% if pilot.is_logi_pilot %}
+                        <span class="badge badge-zkill-logi p-2 fs-6"><i class="fas fa-first-aid me-1"></i>{{ pilot.logi_display }}</span>
+                    {% endif %}
+                    {% if pilot.is_rookie %}
+                        <span class="badge badge-zkill-rookie p-2 fs-6"><i class="fas fa-seedling me-1"></i>{% translate "Rookie Pilot" %}</span>
+                    {% endif %}
+                    {% if not pilot.is_fc and not pilot.is_bait and not pilot.is_blops_pilot and not pilot.is_cyno_alt and not pilot.is_titan_pilot and not pilot.is_super_pilot and not pilot.is_capital_pilot and not pilot.is_awox and not pilot.is_ganker and not pilot.is_logi_pilot and not pilot.is_rookie %}
+                        <span class="text-muted small italic">{% translate "No distinct behavioral tags recorded. Sync with zKillboard to ingest combat roles." %}</span>
+                    {% endif %}
+                </div>
+
+                {% if pilot.likely_ship %}
+                <div class="p-3 bg-black bg-opacity-25 rounded border border-secondary mb-3">
+                    <div class="small text-muted mb-1"><i class="fas fa-crosshairs text-warning me-1"></i>{% translate "Primary / Most Likely Flown Ship" %}:</div>
+                    <span class="badge bg-warning text-dark fw-bold fs-6">{{ pilot.likely_ship }}</span>
+                </div>
+                {% endif %}
+
+                {% if pilot.top_ships %}
+                <div>
+                    <div class="small text-muted mb-2"><i class="fas fa-space-shuttle text-info me-1"></i>{% translate "Recent Top Flown Ship Hulls" %}:</div>
+                    <div class="d-flex flex-wrap gap-1">
+                        {% for ship in pilot.top_ships %}
+                            <span class="badge bg-secondary font-mono">{{ ship }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Local Threat Scan Sightings -->
+        <div class="card bg-dark text-white border-secondary hostile-card shadow-sm mb-4">
+            <div class="card-header bg-black bg-opacity-25 border-secondary d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold"><i class="fas fa-radar text-danger me-2"></i>{% translate "Recent Local Threat Scan Sightings" %}</h6>
+                <span class="badge bg-secondary font-mono">{{ scan_sightings|length }}</span>
+            </div>
+            <div class="card-body p-0">
+                {% if scan_sightings %}
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover mb-0 align-middle">
+                        <thead>
+                            <tr class="text-secondary small font-mono">
+                                <th>{% translate "Time" %}</th>
+                                <th>{% translate "Solar System" %}</th>
+                                <th>{% translate "Pilots" %}</th>
+                                <th>{% translate "Drop Risk" %}</th>
+                                <th class="text-end">{% translate "Action" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for scan in scan_sightings %}
+                            <tr>
+                                <td class="font-mono small">{{ scan.created_at|date:"Y-m-d H:i" }}</td>
+                                <td>
+                                    <span class="fw-bold text-light">{{ scan.solar_system.name|default:"Unknown" }}</span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-secondary font-mono">{{ scan.pilot_count }}</span>
+                                </td>
+                                <td>
+                                    {% if scan.blops_drop_chance >= 50 or scan.cap_drop_chance >= 50 %}
+                                        <span class="badge bg-danger font-mono">{{ scan.blops_drop_chance }}%</span>
+                                    {% elif scan.blops_drop_chance >= 20 or scan.cap_drop_chance >= 20 %}
+                                        <span class="badge bg-warning text-dark font-mono">{{ scan.blops_drop_chance }}%</span>
+                                    {% else %}
+                                        <span class="badge bg-success font-mono">{{ scan.blops_drop_chance }}%</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">
+                                    <a href="{% url 'hostile:threat_scan_detail' scan.id %}" class="btn btn-sm btn-outline-info">
+                                        <i class="fas fa-eye me-1"></i>{% translate "View Scan" %}
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="p-4 text-center text-muted">
+                    <i class="fas fa-radar fa-2x mb-2 text-secondary"></i>
+                    <div>{% translate "No recorded local threat scans matching this pilot's name." %}</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Tactical Notes & Observations -->
+        <div class="card bg-dark text-white border-secondary hostile-card shadow-sm mb-4">
+            <div class="card-header bg-black bg-opacity-25 border-secondary">
+                <h6 class="mb-0 fw-bold"><i class="fas fa-sticky-note text-warning me-2"></i>{% translate "Intel Notes & Field Reports" %}</h6>
+            </div>
+            <div class="card-body">
+                {% if pilot.notes %}
+                    <div class="p-3 bg-black bg-opacity-25 rounded border border-secondary mb-3 font-mono text-light" style="white-space: pre-wrap;">{{ pilot.notes }}</div>
+                {% else %}
+                    <p class="text-muted italic mb-3">{% translate "No intelligence notes logged for this pilot." %}</p>
+                {% endif %}
+
+                {% if observations %}
+                    <h6 class="fw-bold text-info mt-3 mb-2"><i class="fas fa-eye me-1"></i>{% translate "Linked Sitreps & System Observations" %}</h6>
+                    <div class="list-group list-group-flush bg-transparent">
+                        {% for obs in observations %}
+                            <div class="list-group-item bg-transparent text-white border-secondary px-0 py-2">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <strong class="text-warning">{{ obs.solar_system.name }}</strong>
+                                        <span class="badge {% if obs.threat_level == 'EXTREME' or obs.threat_level == 'HIGH' %}bg-danger{% else %}bg-secondary{% endif %} ms-1 font-mono">
+                                            {{ obs.threat_level }}
+                                        </span>
+                                    </div>
+                                    <span class="small text-muted font-mono">{{ obs.time_seen|date:"Y-m-d H:i" }} UTC</span>
+                                </div>
+                                <div class="small text-muted mt-1">{{ obs.observation_text|truncatewords:20 }}</div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column: Alt Network & Audit History -->
+    <div class="col-lg-5">
+        <!-- Known Alts & Alt Association Network -->
+        <div class="card bg-dark text-white border-secondary hostile-card shadow-sm mb-4">
+            <div class="card-header bg-black bg-opacity-25 border-secondary d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold"><i class="fas fa-network-wired text-info me-2"></i>{% translate "Alt Character Network" %}</h6>
+                <span class="badge bg-secondary font-mono">{{ known_alts|length|add:sibling_alts|length }} Alts</span>
+            </div>
+            <div class="card-body">
+                {% if known_alts %}
+                    <div class="small text-secondary mb-2">{% translate "Identified Alts of" %} {{ pilot.character_name }}:</div>
+                    <div class="d-flex flex-column gap-2 mb-3">
+                        {% for alt in known_alts %}
+                            <div class="p-2 bg-black bg-opacity-25 rounded border border-secondary d-flex align-items-center justify-content-between">
+                                <div class="d-flex align-items-center">
+                                    <img src="https://images.evetech.net/characters/{{ alt.character_id }}/portrait?size=32" alt="{{ alt.character_name }}" class="rounded-circle me-2" style="width: 32px; height: 32px;">
+                                    <div>
+                                        <a href="{% url 'hostile:pilot_detail' alt.id %}" class="fw-bold text-light text-decoration-none">
+                                            {{ alt.character_name }}
+                                        </a>
+                                        <div class="small text-muted font-mono">
+                                            {{ alt.corporation_name|default:"Unknown" }}
+                                            {% if alt.alt_inference_reason %}&bull; {{ alt.alt_inference_reason }}{% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                                {% if alt.alt_confidence %}
+                                    <span class="badge {% if alt.alt_confidence == 'HIGH' %}bg-danger{% elif alt.alt_confidence == 'MEDIUM' %}bg-warning text-dark{% else %}bg-secondary{% endif %} font-mono">
+                                        {{ alt.alt_confidence }}
+                                    </span>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                {% if sibling_alts %}
+                    <div class="small text-secondary mb-2">{% translate "Other Alts in this Network:" %}</div>
+                    <div class="d-flex flex-column gap-2 mb-3">
+                        {% for alt in sibling_alts %}
+                            <div class="p-2 bg-black bg-opacity-25 rounded border border-secondary d-flex align-items-center justify-content-between">
+                                <div class="d-flex align-items-center">
+                                    <img src="https://images.evetech.net/characters/{{ alt.character_id }}/portrait?size=32" alt="{{ alt.character_name }}" class="rounded-circle me-2" style="width: 32px; height: 32px;">
+                                    <div>
+                                        <a href="{% url 'hostile:pilot_detail' alt.id %}" class="fw-bold text-light text-decoration-none">
+                                            {{ alt.character_name }}
+                                        </a>
+                                        <div class="small text-muted font-mono">{{ alt.corporation_name|default:"Unknown" }}</div>
+                                    </div>
+                                </div>
+                                <a href="{% url 'hostile:pilot_detail' alt.id %}" class="btn btn-sm btn-outline-secondary py-0 px-2 font-mono">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                {% if not known_alts and not sibling_alts %}
+                    <div class="text-center text-muted py-3">
+                        <i class="fas fa-users-slash fa-2x mb-2 text-secondary"></i>
+                        <div>{% translate "No alt character linkages recorded for this pilot." %}</div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Audit Trail / History -->
+        <div class="card bg-dark text-white border-secondary hostile-card shadow-sm mb-4">
+            <div class="card-header bg-black bg-opacity-25 border-secondary">
+                <h6 class="mb-0 fw-bold"><i class="fas fa-history text-secondary me-2"></i>{% translate "Audit Trail & Modifications" %}</h6>
+            </div>
+            <div class="card-body p-0">
+                {% if audit_trail %}
+                <ul class="list-group list-group-flush bg-transparent">
+                    {% for audit in audit_trail|slice:":10" %}
+                    <li class="list-group-item bg-transparent text-white border-secondary d-flex justify-content-between align-items-start">
+                        <div>
+                            <span class="badge {% if audit.action == 'CREATE' %}bg-success{% elif audit.action == 'UPDATE' or audit.action == 'SYNC' %}bg-info text-dark{% elif audit.action == 'DELETE' %}bg-danger{% else %}bg-secondary{% endif %} me-2">
+                                {{ audit.action }}
+                            </span>
+                            <span class="small">{{ audit.details }}</span>
+                            <div class="text-muted small mt-1">
+                                <i class="fas fa-user me-1"></i>{{ audit.user.username|default:"System" }}
+                            </div>
+                        </div>
+                        <span class="text-muted small font-mono">{{ audit.timestamp|date:"M d, H:i" }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <div class="p-3 text-muted text-center small">
+                    {% translate "No audit records found." %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,97 @@
+{% extends 'hostile/base.html' %}
+{% load i18n %}
+
+{% block details %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card bg-dark text-white border-secondary hostile-card shadow-sm">
+            <div class="card-header hostile-card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-bold">
+                    <i class="fas fa-space-shuttle text-info me-2"></i>
+                    {% if doctrine_fit %}{% translate "Edit Example Fit:" %} <span class="text-light">{{ doctrine_fit.name }}</span>{% else %}{% translate "Add Example Fit" %}{% endif %}
+                </h5>
+                <a href="{% url 'hostile:doctrines' %}" class="btn btn-sm btn-outline-secondary">
+                    <i class="fas fa-times me-1"></i>{% translate "Cancel" %}
+                </a>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger py-2 small mb-3">{{ form.non_field_errors }}</div>
+                    {% endif %}
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">
+                                <i class="fas fa-signature text-primary me-1"></i>{% translate "Fit Name / Role" %}
+                            </label>
+                            {{ form.name }}
+                            {% if form.name.errors %}<div class="text-danger small mt-1">{{ form.name.errors }}</div>{% endif %}
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">
+                                <i class="fas fa-ship text-info me-1"></i>{% translate "Ship Hull Type" %}
+                            </label>
+                            {{ form.ship_type }}
+                            {% if form.ship_type.errors %}<div class="text-danger small mt-1">{{ form.ship_type.errors }}</div>{% endif %}
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">
+                                <i class="fas fa-shield-alt text-warning me-1"></i>{% translate "Tank / Role Type" %}
+                            </label>
+                            {{ form.role_type }}
+                            {% if form.role_type.errors %}<div class="text-danger small mt-1">{{ form.role_type.errors }}</div>{% endif %}
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">
+                                <i class="fas fa-skull-crossbones text-danger me-1"></i>{% translate "zKillboard Lossmail Link" %}
+                            </label>
+                            {{ form.zkill_link }}
+                            {% if form.zkill_link.errors %}<div class="text-danger small mt-1">{{ form.zkill_link.errors }}</div>{% endif %}
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label text-muted small fw-bold text-uppercase">
+                                <i class="fas fa-code text-success me-1"></i>{% translate "EFT Fitting Format" %}
+                            </label>
+                            {{ form.eft_format }}
+                            <div class="form-text text-muted small">{{ form.eft_format.help_text }}</div>
+                            {% if form.eft_format.errors %}<div class="text-danger small mt-1">{{ form.eft_format.errors }}</div>{% endif %}
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label text-muted small fw-bold text-uppercase">
+                                <i class="fas fa-sticky-note text-secondary me-1"></i>{% translate "Fitting Notes / Counters" %}
+                            </label>
+                            {{ form.notes }}
+                            {% if form.notes.errors %}<div class="text-danger small mt-1">{{ form.notes.errors }}</div>{% endif %}
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mt-4">
+                        {% if doctrine_fit %}
+                        <a href="{% url 'hostile:doctrine_fit_delete' doctrine_fit.id %}" class="btn btn-outline-danger btn-sm">
+                            <i class="fas fa-trash-alt me-1"></i>{% translate "Delete Fit" %}
+                        </a>
+                        {% else %}
+                        <div></div>
+                        {% endif %}
+                        <div class="d-flex gap-2">
+                            <a href="{% url 'hostile:doctrines' %}" class="btn btn-secondary">
+                                {% translate "Cancel" %}
+                            </a>
+                            <button type="submit" class="btn btn-primary fw-bold px-4">
+                                <i class="fas fa-save me-1"></i>{% translate "Save Fit" %}
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

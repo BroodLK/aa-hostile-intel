@@ -1,0 +1,405 @@
+{% extends 'hostile/base.html' %}
+{% load i18n %}
+
+{% block details %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card bg-dark text-white border-secondary hostile-card shadow-sm">
+            <div class="card-header hostile-card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-bold">
+                    <i class="fas fa-satellite-dish text-info me-2"></i>
+                    {% if observation %}{% translate "Edit System Threat Observation:" %} <span class="text-light">{{ observation.solar_system.name }}</span>{% else %}{% translate "Add System Threat Observation" %}{% endif %}
+                </h5>
+                <a href="{% url 'hostile:systems' %}" class="btn btn-sm btn-outline-secondary">
+                    <i class="fas fa-times me-1"></i>{% translate "Cancel" %}
+                </a>
+            </div>
+            <div class="card-body">
+                <!-- Quick Sitrep Templates -->
+                <div class="mb-3 p-2 rounded bg-black border border-secondary">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="text-uppercase text-muted small fw-bold"><i class="fas fa-bolt text-warning me-1"></i>{% translate "Quick Sitrep Templates" %}</span>
+                        <span class="text-muted small">{% translate "One-click auto-fill" %}</span>
+                    </div>
+                    <div class="d-flex flex-wrap gap-1">
+                        <button type="button" class="btn btn-xs btn-outline-danger py-1 px-2 btn-sitrep-preset" 
+                                data-threat="HIGH" 
+                                data-tags="Gate Camp,Bubbles on Gate" 
+                                data-text="Heavy Gate Camp active with warp disruption bubbles on gate. Interdictors and heavy tackle on grid.">
+                            <i class="fas fa-shield-virus me-1"></i>{% translate "Heavy Gate Camp" %}
+                        </button>
+                        <button type="button" class="btn btn-xs btn-outline-danger py-1 px-2 btn-sitrep-preset" 
+                                data-threat="HIGH" 
+                                data-tags="Smartbombs,Gate Camp" 
+                                data-text="Smartbombing Battleships positioned at gate warp-in. High risk for frigates and shuttles.">
+                            <i class="fas fa-bomb me-1"></i>{% translate "Smartbomb Trap" %}
+                        </button>
+                        <button type="button" class="btn btn-xs btn-outline-danger py-1 px-2 btn-sitrep-preset" 
+                                data-threat="EXTREME" 
+                                data-tags="Cyno In System,Blops Hunter" 
+                                data-text="Covert Cyno Hunter spotted in system. Black Ops drop standby alert.">
+                            <i class="fas fa-user-secret me-1"></i>{% translate "Cyno / Blops Hunter" %}
+                        </button>
+                        <button type="button" class="btn btn-xs btn-outline-danger py-1 px-2 btn-sitrep-preset" 
+                                data-threat="EXTREME" 
+                                data-tags="Capital Fleet,Hostile Staging" 
+                                data-text="Hostile Capital fleet active in system (Dreadnoughts / Carriers / Force Auxiliaries spotted).">
+                            <i class="fas fa-space-shuttle me-1"></i>{% translate "Capital Fleet" %}
+                        </button>
+                        <button type="button" class="btn btn-xs btn-outline-success py-1 px-2 btn-sitrep-preset" 
+                                data-threat="LOW" 
+                                data-tags="Roaming Gang" 
+                                data-text="Camp dispersed. System gate grid is clear.">
+                            <i class="fas fa-check-circle me-1"></i>{% translate "System Clear" %}
+                        </button>
+                    </div>
+                </div>
+
+                <form method="post" id="editSitrepForm">
+                    {% csrf_token %}
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger py-2 small mb-3">{{ form.non_field_errors }}</div>
+                    {% endif %}
+
+                    <div class="row g-3">
+                        <!-- Solar System -->
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">
+                                <i class="fas fa-map-marker-alt text-danger me-1"></i>{% translate "Solar System" %}
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-black text-muted border-secondary"><i class="fas fa-map-marker-alt"></i></span>
+                                <input type="text" id="obsEditSystemSearchInput" class="form-control text-light bg-black border-secondary" placeholder="{% translate 'Search solar system (e.g. Jita, 1DQ1-A)...' %}" list="obsEditSystemsDatalist" autocomplete="off" value="{% if observation %}{{ observation.solar_system.name }}{% endif %}" required>
+                                <button class="btn btn-outline-secondary" type="button" id="clearObsEditSystemBtn" title="Clear"><i class="fas fa-times"></i></button>
+                            </div>
+                            <div class="d-none">
+                                {{ form.solar_system }}
+                            </div>
+                            <datalist id="obsEditSystemsDatalist"></datalist>
+                            {% if form.solar_system.errors %}<div class="text-danger small mt-1">{{ form.solar_system.errors }}</div>{% endif %}
+                        </div>
+
+                        <!-- Threat Level -->
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">
+                                <i class="fas fa-shield-alt text-warning me-1"></i>{% translate "Threat Level" %}
+                            </label>
+                            {{ form.threat_level }}
+                            {% if form.threat_level.errors %}<div class="text-danger small mt-1">{{ form.threat_level.errors }}</div>{% endif %}
+                        </div>
+
+                        <!-- Time Seen with "Now" & Offset Presets -->
+                        <div class="col-12">
+                            <label class="form-label text-muted small fw-bold text-uppercase d-flex justify-content-between align-items-center">
+                                <span><i class="fas fa-clock text-info me-1"></i>{% translate "Time Seen (UTC)" %}</span>
+                                <span class="text-muted small" style="text-transform: none;">{% translate "Timestamp when hostile activity was spotted" %}</span>
+                            </label>
+                            <div class="input-group mb-1">
+                                <span class="input-group-text bg-black border-secondary text-info"><i class="far fa-clock"></i></span>
+                                {{ form.time_seen }}
+                                <button class="btn btn-outline-info fw-bold btn-time-preset" type="button" data-offset="0" data-target="id_time_seen">
+                                    <i class="fas fa-history me-1"></i>{% translate "Now" %}
+                                </button>
+                            </div>
+                            <div class="d-flex flex-wrap gap-1">
+                                <button class="btn btn-xs btn-outline-secondary py-0 px-2 btn-time-preset" type="button" data-offset="15" data-target="id_time_seen">-15m</button>
+                                <button class="btn btn-xs btn-outline-secondary py-0 px-2 btn-time-preset" type="button" data-offset="30" data-target="id_time_seen">-30m</button>
+                                <button class="btn btn-xs btn-outline-secondary py-0 px-2 btn-time-preset" type="button" data-offset="60" data-target="id_time_seen">-1h</button>
+                                <button class="btn btn-xs btn-outline-secondary py-0 px-2 btn-time-preset" type="button" data-offset="120" data-target="id_time_seen">-2h</button>
+                                <button class="btn btn-xs btn-outline-secondary py-0 px-2 btn-time-preset" type="button" data-offset="240" data-target="id_time_seen">-4h</button>
+                            </div>
+                            {% if form.time_seen.errors %}<div class="text-danger small mt-1">{{ form.time_seen.errors }}</div>{% endif %}
+                        </div>
+
+                        <!-- Preselectable Tags & Custom Tag Creator -->
+                        <div class="col-12">
+                            <label class="form-label text-muted small fw-bold text-uppercase d-flex justify-content-between align-items-center">
+                                <span><i class="fas fa-tags text-primary me-1"></i>{% translate "Threat Classification Tags" %}</span>
+                                <span class="text-muted small" style="text-transform: none;">{% translate "Click to toggle or add new" %}</span>
+                            </label>
+                            <div class="p-2 rounded bg-black border border-secondary mb-2">
+                                <div class="d-flex flex-wrap gap-1" id="formTagPillsContainer">
+                                    {% for tag in available_tags %}
+                                        <button type="button" 
+                                                class="btn btn-xs btn-outline-{{ tag.color_class|default:'secondary' }} sitrep-tag-pill py-1 px-2 mb-1" 
+                                                data-tag-id="{{ tag.id }}" 
+                                                data-tag-name="{{ tag.name }}">
+                                            <i class="fas fa-tag me-1 small"></i>{{ tag.name }}
+                                        </button>
+                                    {% endfor %}
+                                </div>
+                                <div class="input-group input-group-sm mt-2">
+                                    <span class="input-group-text bg-dark border-secondary text-muted"><i class="fas fa-plus"></i></span>
+                                    <input type="text" id="formCustomTagInput" class="form-control bg-dark text-light border-secondary" placeholder="{% translate 'Add custom tag (e.g. Titan Undocked, T3C Gang)...' %}">
+                                    <button class="btn btn-outline-info" type="button" id="formAddCustomTagBtn">{% translate "Add Tag" %}</button>
+                                </div>
+                            </div>
+                            <div class="d-none">
+                                {{ form.tags }}
+                                {{ form.new_tag }}
+                            </div>
+                            {% if form.tags.errors %}<div class="text-danger small mt-1">{{ form.tags.errors }}</div>{% endif %}
+                        </div>
+
+                        <!-- Observation Details -->
+                        <div class="col-12">
+                            <label class="form-label text-muted small fw-bold text-uppercase">
+                                <i class="fas fa-comment-alt text-secondary me-1"></i>{% translate "Observation Text / Sitrep" %}
+                            </label>
+                            {{ form.observation_text }}
+                            {% if form.observation_text.errors %}<div class="text-danger small mt-1">{{ form.observation_text.errors }}</div>{% endif %}
+                        </div>
+
+                        <!-- Optional Integrated Local & D-Scan Scanner Ingestion -->
+                        <div class="col-12">
+                            <div class="card bg-black border-secondary">
+                                <div class="card-header bg-dark border-secondary p-2 d-flex justify-content-between align-items-center" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#editSitrepScannerCollapse" aria-expanded="{% if form.raw_local_text.value or form.raw_dscan_text.value %}true{% else %}false{% endif %}">
+                                    <span class="small fw-bold text-uppercase text-light d-flex align-items-center">
+                                        <i class="fas fa-satellite-dish text-info me-2"></i>{% translate "Attach Local Chat / Pilot Roster & D-Scan" %}
+                                        <span class="badge bg-secondary ms-2 small">{% translate "Optional" %}</span>
+                                    </span>
+                                    <span class="text-muted small"><i class="fas fa-chevron-down"></i></span>
+                                </div>
+                                <div class="collapse {% if form.raw_local_text.value or form.raw_dscan_text.value %}show{% endif %}" id="editSitrepScannerCollapse">
+                                    <div class="card-body p-3">
+                                        <p class="text-muted small mb-3">
+                                            <i class="fas fa-info-circle text-info me-1"></i>
+                                            {% translate "Pasting Local chat and/or D-Scan cross-references pilots, calculates Black Ops / Capital drop chances, auto-updates pilot dossiers, and extracts ship hulls on grid." %}
+                                        </p>
+                                        <div class="row g-3">
+                                            <div class="col-md-6">
+                                                <label class="form-label text-muted small fw-bold text-uppercase d-flex justify-content-between">
+                                                    <span><i class="fas fa-users text-primary me-1"></i>{% translate "Local Chat / Pilot Roster" %}</span>
+                                                    <span class="text-muted small">{% translate "Ctrl+A / Ctrl+C from Local" %}</span>
+                                                </label>
+                                                {{ form.raw_local_text }}
+                                                <div class="form-text text-muted small">{% translate "Identifies hostile pilots, cyno alts, and blops droppers." %}</div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label text-muted small fw-bold text-uppercase d-flex justify-content-between">
+                                                    <span><i class="fas fa-satellite text-warning me-1"></i>{% translate "Directional Scan (D-Scan)" %}</span>
+                                                    <span class="text-muted small">{% translate "Ctrl+A / Ctrl+C from D-Scan" %}</span>
+                                                </label>
+                                                {{ form.raw_dscan_text }}
+                                                <div class="form-text text-muted small">{% translate "Identifies ship hulls, warp bubbles, and deployables on grid." %}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Optional Legacy Active Hours -->
+                        <div class="col-12">
+                            <a class="text-muted small text-decoration-none" data-bs-toggle="collapse" href="#legacyActiveHoursCollapse" role="button" aria-expanded="false">
+                                <i class="fas fa-chevron-right me-1 small"></i>{% translate "Optional Timezone / Operational Notes" %}
+                            </a>
+                            <div class="collapse mt-2" id="legacyActiveHoursCollapse">
+                                {{ form.active_hours }}
+                                {% if form.active_hours.errors %}<div class="text-danger small mt-1">{{ form.active_hours.errors }}</div>{% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mt-4">
+                        {% if observation %}
+                        <a href="{% url 'hostile:system_observation_delete' observation.id %}" class="btn btn-outline-danger btn-sm">
+                            <i class="fas fa-trash-alt me-1"></i>{% translate "Delete Observation" %}
+                        </a>
+                        {% else %}
+                        <div></div>
+                        {% endif %}
+                        <div class="d-flex gap-2">
+                            <a href="{% url 'hostile:systems' %}" class="btn btn-secondary">
+                                {% translate "Cancel" %}
+                            </a>
+                            <button type="submit" class="btn btn-primary fw-bold px-4">
+                                <i class="fas fa-save me-1"></i>{% translate "Save Observation" %}
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_javascript %}
+{{ block.super }}
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    // 1. Solar System Autocomplete
+    attachSolarSystemAutocomplete("obsEditSystemSearchInput", "id_solar_system", "obsEditSystemsDatalist", "clearObsEditSystemBtn");
+
+    // 2. Helper to Format UTC Date for datetime-local
+    function getUtcDatetimeLocalString(offsetMinutes = 0) {
+        const now = new Date(Date.now() - (offsetMinutes * 60 * 1000));
+        const year = now.getUTCFullYear();
+        const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(now.getUTCDate()).padStart(2, '0');
+        const hours = String(now.getUTCHours()).padStart(2, '0');
+        const minutes = String(now.getUTCMinutes()).padStart(2, '0');
+        return `${year}-${month}-${day}T${hours}:${minutes}`;
+    }
+
+    // Initialize Time Seen to Now if blank
+    const timeSeenInput = document.getElementById("id_time_seen");
+    if (timeSeenInput && !timeSeenInput.value) {
+        timeSeenInput.value = getUtcDatetimeLocalString(0);
+    }
+
+    // Handle Time Preset Buttons
+    document.querySelectorAll(".btn-time-preset").forEach(btn => {
+        btn.addEventListener("click", function() {
+            const offset = parseInt(this.dataset.offset || "0", 10);
+            const targetId = this.dataset.target || "id_time_seen";
+            const targetInput = document.getElementById(targetId);
+            if (targetInput) {
+                targetInput.value = getUtcDatetimeLocalString(offset);
+            }
+        });
+    });
+
+    // 3. Interactive Tag Selector Logic
+    function setupTagSelector(containerId, selectId, newTagInputId, addBtnId) {
+        const container = document.getElementById(containerId);
+        const select = document.getElementById(selectId);
+        const customInput = document.getElementById(newTagInputId);
+        const addBtn = document.getElementById(addBtnId);
+        if (!container || !select) return;
+
+        function syncPillsFromSelect() {
+            const selectedVals = Array.from(select.selectedOptions).map(o => o.value);
+            container.querySelectorAll(".sitrep-tag-pill").forEach(pill => {
+                const tagId = pill.dataset.tagId;
+                if (selectedVals.includes(tagId)) {
+                    pill.classList.add("active", "fw-bold", "shadow-sm");
+                    pill.style.boxShadow = "0 0 8px rgba(56, 189, 248, 0.4)";
+                } else {
+                    pill.classList.remove("active", "fw-bold", "shadow-sm");
+                    pill.style.boxShadow = "";
+                }
+            });
+        }
+
+        container.addEventListener("click", function(e) {
+            const pill = e.target.closest(".sitrep-tag-pill");
+            if (!pill) return;
+            const tagId = pill.dataset.tagId;
+            let opt = Array.from(select.options).find(o => o.value === tagId);
+            if (!opt) {
+                opt = document.createElement("option");
+                opt.value = tagId;
+                opt.text = pill.dataset.tagName || pill.textContent.trim();
+                select.appendChild(opt);
+            }
+            opt.selected = !opt.selected;
+            select.dispatchEvent(new Event("change"));
+            syncPillsFromSelect();
+        });
+
+        function addCustomTag() {
+            if (!customInput) return;
+            const val = customInput.value.trim();
+            if (!val) return;
+
+            const existingPill = Array.from(container.querySelectorAll(".sitrep-tag-pill")).find(p => p.dataset.tagName?.toLowerCase() === val.toLowerCase());
+            if (existingPill) {
+                existingPill.click();
+                customInput.value = "";
+                return;
+            }
+
+            const newPill = document.createElement("button");
+            newPill.type = "button";
+            newPill.className = "btn btn-xs btn-outline-warning sitrep-tag-pill py-1 px-2 mb-1 active fw-bold";
+            newPill.dataset.tagName = val;
+            newPill.dataset.tagId = `new_${val}`;
+            newPill.innerHTML = `<i class="fas fa-tag me-1 small"></i>${val}`;
+            container.appendChild(newPill);
+
+            const opt = document.createElement("option");
+            opt.value = val;
+            opt.text = val;
+            opt.selected = true;
+            select.appendChild(opt);
+
+            const newTagField = document.getElementById("id_new_tag");
+            if (newTagField) {
+                const current = newTagField.value ? newTagField.value.split(",").map(s => s.trim()) : [];
+                if (!current.includes(val)) current.push(val);
+                newTagField.value = current.join(", ");
+            }
+
+            customInput.value = "";
+            syncPillsFromSelect();
+        }
+
+        if (addBtn) addBtn.addEventListener("click", addCustomTag);
+        if (customInput) {
+            customInput.addEventListener("keydown", function(e) {
+                if (e.key === "Enter") {
+                    e.preventDefault();
+                    addCustomTag();
+                }
+            });
+        }
+
+        syncPillsFromSelect();
+    }
+
+    setupTagSelector("formTagPillsContainer", "id_tags", "formCustomTagInput", "formAddCustomTagBtn");
+
+    // 4. Quick Sitrep Presets
+    document.querySelectorAll(".btn-sitrep-preset").forEach(btn => {
+        btn.addEventListener("click", function() {
+            const threat = this.dataset.threat;
+            const tags = (this.dataset.tags || "").split(",").map(t => t.trim().toLowerCase());
+            const text = this.dataset.text;
+
+            const threatSelect = document.getElementById("id_threat_level");
+            if (threatSelect && threat) {
+                threatSelect.value = threat;
+                threatSelect.dispatchEvent(new Event("change"));
+                if (threatSelect.syncSearchableSelect) threatSelect.syncSearchableSelect();
+            }
+
+            const obsText = document.getElementById("id_observation_text");
+            if (obsText && text) {
+                obsText.value = text;
+            }
+
+            // Auto-expand scanner accordion for high/extreme camp presets
+            const scannerCollapse = document.getElementById("editSitrepScannerCollapse");
+            if (scannerCollapse && (threat === "HIGH" || threat === "EXTREME")) {
+                try {
+                    const bsCollapse = bootstrap.Collapse.getOrCreateInstance(scannerCollapse, { toggle: false });
+                    bsCollapse.show();
+                } catch (e) {}
+            }
+
+            const container = document.getElementById("formTagPillsContainer");
+            const select = document.getElementById("id_tags");
+            if (container && select) {
+                Array.from(select.options).forEach(o => o.selected = false);
+                container.querySelectorAll(".sitrep-tag-pill").forEach(pill => {
+                    const pillName = (pill.dataset.tagName || pill.textContent || "").trim().toLowerCase();
+                    if (tags.some(t => pillName.includes(t))) {
+                        const tagId = pill.dataset.tagId;
+                        let opt = Array.from(select.options).find(o => o.value === tagId);
+                        if (opt) opt.selected = true;
+                    }
+                });
+                select.dispatchEvent(new Event("change"));
+                const selectedVals = Array.from(select.selectedOptions).map(o => o.value);
+                container.querySelectorAll(".sitrep-tag-pill").forEach(pill => {
+                    pill.classList.toggle("active", selectedVals.includes(pill.dataset.tagId));
+                    pill.classList.toggle("fw-bold", selectedVals.includes(pill.dataset.tagId));
+                });
+            }
+        });
+    });
+});
+</script>
+{% endblock %}
+{% endblock %}

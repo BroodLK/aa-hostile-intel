@@ -1,0 +1,80 @@
+{% extends 'hostile/base.html' %}
+{% load i18n %}
+
+{% block details %}
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="card bg-dark text-white border-danger hostile-card shadow-sm">
+            <div class="card-header bg-danger bg-opacity-25 border-danger d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-bold text-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>{% translate "Confirm Alliance Deletion" %}
+                </h5>
+                <a href="{% url 'hostile:alliances' %}" class="btn btn-sm btn-outline-secondary">
+                    <i class="fas fa-times me-1"></i>{% translate "Cancel" %}
+                </a>
+            </div>
+            <div class="card-body">
+                <p class="lead fs-6 mb-3">
+                    {% blocktranslate with name=alliance.alliance_name %}Are you sure you want to permanently delete the hostile alliance <strong>{{ name }}</strong>?{% endblocktranslate %}
+                </p>
+
+                <div class="bg-black bg-opacity-50 p-3 rounded border border-secondary mb-3">
+                    <div class="row g-2 small">
+                        <div class="col-4 text-muted text-uppercase fw-bold">{% translate "Alliance:" %}</div>
+                        <div class="col-8 text-light fw-bold">{{ alliance.alliance_name }} {% if alliance.alliance_ticker %}[{{ alliance.alliance_ticker }}]{% endif %}</div>
+
+                        <div class="col-4 text-muted text-uppercase fw-bold">{% translate "Coalition:" %}</div>
+                        <div class="col-8 text-light">{{ alliance.coalition|default:"None" }}</div>
+
+                        <div class="col-4 text-muted text-uppercase fw-bold">{% translate "Member Corps:" %}</div>
+                        <div class="col-8 text-warning font-mono fw-bold">{{ alliance.corporations.count|default:0 }} {% translate "corporation(s)" %}</div>
+
+                        <div class="col-4 text-muted text-uppercase fw-bold">{% translate "Active Pilots:" %}</div>
+                        <div class="col-8 text-info font-mono">{{ alliance.active_pilots_count|default:0 }}</div>
+
+                        <div class="col-4 text-muted text-uppercase fw-bold">{% translate "7d Kills / Losses:" %}</div>
+                        <div class="col-8 text-light font-mono">{{ alliance.weekly_kills_count|default:0 }} / {{ alliance.weekly_losses_count|default:0 }}</div>
+                    </div>
+                </div>
+
+                {% if member_corps %}
+                <div class="mb-3">
+                    <label class="form-label text-muted small fw-bold text-uppercase mb-1">
+                        <i class="fas fa-building text-warning me-1"></i>{% translate "Member Corporations to be Deleted:" %}
+                    </label>
+                    <div class="bg-black bg-opacity-30 border border-secondary rounded p-2" style="max-height: 150px; overflow-y: auto;">
+                        <ul class="list-unstyled mb-0 small">
+                            {% for corp in member_corps %}
+                            <li class="py-1 border-bottom border-dark border-opacity-50 d-flex justify-content-between align-items-center">
+                                <span class="text-light fw-bold">
+                                    {{ corp.corporation_name }} {% if corp.ticker %}<span class="text-muted">[{{ corp.ticker }}]</span>{% endif %}
+                                </span>
+                                <span class="badge bg-secondary font-mono">{{ corp.member_count|default:0 }} {% translate "members" %}</span>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="alert alert-danger py-2 small mb-4">
+                    <i class="fas fa-exclamation-triangle me-1"></i>
+                    <strong>{% translate "Warning:" %}</strong> {% translate "Deleting this alliance will permanently delete its intelligence profile, stats, staging assignments, and all associated member corporations. Linked structures will be unlinked." %}
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center">
+                    <a href="{% url 'hostile:alliances' %}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left me-1"></i>{% translate "Go Back" %}
+                    </a>
+                    <form action="{% url 'hostile:alliance_delete' alliance.id %}" method="post">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger fw-bold px-4">
+                            <i class="fas fa-trash-alt me-1"></i>{% translate "Delete Alliance" %}
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

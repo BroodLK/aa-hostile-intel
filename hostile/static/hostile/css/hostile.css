@@ -1,0 +1,909 @@
+/* AA Hostile Intel - Clean Modern SaaS Dark Theme (Figl-Theme inspired & Corptools Bootstrap devices) */
+
+:root {
+    --hostile-teal: #229388;
+    --hostile-teal-strong: #2db3a6;
+    --hostile-teal-glow: rgba(34, 147, 136, 0.25);
+    --hostile-slate-bg: #090a0f;
+    --hostile-slate-elev: #141721;
+    --hostile-slate-soft: #1e2332;
+    --hostile-slate-border: #1f2433;
+    --hostile-slate-muted: #94a3b8;
+}
+
+/* Elevated SaaS card container */
+.hostile-card {
+    background-color: var(--hostile-slate-elev, #141721);
+    border: 1px solid var(--hostile-slate-border, #1f2433);
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+    transition: transform 0.15s ease-in-out, border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.hostile-card:hover {
+    border-color: rgba(34, 147, 136, 0.4);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+
+.hostile-card-header {
+    background: linear-gradient(180deg, rgba(30, 35, 50, 0.6) 0%, rgba(20, 23, 33, 0.8) 100%);
+    border-bottom: 1px solid var(--hostile-slate-border, #1f2433);
+    padding: 0.75rem 1rem;
+}
+
+/* SaaS KPI / Stat Cards */
+.hostile-stat-card {
+    background-color: var(--hostile-slate-elev, #141721);
+    border: 1px solid var(--hostile-slate-border, #1f2433);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    display: flex;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.15s ease-in-out, border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+a:hover .hostile-stat-card,
+.hostile-stat-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(34, 147, 136, 0.45);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+
+.hostile-stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 3px;
+    height: 100%;
+    background: var(--hostile-teal, #229388);
+}
+
+.hostile-stat-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 0.375rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    margin-right: 0.85rem;
+    background-color: rgba(34, 147, 136, 0.12);
+    color: var(--hostile-teal-strong, #2db3a6);
+    border: 1px solid rgba(34, 147, 136, 0.25);
+}
+
+.hostile-stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace, -apple-system, sans-serif;
+    line-height: 1.1;
+    color: #ffffff;
+}
+
+.hostile-stat-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--hostile-slate-muted, #94a3b8);
+    font-weight: 600;
+}
+
+/* Corptools-inspired Fitting Slot Layout */
+.slot-category-card {
+    background-color: rgba(9, 10, 15, 0.75);
+    border: 1px solid var(--hostile-slate-border, #1f2433);
+    border-radius: 0.375rem;
+    margin-bottom: 0.75rem;
+}
+
+.slot-category-header {
+    background-color: rgba(30, 35, 50, 0.4);
+    border-bottom: 1px solid var(--hostile-slate-border, #1f2433);
+    padding: 0.35rem 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.fitting-module-row {
+    display: flex;
+    align-items: center;
+    padding: 0.35rem 0.75rem;
+    border-bottom: 1px solid rgba(31, 36, 51, 0.5);
+    transition: background-color 0.1s ease;
+}
+
+.fitting-module-row:last-child {
+    border-bottom: none;
+}
+
+.fitting-module-row:hover {
+    background-color: rgba(34, 147, 136, 0.08);
+}
+
+.module-icon-wrapper {
+    position: relative;
+    width: 32px;
+    height: 32px;
+    margin-right: 0.65rem;
+    flex-shrink: 0;
+}
+
+.module-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    border: 1px solid var(--hostile-slate-border, #1f2433);
+}
+
+.module-info {
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.module-name {
+    font-size: 0.85rem;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #e2e8f0;
+}
+
+/* Badges & Tags */
+.badge-subtle-teal {
+    background-color: rgba(34, 147, 136, 0.22);
+    color: #4ee0d2;
+    border: 1px solid rgba(34, 147, 136, 0.45);
+}
+
+.badge-subtle-danger {
+    background-color: rgba(239, 68, 68, 0.22);
+    color: #fca5a5;
+    border: 1px solid rgba(239, 68, 68, 0.45);
+}
+
+.badge-subtle-warning {
+    background-color: rgba(245, 158, 11, 0.22);
+    color: #fde68a;
+    border: 1px solid rgba(245, 158, 11, 0.45);
+}
+
+.badge-subtle-info {
+    background-color: rgba(56, 189, 248, 0.22);
+    color: #7dd3fc;
+    border: 1px solid rgba(56, 189, 248, 0.45);
+}
+
+.badge-subtle-secondary {
+    background-color: rgba(148, 163, 184, 0.22);
+    color: #cbd5e1;
+    border: 1px solid rgba(148, 163, 184, 0.45);
+}
+
+.badge-subtle-primary {
+    background-color: rgba(59, 130, 246, 0.22);
+    color: #93c5fd;
+    border: 1px solid rgba(59, 130, 246, 0.45);
+}
+
+.badge-subtle-success {
+    background-color: rgba(16, 185, 129, 0.22);
+    color: #6ee7b7;
+    border: 1px solid rgba(16, 185, 129, 0.45);
+}
+
+/* EVE Security Status Badges */
+.badge-sec-null {
+    background-color: rgba(239, 68, 68, 0.25) !important;
+    color: #fca5a5 !important;
+    border: 1px solid rgba(239, 68, 68, 0.6) !important;
+    font-weight: 700;
+}
+
+.badge-sec-low {
+    background-color: rgba(245, 158, 11, 0.25) !important;
+    color: #fde68a !important;
+    border: 1px solid rgba(245, 158, 11, 0.6) !important;
+    font-weight: 700;
+}
+
+.badge-sec-high {
+    background-color: rgba(56, 189, 248, 0.25) !important;
+    color: #7dd3fc !important;
+    border: 1px solid rgba(56, 189, 248, 0.6) !important;
+    font-weight: 700;
+}
+
+/* Sovereignty Capital Badge */
+.badge-capital {
+    background-color: rgba(220, 38, 38, 0.28) !important;
+    color: #fecaca !important;
+    border: 1px solid #ef4444 !important;
+    font-weight: 700;
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.35);
+}
+
+/* ADM Multiplier Colors & Progress Tracks */
+.text-adm-high {
+    color: #34d399 !important; /* Vibrant Emerald/Green for ADM >= 4.0 */
+}
+
+.text-adm-med {
+    color: #facc15 !important; /* Vibrant Yellow/Gold for ADM 2.5-3.9 */
+}
+
+.text-adm-low {
+    color: #f87171 !important; /* Vibrant Coral/Red for ADM < 2.5 */
+}
+
+.hostile-adm-track {
+    background-color: rgba(255, 255, 255, 0.12) !important;
+    border-radius: 3px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    overflow: hidden;
+}
+
+.bg-adm-high {
+    background-color: #10b981 !important;
+    box-shadow: 0 0 6px rgba(16, 185, 129, 0.5);
+}
+
+.bg-adm-med {
+    background-color: #f59e0b !important;
+    box-shadow: 0 0 6px rgba(245, 158, 11, 0.5);
+}
+
+.bg-adm-low {
+    background-color: #ef4444 !important;
+    box-shadow: 0 0 6px rgba(239, 68, 68, 0.5);
+}
+
+/* Typography & Contrast Utilities */
+.text-slate-200 { color: #e2e8f0 !important; }
+.text-slate-300 { color: #cbd5e1 !important; }
+.text-slate-400 { color: #94a3b8 !important; }
+
+/* Table header & row contrast improvements */
+.hostile-card .table thead th,
+.table-dark thead th,
+.table thead tr.text-muted th {
+    color: #cbd5e1 !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.05em;
+    font-size: 0.74rem;
+    border-bottom: 1px solid #2a3042 !important;
+}
+
+.hostile-card .table tbody td {
+    border-color: rgba(42, 48, 66, 0.6) !important;
+}
+
+/* Monospace timers & coordinates */
+.font-mono {
+    font-family: 'JetBrains Mono', monospace, -apple-system, sans-serif;
+}
+
+/* Universal Searchable Select Dropdown */
+.hostile-searchable-select {
+    position: relative;
+    width: 100%;
+    overflow: visible !important;
+}
+
+.hostile-searchable-toggle {
+    cursor: pointer;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    background-color: #0b0d14 !important;
+    border-color: #2a3042 !important;
+    color: #e2e8f0 !important;
+    padding-right: 0.75rem;
+}
+
+.hostile-searchable-toggle:focus {
+    border-color: #229388 !important;
+    box-shadow: 0 0 0 0.25rem rgba(34, 147, 136, 0.25) !important;
+}
+
+.hostile-searchable-menu {
+    background-color: #141721 !important;
+    border: 1px solid #2a3042 !important;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6) !important;
+    border-radius: 0.375rem;
+    min-width: 100%;
+    z-index: 1080 !important;
+}
+
+.hostile-card,
+.hostile-card .card-body {
+    overflow: visible;
+}
+
+.hostile-searchable-search-box input {
+    background-color: #090a0f !important;
+    border-color: #2a3042 !important;
+    color: #f8fafc !important;
+}
+
+.hostile-searchable-search-box input:focus {
+    border-color: #229388 !important;
+    box-shadow: 0 0 0 0.2rem rgba(34, 147, 136, 0.25) !important;
+}
+
+.hostile-searchable-options {
+    scrollbar-width: thin;
+    scrollbar-color: #334155 #0f172a;
+}
+
+.hostile-searchable-options::-webkit-scrollbar {
+    width: 6px;
+}
+
+.hostile-searchable-options::-webkit-scrollbar-track {
+    background: #0f172a;
+}
+
+.hostile-searchable-options::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 3px;
+}
+
+.hostile-searchable-item {
+    cursor: pointer;
+    color: #cbd5e1 !important;
+    border: none;
+    background: transparent;
+    width: 100%;
+    text-align: left;
+    transition: background-color 0.1s ease, color 0.1s ease;
+}
+
+.hostile-searchable-item:hover,
+.hostile-searchable-item:focus,
+.hostile-searchable-item.active {
+    background-color: rgba(34, 147, 136, 0.25) !important;
+    color: #4ee0d2 !important;
+}
+
+.hostile-searchable-item.selected {
+    background-color: rgba(34, 147, 136, 0.35) !important;
+    color: #ffffff !important;
+    font-weight: 600;
+}
+
+/* Table Dropdown and Container Overflow Protection */
+.hostile-card .table-responsive {
+    overflow: visible;
+}
+
+@media (max-width: 991.98px) {
+    .hostile-card .table-responsive {
+        overflow-x: auto;
+    }
+}
+
+.table-responsive .dropdown-menu {
+    z-index: 1080 !important;
+}
+
+/* Combat Activity Heatmap Grid */
+.hostile-heatmap-responsive {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+}
+
+.hostile-heatmap-table {
+    font-size: 0.74rem;
+    min-width: 820px;
+    background-color: transparent !important;
+    margin-bottom: 0.5rem;
+}
+
+.hostile-heatmap-table th:first-child,
+.hostile-heatmap-table td:first-child {
+    min-width: 90px !important;
+    width: 90px !important;
+    text-align: left !important;
+    padding-left: 0.85rem !important;
+    padding-right: 0.5rem !important;
+    white-space: nowrap !important;
+}
+
+.hostile-heatmap-cell {
+    padding: 3px 1px !important;
+    font-weight: 700 !important;
+    transition: transform 0.12s ease, filter 0.12s ease;
+}
+
+.hostile-heatmap-cell:hover {
+    transform: scale(1.18);
+    position: relative;
+    z-index: 5;
+    filter: brightness(1.25);
+    cursor: default;
+}
+
+.hostile-heatmap-cell.cell-zero {
+    background-color: rgba(255, 255, 255, 0.02) !important;
+    color: rgba(255, 255, 255, 0.22) !important;
+    border-color: rgba(255, 255, 255, 0.04) !important;
+}
+
+.hostile-heatmap-cell.cell-low {
+    background-color: rgba(13, 110, 253, 0.18) !important;
+    color: #38bdf8 !important; /* Sky Blue text */
+    border-color: rgba(56, 189, 248, 0.35) !important;
+}
+
+.hostile-heatmap-cell.cell-med {
+    background-color: rgba(20, 184, 166, 0.20) !important;
+    color: #2dd4bf !important; /* Teal / Cyan text */
+    border-color: rgba(45, 212, 191, 0.40) !important;
+}
+
+.hostile-heatmap-cell.cell-high {
+    background-color: rgba(255, 193, 7, 0.22) !important;
+    color: #facc15 !important; /* Bright Yellow text */
+    border-color: rgba(250, 204, 21, 0.45) !important;
+}
+
+.hostile-heatmap-cell.cell-peak {
+    background-color: rgba(220, 53, 69, 0.28) !important;
+    color: #f87171 !important; /* Coral / Red text */
+    border-color: rgba(248, 113, 113, 0.55) !important;
+    box-shadow: inset 0 0 4px rgba(248, 113, 113, 0.15);
+}
+
+/* Heatmap Legend Badges */
+.heatmap-legend-badge {
+    padding: 0.25rem 0.55rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid transparent;
+}
+
+.heatmap-legend-badge.legend-zero {
+    background-color: rgba(255, 255, 255, 0.05);
+    color: #888;
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.heatmap-legend-badge.legend-low {
+    background-color: rgba(13, 110, 253, 0.18);
+    color: #38bdf8;
+    border-color: rgba(56, 189, 248, 0.35);
+}
+
+.heatmap-legend-badge.legend-med {
+    background-color: rgba(20, 184, 166, 0.20);
+    color: #2dd4bf;
+    border-color: rgba(45, 212, 191, 0.40);
+}
+
+.heatmap-legend-badge.legend-high {
+    background-color: rgba(255, 193, 7, 0.22);
+    color: #facc15;
+    border-color: rgba(250, 204, 21, 0.45);
+}
+
+.heatmap-legend-badge.legend-peak {
+    background-color: rgba(220, 53, 69, 0.28);
+    color: #f87171;
+    border-color: rgba(248, 113, 113, 0.55);
+}
+
+/* Sovereignty Contest Score Circular Donut Graphs */
+.sov-score-container {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.65rem;
+}
+
+.sov-score-donut {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.5);
+    flex-shrink: 0;
+}
+
+.sov-score-donut-inner {
+    width: 30px;
+    height: 30px;
+    background-color: #1e293b;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #10b981;
+}
+
+.sov-score-breakdown {
+    display: flex;
+    flex-direction: column;
+    font-size: 0.75rem;
+    line-height: 1.25;
+}
+
+.table-sov-row-hostile {
+    background-color: rgba(239, 68, 68, 0.08) !important;
+    border-left: 3px solid #ef4444 !important;
+}
+
+/* Sortable Table Columns & Controls */
+.sortable-header {
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.15s ease-in-out;
+    display: inline-flex;
+    align-items: center;
+    border-radius: 3px;
+    padding: 2px 4px;
+}
+
+.sortable-header:hover {
+    color: #38bdf8 !important;
+    background-color: rgba(56, 189, 248, 0.08);
+}
+
+.sortable-header.sort-active {
+    color: #38bdf8 !important;
+    font-weight: 700;
+}
+
+.sortable-header.sort-active .sort-icon {
+    color: #38bdf8 !important;
+}
+
+.sortable-header .sort-icon {
+    font-size: 0.8em;
+    opacity: 0.6;
+    transition: opacity 0.15s ease-in-out;
+}
+
+.sortable-header:hover .sort-icon,
+.sortable-header.sort-active .sort-icon {
+    opacity: 1;
+}
+
+/* Tactical Command Center & Triage Components */
+.tactical-triage-hero {
+    background: linear-gradient(135deg, rgba(20, 23, 33, 0.95) 0%, rgba(15, 23, 42, 0.9) 100%);
+    border: 1px solid var(--hostile-slate-border, #1f2433);
+    border-radius: 0.625rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.triage-paste-input {
+    background-color: rgba(9, 10, 15, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #e2e8f0;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 0.825rem;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.triage-paste-input:focus {
+    background-color: rgba(9, 10, 15, 0.95);
+    border-color: #38bdf8;
+    box-shadow: 0 0 0 0.25rem rgba(56, 189, 248, 0.15);
+    color: #ffffff;
+}
+
+/* Tactical Pulse Glow System (Smooth breathing glows replacing hard/sharp outlines) */
+.pulse-glow-danger,
+.pulse-critical {
+    animation: pulseGlowDanger 2.4s infinite ease-in-out;
+}
+
+.pulse-glow-info,
+.pulse-sov {
+    animation: pulseGlowInfo 2.4s infinite ease-in-out;
+}
+
+.pulse-glow-warning {
+    animation: pulseGlowWarning 2.4s infinite ease-in-out;
+}
+
+.pulse-glow-success {
+    animation: pulseGlowSuccess 2.4s infinite ease-in-out;
+}
+
+.animate-pulse {
+    animation: pulseGlowDanger 2.4s infinite ease-in-out;
+}
+
+@keyframes pulseGlowDanger {
+    0%, 100% {
+        border-color: rgba(239, 68, 68, 0.35);
+        box-shadow: 0 0 5px rgba(239, 68, 68, 0.2), inset 0 0 4px rgba(239, 68, 68, 0.06);
+    }
+    50% {
+        border-color: rgba(239, 68, 68, 0.85);
+        box-shadow: 0 0 11px 1.5px rgba(239, 68, 68, 0.45), inset 0 0 7px rgba(239, 68, 68, 0.12);
+    }
+}
+
+@keyframes pulseGlowInfo {
+    0%, 100% {
+        border-color: rgba(56, 189, 248, 0.35);
+        box-shadow: 0 0 5px rgba(56, 189, 248, 0.2), inset 0 0 4px rgba(56, 189, 248, 0.06);
+    }
+    50% {
+        border-color: rgba(56, 189, 248, 0.85);
+        box-shadow: 0 0 11px 1.5px rgba(56, 189, 248, 0.45), inset 0 0 7px rgba(56, 189, 248, 0.12);
+    }
+}
+
+@keyframes pulseGlowWarning {
+    0%, 100% {
+        border-color: rgba(245, 158, 11, 0.35);
+        box-shadow: 0 0 5px rgba(245, 158, 11, 0.2), inset 0 0 4px rgba(245, 158, 11, 0.06);
+    }
+    50% {
+        border-color: rgba(245, 158, 11, 0.85);
+        box-shadow: 0 0 11px 1.5px rgba(245, 158, 11, 0.45), inset 0 0 7px rgba(245, 158, 11, 0.12);
+    }
+}
+
+@keyframes pulseGlowSuccess {
+    0%, 100% {
+        border-color: rgba(16, 185, 129, 0.35);
+        box-shadow: 0 0 5px rgba(16, 185, 129, 0.2), inset 0 0 4px rgba(16, 185, 129, 0.06);
+    }
+    50% {
+        border-color: rgba(16, 185, 129, 0.85);
+        box-shadow: 0 0 11px 1.5px rgba(16, 185, 129, 0.45), inset 0 0 7px rgba(16, 185, 129, 0.12);
+    }
+}
+
+.pulse-glow-danger.hostile-stat-card::before,
+.pulse-critical.hostile-stat-card::before {
+    background: #ef4444;
+}
+
+.pulse-glow-info.hostile-stat-card::before,
+.pulse-sov.hostile-stat-card::before {
+    background: #38bdf8;
+}
+
+.pulse-glow-warning.hostile-stat-card::before {
+    background: #f59e0b;
+}
+
+.live-intel-timeline {
+    position: relative;
+    padding-left: 1.5rem;
+}
+
+.live-intel-timeline::before {
+    content: '';
+    position: absolute;
+    left: 0.5rem;
+    top: 0.5rem;
+    bottom: 0.5rem;
+    width: 2px;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.live-intel-item {
+    position: relative;
+    margin-bottom: 1rem;
+    transition: background-color 0.15s ease;
+}
+
+.live-intel-dot {
+    position: absolute;
+    left: -1.35rem;
+    top: 0.35rem;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: #38bdf8;
+    border: 2px solid #0f172a;
+}
+
+.ping-copy-btn {
+    opacity: 0.75;
+    transition: opacity 0.15s ease, transform 0.1s ease;
+}
+
+.ping-copy-btn:hover {
+    opacity: 1;
+    transform: scale(1.05);
+}
+
+/* ==========================================================================
+   Tactical Pilot Dossier & zKillboard Intelligence Badges & Danger Meter
+   ========================================================================== */
+
+.danger-meter-container {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 4px;
+    background: rgba(15, 23, 42, 0.6);
+    border-radius: 3px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.danger-box {
+    width: 14px;
+    height: 6px;
+    background: #334155;
+    border-radius: 1px;
+    transition: background-color 0.2s ease;
+}
+
+.danger-box.filled-danger {
+    background: #dc2626;
+    box-shadow: 0 0 4px rgba(220, 38, 38, 0.5);
+}
+
+.danger-box.filled-warning {
+    background: #ea580c;
+    box-shadow: 0 0 4px rgba(234, 88, 12, 0.5);
+}
+
+.danger-box.filled-low {
+    background: #ca8a04;
+    box-shadow: 0 0 4px rgba(202, 138, 4, 0.5);
+}
+
+/* zKillboard standard tactical badge colors */
+.badge-zkill-fc {
+    background-color: #d97706 !important;
+    color: #ffffff !important;
+    font-weight: 700;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.badge-zkill-bait {
+    background-color: #4b5563 !important;
+    color: #ffffff !important;
+    font-weight: 700;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.badge-zkill-blops {
+    background-color: #7c3aed !important;
+    color: #ffffff !important;
+    font-weight: 700;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.badge-zkill-awox {
+    background-color: #dc2626 !important;
+    color: #ffffff !important;
+    font-weight: 700;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.badge-zkill-cyno {
+    background-color: #e11d48 !important;
+    color: #ffffff !important;
+    font-weight: 700;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    animation: pulseGlowDanger 2s infinite ease-in-out;
+}
+
+.badge-zkill-capital {
+    background-color: #0284c7 !important;
+    color: #ffffff !important;
+    font-weight: 700;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.badge-zkill-super {
+    background-color: #c2410c !important;
+    color: #ffffff !important;
+    font-weight: 700;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.badge-zkill-titan {
+    background-color: #991b1b !important;
+    color: #ffffff !important;
+    font-weight: 700;
+    border: 1px solid rgba(255, 215, 0, 0.4);
+    box-shadow: 0 0 6px rgba(220, 38, 38, 0.4);
+}
+
+.badge-zkill-dread {
+    background-color: #b91c1c !important;
+    color: #ffffff !important;
+    font-weight: 700;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.badge-zkill-fax {
+    background-color: #0d9488 !important;
+    color: #ffffff !important;
+    font-weight: 700;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.badge-zkill-ganker {
+    background-color: #ca8a04 !important;
+    color: #ffffff !important;
+    font-weight: 700;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.badge-zkill-logi {
+    background-color: #059669 !important;
+    color: #ffffff !important;
+    font-weight: 700;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.badge-zkill-rookie {
+    background-color: #64748b !important;
+    color: #ffffff !important;
+    font-weight: 600;
+}
+
+/* Threat scan pilot row danger/warning styling with guaranteed high-contrast legibility */
+.pilot-row-danger {
+    background-color: rgba(220, 38, 38, 0.15) !important;
+    border-left: 4px solid #ef4444 !important;
+}
+
+.pilot-row-danger > td {
+    color: #f8fafc !important;
+}
+
+.pilot-row-danger:hover {
+    background-color: rgba(220, 38, 38, 0.28) !important;
+}
+
+.pilot-row-danger:hover > td {
+    color: #ffffff !important;
+}
+
+.pilot-row-warning {
+    background-color: rgba(234, 88, 12, 0.15) !important;
+    border-left: 4px solid #f97316 !important;
+}
+
+.pilot-row-warning > td {
+    color: #f8fafc !important;
+}
+
+.pilot-row-warning:hover {
+    background-color: rgba(234, 88, 12, 0.28) !important;
+}
+
+.pilot-row-warning:hover > td {
+    color: #ffffff !important;
+}
+
+/* Ensure table-hover dark table rows always retain readable text */
+.table-dark.table-hover > tbody > tr:hover > * {
+    color: #ffffff !important;
+}

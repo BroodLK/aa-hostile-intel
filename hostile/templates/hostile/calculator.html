@@ -1,0 +1,438 @@
+{% extends 'hostile/base.html' %}
+{% load i18n humanize %}
+
+{% block details %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-0 fw-bold"><i class="fas fa-calculator text-warning me-2"></i>{% translate "Upwell Reinforcement Timer Calculator" %}</h4>
+        <p class="text-muted small mb-0">{% translate "Calculate armor and final hull reinforcement exit windows based on defender vulnerability parameters, structure size, and power state." %}</p>
+    </div>
+    <div class="d-flex gap-2">
+        <button type="button" class="btn btn-warning btn-sm shadow-sm fw-bold" data-bs-toggle="modal" data-bs-target="#smartPasteModal">
+            <i class="fas fa-satellite-dish me-1"></i>{% translate "Paste Hack / Scan" %}
+        </button>
+        <a href="{% url 'hostile:timers' %}" class="btn btn-outline-secondary btn-sm" data-hostile-loading="{% translate 'Loading Timer Board' %}" data-hostile-loading-detail="{% translate 'Calculating upcoming structure reinforcement windows...' %}">
+            <i class="fas fa-stopwatch me-1"></i>{% translate "Timer Board" %}
+        </a>
+        <a href="{% url 'hostile:structures' %}" class="btn btn-outline-info btn-sm" data-hostile-loading="{% translate 'Loading Structures' %}" data-hostile-loading-detail="{% translate 'Fetching hostile structures registry and timer states...' %}">
+            <i class="fas fa-monument me-1"></i>{% translate "Structures Registry" %}
+        </a>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Calculator Form Column -->
+    <div class="col-lg-5">
+        <div class="card bg-dark text-white border-secondary hostile-card shadow-sm">
+            <div class="card-header hostile-card-header d-flex justify-content-between align-items-center">
+                <h6 class="card-title mb-0 fw-bold text-uppercase text-warning">
+                    <i class="fas fa-sliders-h me-2"></i>{% translate "Reinforcement Parameters" %}
+                </h6>
+                <span class="badge badge-subtle-secondary">{% translate "CCP Upwell 2.0 Engine" %}</span>
+            </div>
+            <div class="card-body">
+                <form method="post" action="{% url 'hostile:calculator' %}" id="calculatorForm" data-hostile-loading="{% translate 'Calculating Timers' %}" data-hostile-loading-detail="{% translate 'Computing Upwell armor and hull vulnerability windows...' %}">
+                    {% csrf_token %}
+
+                    <!-- Structure Quick Pick -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-info"><i class="fas fa-crosshairs me-1"></i>{% translate "Hostile Structure (Quick Fill)" %}</label>
+                        {{ form.structure }}
+                        <div class="form-text text-muted small">{% translate "Selecting a structure automatically imports its category, solar system, and scanned vulnerability window." %}</div>
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">{% translate "Structure Size / Category" %}</label>
+                            {{ form.structure_size }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">{% translate "Location / Security" %}</label>
+                            {{ form.location_type }}
+                        </div>
+                    </div>
+
+                    <!-- Low Power Checkbox -->
+                    <div class="card bg-black bg-opacity-30 border-secondary p-2 mb-3">
+                        <div class="form-check form-switch mb-0">
+                            {{ form.is_low_power }}
+                            <label class="form-check-label fw-bold text-warning" for="id_calculator_low_power">
+                                <i class="fas fa-battery-quarter me-1"></i>{% translate "Low Power Mode (Unfueled / No Services)" %}
+                            </label>
+                        </div>
+                        <div class="form-text text-muted small mt-1">{% translate "Check if the structure is unfueled or has no online services. Large/XL structures in Low Power skip armor reinforcement directly to vulnerable armor." %}</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-danger">{% translate "Reinforcement Stage" %}</label>
+                        {{ form.timer_stage }}
+                        <div class="form-text text-muted small" id="stageHelpText">{% translate "Available reinforcement stages depend on structure size category and power state." %}</div>
+                    </div>
+
+                    <!-- Reinforcement Timestamp -->
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <label class="form-label fw-bold mb-0">{% translate "Entered Reinforcement At (UTC)" %}</label>
+                            <div class="btn-group btn-group-sm">
+                                <button type="button" class="btn btn-outline-secondary py-0 px-1 text-xs" onclick="setReinforceTimeNow()">{% translate "Now (UTC)" %}</button>
+                                <button type="button" class="btn btn-outline-secondary py-0 px-1 text-xs" onclick="offsetReinforceTime(-30)">{% translate "-30m" %}</button>
+                                <button type="button" class="btn btn-outline-secondary py-0 px-1 text-xs" onclick="offsetReinforceTime(-60)">{% translate "-1h" %}</button>
+                            </div>
+                        </div>
+                        {{ form.reinforced_at }}
+                        <div class="form-text text-muted small">{% translate "Exact timestamp when shields or armor reached 0% hitpoints." %}</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-warning">{% translate "Vulnerability Hour (UTC)" %}</label>
+                        {{ form.vulnerability_hour }}
+                        <div class="form-text text-muted small">{% translate "Defender's 0-23 UTC reinforcement hour." %}</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">{% translate "Scanned Window Text (Optional)" %}</label>
+                        {{ form.vulnerability_window }}
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">{% translate "Solar System Override (Optional)" %}</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-black text-muted border-secondary"><i class="fas fa-map-marker-alt"></i></span>
+                            <input type="text" id="calcSystemSearchInput" class="form-control text-light bg-black border-secondary" placeholder="{% translate 'Search solar system override (e.g. Jita, 1DQ1-A)...' %}" list="calcSystemsDatalist" autocomplete="off">
+                            <button class="btn btn-outline-secondary" type="button" id="clearCalcSystemBtn" title="Clear"><i class="fas fa-times"></i></button>
+                        </div>
+                        <div class="d-none">
+                            {{ form.solar_system }}
+                        </div>
+                        <datalist id="calcSystemsDatalist"></datalist>
+                    </div>
+
+                    <div class="card bg-black bg-opacity-40 border-secondary p-3 mb-3">
+                        <div class="form-check mb-2">
+                            {{ form.save_to_timers }}
+                            <label class="form-check-label fw-bold text-success" for="id_calculator_save_timer">
+                                <i class="fas fa-save me-1"></i>{% translate "Save to Active Timer Board" %}
+                            </label>
+                        </div>
+                        <div class="mb-0">
+                            <label class="form-label small text-muted">{% translate "Timer Notes" %}</label>
+                            {{ form.notes }}
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-warning fw-bold py-2 shadow-sm">
+                            <i class="fas fa-calculator me-1"></i>{% translate "Calculate Exit Window" %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Calculation Results Column -->
+    <div class="col-lg-7">
+        {% if calc_result %}
+        <div class="card bg-dark text-white border-secondary hostile-card mb-4 shadow-sm" id="resultsCard">
+            <div class="card-header hostile-card-header d-flex justify-content-between align-items-center">
+                <h6 class="card-title mb-0 fw-bold text-uppercase text-info">
+                    <i class="fas fa-poll-h me-2"></i>{% translate "Calculation Output & Exit Window" %}
+                </h6>
+                {% if calc_result.is_applicable %}
+                    <span class="badge badge-subtle-teal"><i class="fas fa-check-circle me-1"></i>{% translate "Valid Upwell Window" %}</span>
+                {% else %}
+                    <span class="badge badge-subtle-warning"><i class="fas fa-exclamation-triangle me-1"></i>{% translate "Special Mechanic / No Timer" %}</span>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if calc_result.is_applicable %}
+                    <!-- Hero Banner -->
+                    <div class="bg-black bg-opacity-50 p-3 rounded border border-warning text-center mb-4">
+                        <div class="text-uppercase small text-muted fw-bold mb-1">{% translate "Estimated Nominal Exit (UTC)" %}</div>
+                        <h2 class="font-mono text-warning fw-bold mb-1">{{ calc_result.nominal_exit|date:"Y-m-d H:i" }} UTC</h2>
+                        <div class="d-flex justify-content-center align-items-center gap-2">
+                            <span class="badge bg-danger fs-6 font-mono"><i class="fas fa-stopwatch me-1"></i>{{ calc_result.time_remaining_str }}</span>
+                            <span class="badge badge-subtle-secondary">±{{ calc_result.jitter_hours }}h {% translate "Jitter Spread" %}</span>
+                        </div>
+                    </div>
+
+                    <!-- Window Breakdown Cards -->
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <div class="p-3 bg-black bg-opacity-30 rounded border border-secondary text-center">
+                                <div class="text-muted small text-uppercase">{% translate "Earliest Possible Exit" %}</div>
+                                <h5 class="font-mono text-info fw-bold mb-0 mt-1">{{ calc_result.earliest_exit|date:"Y-m-d H:i" }} UTC</h5>
+                                <div class="small text-muted mt-1">{{ calc_result.duration_min_hours|floatformat:1 }}h {% translate "from reinforce" %}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="p-3 bg-black bg-opacity-30 rounded border border-secondary text-center">
+                                <div class="text-muted small text-uppercase">{% translate "Latest Possible Exit" %}</div>
+                                <h5 class="font-mono text-info fw-bold mb-0 mt-1">{{ calc_result.latest_exit|date:"Y-m-d H:i" }} UTC</h5>
+                                <div class="small text-muted mt-1">{{ calc_result.duration_max_hours|floatformat:1 }}h {% translate "from reinforce" %}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Details Table -->
+                    <div class="table-responsive mb-3">
+                        <table class="table table-dark table-sm table-bordered border-secondary mb-0">
+                            <tbody>
+                                <tr>
+                                    <th class="text-muted small w-35">{% translate "Reinforced At (UTC)" %}</th>
+                                    <td class="font-mono">{{ calc_result.reinforced_at|date:"Y-m-d H:i:s" }} UTC</td>
+                                </tr>
+                                <tr>
+                                    <th class="text-muted small">{% translate "Calculated Window" %}</th>
+                                    <td class="font-mono text-warning fw-bold">{{ calc_result.exit_window_str }}</td>
+                                </tr>
+                                <tr>
+                                    <th class="text-muted small">{% translate "Structure Size & Security" %}</th>
+                                    <td>{{ calc_result.structure_size }} in {{ calc_result.location_type }}</td>
+                                </tr>
+                                <tr>
+                                    <th class="text-muted small">{% translate "Base Duration Delay" %}</th>
+                                    <td>{{ calc_result.base_delay_days }} {% translate "days" %} ({{ calc_result.base_delay_hours }} {% translate "hours" %})</td>
+                                </tr>
+                                <tr>
+                                    <th class="text-muted small">{% translate "Vulnerability Hour / Range" %}</th>
+                                    <td>
+                                        {% if calc_result.vulnerability_hour is not None %}
+                                            <span class="badge badge-subtle-warning">{{ calc_result.vulnerability_hour }}:00 UTC</span>
+                                        {% else %}
+                                            <span class="text-muted italic">{% translate "Not specified (using reinforcement hour)" %}</span>
+                                        {% endif %}
+                                        {% if calc_result.vulnerability_window %}
+                                            <span class="ms-1 small text-muted">({{ calc_result.vulnerability_window }})</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Clipboard Button -->
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-outline-info btn-sm fw-bold w-100" onclick="copyCalculatorIntel()">
+                            <i class="fas fa-copy me-1"></i>{% translate "Copy Timer Intel to Clipboard" %}
+                        </button>
+                    </div>
+
+                {% else %}
+                    <!-- Non-applicable Alert (e.g. Abandoned or Medium Hull) -->
+                    <div class="alert alert-warning border-secondary d-flex align-items-start gap-3">
+                        <i class="fas fa-info-circle fa-2x mt-1 text-warning"></i>
+                        <div>
+                            <h6 class="fw-bold mb-1">{% translate "Special Mechanics Notice" %}</h6>
+                            <p class="mb-0 small">{{ calc_result.status_message }}</p>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        {% else %}
+        <div class="card bg-dark text-white border-secondary hostile-card mb-4 shadow-sm text-center py-5">
+            <div class="card-body">
+                <i class="fas fa-calculator fa-3x text-secondary mb-3"></i>
+                <h5 class="fw-bold">{% translate "Ready to Calculate Exit Window" %}</h5>
+                <p class="text-muted small max-w-lg mx-auto">
+                    {% translate "Select a structure or input reinforcement parameters on the left to compute the earliest, nominal, and latest exit times." %}
+                </p>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Upwell Mechanics Reference Cheat Sheet -->
+        <div class="card bg-dark text-white border-secondary hostile-card shadow-sm">
+            <div class="card-header hostile-card-header">
+                <h6 class="card-title mb-0 fw-bold text-uppercase text-muted">
+                    <i class="fas fa-book-open me-2"></i>{% translate "Upwell Vulnerability Mechanics Reference" %}
+                </h6>
+            </div>
+            <div class="card-body p-3">
+                <div class="accordion accordion-flush" id="mechanicsAccordion">
+                    <div class="accordion-item bg-dark border-secondary text-white">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed bg-dark text-white shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#mechMedium">
+                                <i class="fas fa-shield-alt text-warning me-2"></i><strong>{% translate "Medium Structures (Astrahus, Raitaru, Athanor)" %}</strong>
+                            </button>
+                        </h2>
+                        <div id="mechMedium" class="accordion-collapse collapse" data-bs-parent="#mechanicsAccordion">
+                            <div class="accordion-body small text-muted">
+                                <p class="mb-1"><strong class="text-light">Shield Reinforcement (Armor Timer):</strong></p>
+                                <ul class="mb-2">
+                                    <li><strong>Nullsec / Lowsec:</strong> Next chosen hour 3.5 days (84 hours) later ± 1.5h jitter.</li>
+                                    <li><strong>Wormhole Space:</strong> Next chosen hour 2.5 days (60 hours) later ± 1.5h jitter.</li>
+                                    <li><strong>Highsec Space:</strong> Next chosen hour 4.5 days (108 hours) later ± 1.5h jitter.</li>
+                                    <li><strong>Highsec War HQ:</strong> Next chosen hour 24 hours later ± 1.5h jitter (accelerated for declared War HQ structures in Highsec).</li>
+                                </ul>
+                                <p class="mb-0"><strong class="text-danger">Hull Reinforcement:</strong> Medium structures have <strong>NO</strong> hull reinforcement timer. Once armor hitpoints are depleted, the hull is immediately vulnerable with a standard 15-minute repair timer.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="accordion-item bg-dark border-secondary text-white">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed bg-dark text-white shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#mechLarge">
+                                <i class="fas fa-monument text-info me-2"></i><strong>{% translate "Large / Extra-Large Structures (Fortizar, Keepstar, Azbel, Sotiyo)" %}</strong>
+                            </button>
+                        </h2>
+                        <div id="mechLarge" class="accordion-collapse collapse" data-bs-parent="#mechanicsAccordion">
+                            <div class="accordion-body small text-muted">
+                                <p class="mb-1"><strong class="text-light">Shield Reinforcement (Armor Timer):</strong></p>
+                                <ul class="mb-2">
+                                    <li><strong>All Space Types (Full Power):</strong> Next chosen hour 24 hours later ± 3.0h jitter.</li>
+                                    <li><strong>Low Power Mode:</strong> Skips armor reinforcement entirely; dropping shield makes armor immediately vulnerable.</li>
+                                </ul>
+                                <p class="mb-1"><strong class="text-danger">Hull Reinforcement (Final Timer):</strong></p>
+                                <ul class="mb-0">
+                                    <li><strong>Nullsec / Lowsec:</strong> Next chosen hour 2.5 days (60 hours) later ± 3.0h jitter.</li>
+                                    <li><strong>Wormhole Space:</strong> Next chosen hour 1.5 days (36 hours) later ± 3.0h jitter.</li>
+                                    <li><strong>Highsec Space:</strong> Next chosen hour 4.5 days (108 hours) later ± 3.0h jitter.</li>
+                                    <li><strong>Highsec War HQ:</strong> Next chosen hour 24 hours later ± 3.0h jitter.</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="accordion-item bg-dark border-secondary text-white">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed bg-dark text-white shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#mechFlex">
+                                <i class="fas fa-network-wired text-success me-2"></i><strong>{% translate "FLEX Structures (Ansiblex, Pharolux, Tenebrex)" %}</strong>
+                            </button>
+                        </h2>
+                        <div id="mechFlex" class="accordion-collapse collapse" data-bs-parent="#mechanicsAccordion">
+                            <div class="accordion-body small text-muted">
+                                <p class="mb-1"><strong>Armor Phase:</strong> No armor reinforcement timer (skips straight to vulnerable armor).</p>
+                                <p class="mb-0"><strong>Hull Reinforcement:</strong> Next chosen hour 30 minutes later ± 30m jitter (0.5 to 25.5 hours total duration).</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_javascript %}
+{{ block.super }}
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    attachSolarSystemAutocomplete("calcSystemSearchInput", "id_calculator_system", "calcSystemsDatalist", "clearCalcSystemBtn");
+
+    const sizeSelect = document.getElementById("id_calculator_size");
+    const lowPowerCheckbox = document.getElementById("id_calculator_low_power");
+    const stageSelect = document.getElementById("id_calculator_stage");
+    const structSelect = document.getElementById("id_calculator_structure");
+    const stageHelpText = document.getElementById("stageHelpText");
+
+    const STAGES = {
+        ARMOR: { value: "ARMOR", text: "{% translate 'Shield Depleted → Armor Timer Exit' %}" },
+        HULL: { value: "HULL", text: "{% translate 'Armor Depleted → Hull / Final Timer Exit' %}" }
+    };
+
+    function updateAvailableStages() {
+        if (!sizeSelect || !stageSelect) return;
+        const size = sizeSelect.value;
+        const isLowPower = lowPowerCheckbox ? lowPowerCheckbox.checked : false;
+        const currentStage = stageSelect.value;
+
+        let validStages = [];
+        let helpNote = "";
+
+        if (size === "MEDIUM" || size === "POCO") {
+            validStages = [STAGES.ARMOR];
+            helpNote = size === "MEDIUM"
+                ? "{% translate 'Medium structures have no hull timer; hull is immediately vulnerable once armor is depleted.' %}"
+                : "{% translate 'POCOs have only a single shield-to-armor reinforcement timer.' %}";
+        } else if (size === "FLEX") {
+            validStages = [STAGES.HULL];
+            helpNote = "{% translate 'FLEX structures have no armor timer (shield drops directly to vulnerable armor).' %}";
+        } else if (size === "LARGE_XL") {
+            if (isLowPower) {
+                validStages = [
+                    { value: "HULL", text: "{% translate 'Armor Depleted → Hull / Final Timer Exit (Low Power Skips Armor)' %}" }
+                ];
+                helpNote = "{% translate 'Large/XL structures in Low Power mode skip armor reinforcement directly to vulnerable armor.' %}";
+            } else {
+                validStages = [STAGES.ARMOR, STAGES.HULL];
+                helpNote = "{% translate 'Large/XL full power structures have two reinforcement cycles (Armor and Final Hull).' %}";
+            }
+        } else {
+            validStages = [STAGES.ARMOR, STAGES.HULL];
+        }
+
+        // Rebuild stage dropdown options
+        stageSelect.innerHTML = "";
+        validStages.forEach(s => {
+            const opt = document.createElement("option");
+            opt.value = s.value;
+            opt.textContent = s.text;
+            stageSelect.appendChild(opt);
+        });
+
+        // Retain previous stage if valid, else pick first valid
+        const stillValid = validStages.some(s => s.value === currentStage);
+        if (stillValid) {
+            stageSelect.value = currentStage;
+        } else if (validStages.length > 0) {
+            stageSelect.value = validStages[0].value;
+        }
+
+        if (stageHelpText && helpNote) {
+            stageHelpText.textContent = helpNote;
+        }
+    }
+
+    if (sizeSelect) sizeSelect.addEventListener("change", updateAvailableStages);
+    if (lowPowerCheckbox) lowPowerCheckbox.addEventListener("change", updateAvailableStages);
+
+    if (structSelect) {
+        structSelect.addEventListener("change", function() {
+            if (this.value) {
+                window.location.href = `{% url 'hostile:calculator' %}?structure_id=${this.value}`;
+            }
+        });
+    }
+
+    updateAvailableStages();
+});
+
+function setReinforceTimeNow() {
+    const now = new Date();
+    const utcString = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    document.getElementById('id_calculator_reinforced_at').value = utcString;
+}
+
+function offsetReinforceTime(minutesOffset) {
+    const input = document.getElementById('id_calculator_reinforced_at');
+    let date = input.value ? new Date(input.value) : new Date();
+    date = new Date(date.getTime() + (minutesOffset * 60000));
+    const utcString = new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    input.value = utcString;
+}
+
+function copyCalculatorIntel() {
+    {% if calc_result and calc_result.is_applicable %}
+    const text = `*** UPWELL REINFORCEMENT EXIT INTEL ***\n` +
+        `• Target: {{ calc_result.structure_size }} in {{ calc_result.location_type }}\n` +
+        `• Stage: {{ calc_result.timer_stage }}\n` +
+        `• Reinforced At: {{ calc_result.reinforced_at|date:"Y-m-d H:i" }} UTC\n` +
+        `• Calculated Exit Window: {{ calc_result.exit_window_str }}\n` +
+        `• Earliest: {{ calc_result.earliest_exit|date:"Y-m-d H:i" }} UTC\n` +
+        `• Nominal: {{ calc_result.nominal_exit|date:"Y-m-d H:i" }} UTC\n` +
+        `• Latest: {{ calc_result.latest_exit|date:"Y-m-d H:i" }} UTC\n` +
+        `• Time Remaining: {{ calc_result.time_remaining_str }}`;
+
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(() => {
+            alert('Timer intel copied to clipboard in broadcast format!');
+        });
+    } else {
+        prompt('Copy Intel:', text);
+    }
+    {% endif %}
+}
+</script>
+{% endblock %}

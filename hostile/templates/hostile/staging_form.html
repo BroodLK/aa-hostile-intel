@@ -1,0 +1,130 @@
+{% extends 'hostile/base.html' %}
+{% load i18n %}
+
+{% block details %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card bg-dark text-white border-secondary hostile-card shadow-sm">
+            <div class="card-header hostile-card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-bold">
+                    <i class="fas fa-crosshairs text-danger me-2"></i>
+                    {% if staging %}{% translate "Edit Staging System:" %} <span class="text-light">{{ staging.solar_system.name }}</span>{% else %}{% translate "Add Staging System" %}{% endif %}
+                </h5>
+                <a href="{% url 'hostile:doctrines' %}" class="btn btn-sm btn-outline-secondary">
+                    <i class="fas fa-times me-1"></i>{% translate "Cancel" %}
+                </a>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger py-2 small mb-3">{{ form.non_field_errors }}</div>
+                    {% endif %}
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">
+                                <i class="fas fa-map-marker-alt text-danger me-1"></i>{% translate "Solar System" %}
+                            </label>
+                            {{ form.solar_system }}
+                            {% if form.solar_system.errors %}<div class="text-danger small mt-1">{{ form.solar_system.errors }}</div>{% endif %}
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">
+                                <i class="fas fa-monument text-info me-1"></i>{% translate "Staging Structure (Optional)" %}
+                            </label>
+                            {{ form.structure }}
+                            {% if form.structure.errors %}<div class="text-danger small mt-1">{{ form.structure.errors }}</div>{% endif %}
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">
+                                <i class="fas fa-globe text-primary me-1"></i>{% translate "Hostile Alliance" %}
+                            </label>
+                            {{ form.alliance }}
+                            {% if form.alliance.errors %}<div class="text-danger small mt-1">{{ form.alliance.errors }}</div>{% endif %}
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">
+                                <i class="fas fa-building text-info me-1"></i>{% translate "Hostile Corporation" %}
+                            </label>
+                            {{ form.corporation }}
+                            {% if form.corporation.errors %}<div class="text-danger small mt-1">{{ form.corporation.errors }}</div>{% endif %}
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">
+                                <i class="fas fa-tag text-warning me-1"></i>{% translate "Staging Type" %}
+                            </label>
+                            {{ form.staging_type }}
+                            {% if form.staging_type.errors %}<div class="text-danger small mt-1">{{ form.staging_type.errors }}</div>{% endif %}
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">
+                                <i class="fas fa-star text-warning me-1"></i>{% translate "Primary Staging Hub" %}
+                            </label>
+                            <div class="form-check form-switch mt-2">
+                                {{ form.is_primary }}
+                                <label class="form-check-label small" for="{{ form.is_primary.id_for_label }}">{% translate "Mark as Primary Active Staging" %}</label>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label text-muted small fw-bold text-uppercase">
+                                <i class="fas fa-users text-light me-1"></i>{% translate "Subcaps Formup Override" %}
+                            </label>
+                            {{ form.max_subcap_form }}
+                            {% if form.max_subcap_form.errors %}<div class="text-danger small mt-1">{{ form.max_subcap_form.errors }}</div>{% endif %}
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label text-muted small fw-bold text-uppercase">
+                                <i class="fas fa-shield-alt text-warning me-1"></i>{% translate "Capitals Formup Override" %}
+                            </label>
+                            {{ form.max_cap_form }}
+                            {% if form.max_cap_form.errors %}<div class="text-danger small mt-1">{{ form.max_cap_form.errors }}</div>{% endif %}
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label text-muted small fw-bold text-uppercase">
+                                <i class="fas fa-skull text-danger me-1"></i>{% translate "Supers Formup Override" %}
+                            </label>
+                            {{ form.max_super_form }}
+                            {% if form.max_super_form.errors %}<div class="text-danger small mt-1">{{ form.max_super_form.errors }}</div>{% endif %}
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label text-muted small fw-bold text-uppercase">
+                                <i class="fas fa-sticky-note text-secondary me-1"></i>{% translate "Staging Notes / Jump Clones" %}
+                            </label>
+                            {{ form.notes }}
+                            {% if form.notes.errors %}<div class="text-danger small mt-1">{{ form.notes.errors }}</div>{% endif %}
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mt-4">
+                        {% if staging %}
+                        <a href="{% url 'hostile:staging_delete' staging.id %}" class="btn btn-outline-danger btn-sm">
+                            <i class="fas fa-trash-alt me-1"></i>{% translate "Delete Staging" %}
+                        </a>
+                        {% else %}
+                        <div></div>
+                        {% endif %}
+                        <div class="d-flex gap-2">
+                            <a href="{% url 'hostile:doctrines' %}" class="btn btn-secondary">
+                                {% translate "Cancel" %}
+                            </a>
+                            <button type="submit" class="btn btn-primary fw-bold px-4">
+                                <i class="fas fa-save me-1"></i>{% translate "Save Staging System" %}
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

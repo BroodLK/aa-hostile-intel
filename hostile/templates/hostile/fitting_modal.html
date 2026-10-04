@@ -1,0 +1,203 @@
+{% load i18n %}
+
+<div class="modal-header border-secondary">
+    <div class="d-flex align-items-center">
+        {% if structure.structure_type %}
+            <img src="https://images.evetech.net/types/{{ structure.structure_type.id }}/render?size=64" alt="{{ structure.structure_type.name }}" class="me-3 rounded border border-secondary" style="width: 48px; height: 48px;">
+        {% endif %}
+        <div>
+            <h5 class="modal-title mb-0 fw-bold">{{ structure.name }}</h5>
+            <div class="small text-muted">
+                {{ structure.structure_type.name|default:"Structure" }} &bull;
+                <span class="text-info">{{ structure.solar_system.name|default:"Unknown System" }}</span> &bull;
+                {{ structure.owner_name }}
+            </div>
+        </div>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        {% if structure.core_status == "FITTED" %}
+            <span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>Core Fitted</span>
+        {% elif structure.core_status == "UNFITTED" %}
+            <span class="badge bg-danger"><i class="fas fa-times-circle me-1"></i>No Core</span>
+        {% else %}
+            <span class="badge bg-secondary">Core Unknown</span>
+        {% endif %}
+
+        {% if structure.state == "ONLINE" %}
+            <span class="badge bg-primary">Online</span>
+        {% elif structure.state == "ARMOR" or structure.state == "HULL" or structure.state == "REINFORCED" %}
+            <span class="badge bg-warning text-dark">{{ structure.state }}</span>
+        {% elif structure.state == "DESTROYED" %}
+            <span class="badge bg-danger">Destroyed</span>
+        {% else %}
+            <span class="badge bg-secondary">{{ structure.state }}</span>
+        {% endif %}
+
+        <button type="button" class="btn-close btn-close-white ms-2" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+</div>
+
+<div class="modal-body p-4">
+    {% if not fitting %}
+        <div class="alert alert-info border-secondary bg-dark text-center my-4">
+            <i class="fas fa-info-circle me-2"></i>{% translate "No fitting recorded for this structure yet. Use Smart Ingest or paste a ship scanner fitting scan below." %}
+        </div>
+    {% else %}
+        <div class="row g-3">
+            <!-- High Slots -->
+            <div class="col-md-6 col-lg-4">
+                <div class="card bg-black border-secondary h-100 shadow-sm">
+                    <div class="card-header py-2 px-3 border-secondary bg-dark d-flex justify-content-between align-items-center">
+                        <span class="fw-bold text-danger"><i class="fas fa-crosshairs me-1"></i> High Slots</span>
+                        <span class="badge bg-secondary">{{ grouped_modules.HIGH|length }}</span>
+                    </div>
+                    <ul class="list-group list-group-flush bg-transparent">
+                        {% for mod in grouped_modules.HIGH %}
+                        <li class="list-group-item bg-transparent text-white border-secondary d-flex align-items-center py-2 px-3">
+                            <img src="https://images.evetech.net/types/{{ mod.module_type.id }}/icon?size=32" alt="{{ mod.module_type.name }}" class="me-2 rounded" style="width: 28px; height: 28px;">
+                            <div class="flex-grow-1 small text-truncate" title="{{ mod.module_type.name }}">{{ mod.module_type.name }}</div>
+                        </li>
+                        {% empty %}
+                        <li class="list-group-item bg-transparent text-muted small py-2 px-3 italic">Empty</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Medium Slots -->
+            <div class="col-md-6 col-lg-4">
+                <div class="card bg-black border-secondary h-100 shadow-sm">
+                    <div class="card-header py-2 px-3 border-secondary bg-dark d-flex justify-content-between align-items-center">
+                        <span class="fw-bold text-warning"><i class="fas fa-shield-alt me-1"></i> Medium Slots</span>
+                        <span class="badge bg-secondary">{{ grouped_modules.MED|length }}</span>
+                    </div>
+                    <ul class="list-group list-group-flush bg-transparent">
+                        {% for mod in grouped_modules.MED %}
+                        <li class="list-group-item bg-transparent text-white border-secondary d-flex align-items-center py-2 px-3">
+                            <img src="https://images.evetech.net/types/{{ mod.module_type.id }}/icon?size=32" alt="{{ mod.module_type.name }}" class="me-2 rounded" style="width: 28px; height: 28px;">
+                            <div class="flex-grow-1 small text-truncate" title="{{ mod.module_type.name }}">{{ mod.module_type.name }}</div>
+                        </li>
+                        {% empty %}
+                        <li class="list-group-item bg-transparent text-muted small py-2 px-3 italic">Empty</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Low Slots -->
+            <div class="col-md-6 col-lg-4">
+                <div class="card bg-black border-secondary h-100 shadow-sm">
+                    <div class="card-header py-2 px-3 border-secondary bg-dark d-flex justify-content-between align-items-center">
+                        <span class="fw-bold text-success"><i class="fas fa-layer-group me-1"></i> Low Slots</span>
+                        <span class="badge bg-secondary">{{ grouped_modules.LOW|length }}</span>
+                    </div>
+                    <ul class="list-group list-group-flush bg-transparent">
+                        {% for mod in grouped_modules.LOW %}
+                        <li class="list-group-item bg-transparent text-white border-secondary d-flex align-items-center py-2 px-3">
+                            <img src="https://images.evetech.net/types/{{ mod.module_type.id }}/icon?size=32" alt="{{ mod.module_type.name }}" class="me-2 rounded" style="width: 28px; height: 28px;">
+                            <div class="flex-grow-1 small text-truncate" title="{{ mod.module_type.name }}">{{ mod.module_type.name }}</div>
+                        </li>
+                        {% empty %}
+                        <li class="list-group-item bg-transparent text-muted small py-2 px-3 italic">Empty</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Rig Slots -->
+            <div class="col-md-6 col-lg-4">
+                <div class="card bg-black border-secondary h-100 shadow-sm">
+                    <div class="card-header py-2 px-3 border-secondary bg-dark d-flex justify-content-between align-items-center">
+                        <span class="fw-bold text-info"><i class="fas fa-wrench me-1"></i> Rig Slots</span>
+                        <span class="badge bg-secondary">{{ grouped_modules.RIG|length }}</span>
+                    </div>
+                    <ul class="list-group list-group-flush bg-transparent">
+                        {% for mod in grouped_modules.RIG %}
+                        <li class="list-group-item bg-transparent text-white border-secondary d-flex align-items-center py-2 px-3">
+                            <img src="https://images.evetech.net/types/{{ mod.module_type.id }}/icon?size=32" alt="{{ mod.module_type.name }}" class="me-2 rounded" style="width: 28px; height: 28px;">
+                            <div class="flex-grow-1 small text-truncate" title="{{ mod.module_type.name }}">{{ mod.module_type.name }}</div>
+                        </li>
+                        {% empty %}
+                        <li class="list-group-item bg-transparent text-muted small py-2 px-3 italic">Empty</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Service Modules -->
+            <div class="col-md-6 col-lg-4">
+                <div class="card bg-black border-secondary h-100 shadow-sm">
+                    <div class="card-header py-2 px-3 border-secondary bg-dark d-flex justify-content-between align-items-center">
+                        <span class="fw-bold text-primary"><i class="fas fa-server me-1"></i> Service Modules</span>
+                        <span class="badge bg-secondary">{{ grouped_modules.SERVICE|length }}</span>
+                    </div>
+                    <ul class="list-group list-group-flush bg-transparent">
+                        {% for mod in grouped_modules.SERVICE %}
+                        <li class="list-group-item bg-transparent text-white border-secondary d-flex align-items-center py-2 px-3">
+                            <img src="https://images.evetech.net/types/{{ mod.module_type.id }}/icon?size=32" alt="{{ mod.module_type.name }}" class="me-2 rounded" style="width: 28px; height: 28px;">
+                            <div class="flex-grow-1 small text-truncate" title="{{ mod.module_type.name }}">{{ mod.module_type.name }}</div>
+                        </li>
+                        {% empty %}
+                        <li class="list-group-item bg-transparent text-muted small py-2 px-3 italic">Empty</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Charges / Fighters / Ammo -->
+            <div class="col-md-6 col-lg-4">
+                <div class="card bg-black border-secondary h-100 shadow-sm">
+                    <div class="card-header py-2 px-3 border-secondary bg-dark d-flex justify-content-between align-items-center">
+                        <span class="fw-bold text-secondary"><i class="fas fa-box me-1"></i> Ammo & Fighters</span>
+                        <span class="badge bg-secondary">{{ grouped_modules.CHARGE|length }}</span>
+                    </div>
+                    <ul class="list-group list-group-flush bg-transparent">
+                        {% for mod in grouped_modules.CHARGE %}
+                        <li class="list-group-item bg-transparent text-white border-secondary d-flex align-items-center py-2 px-3">
+                            <img src="https://images.evetech.net/types/{{ mod.module_type.id }}/icon?size=32" alt="{{ mod.module_type.name }}" class="me-2 rounded" style="width: 28px; height: 28px;">
+                            <div class="flex-grow-1 small text-truncate" title="{{ mod.module_type.name }}">{{ mod.module_type.name }}</div>
+                        </li>
+                        {% empty %}
+                        <li class="list-group-item bg-transparent text-muted small py-2 px-3 italic">Empty</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+
+    <div class="collapse mt-3" id="updateFitCollapse">
+        <div class="card card-body bg-dark border-secondary p-3 shadow">
+            <h6 class="fw-bold text-info mb-2"><i class="fas fa-satellite-dish me-1"></i>{% translate "Paste Ship Scanner / EFT Fitting Scan" %}</h6>
+            <form action="{% url 'hostile:structure_fitting_save' structure.id %}" method="post">
+                {% csrf_token %}
+                <div class="mb-2">
+                    <input type="text" name="fit_name" class="form-control form-control-sm bg-black border-secondary text-white" placeholder="{% translate 'Fitting Snapshot Label (e.g. Scanned Defense Fit)...' %}">
+                </div>
+                <div class="mb-2">
+                    <textarea name="fitting_text" rows="6" class="form-control form-control-sm font-monospace bg-black border-secondary text-white" placeholder="High Power Slots&#10;Standup Anticapital Missile Launcher I&#10;Standup XL Energy Neutralizer I&#10;&#10;Medium Power Slots&#10;Standup Focused Warp Disruptor I&#10;Standup Target Painter I&#10;&#10;Low Power Slots&#10;Standup Ballistic Control System I&#10;&#10;Service Slots&#10;Standup Cloning Center I"></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm fw-bold"><i class="fas fa-save me-1"></i>{% translate "Save Scanned Fit" %}</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal-footer border-secondary justify-content-between">
+    <div class="small text-muted">
+        {% if fitting %}
+            Last updated {{ fitting.updated_at|date:"Y-m-d H:i UTC" }}
+        {% endif %}
+    </div>
+    <div>
+        <button type="button" class="btn btn-outline-info btn-sm me-2" data-bs-toggle="collapse" data-bs-target="#updateFitCollapse">
+            <i class="fas fa-upload me-1"></i> {% translate "Import / Update Fit" %}
+        </button>
+        {% if eft_export %}
+            <button type="button" class="btn btn-primary btn-sm fw-bold me-2" onclick="copyToClipboard(`{{ eft_export|escapejs }}`)">
+                <i class="fas fa-copy me-1"></i> {% translate "Copy EFT to Clipboard" %}
+            </button>
+        {% endif %}
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">{% translate "Close" %}</button>
+    </div>
+</div>

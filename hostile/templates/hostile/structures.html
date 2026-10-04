@@ -1,0 +1,575 @@
+{% extends 'hostile/base.html' %}
+{% load i18n humanize %}
+
+{% block details %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-0 fw-bold"><i class="fas fa-monument text-info me-2"></i>{% translate "Hostile Structures Registry" %}</h4>
+        <p class="text-muted small mb-0">{% translate "Tracked hostile citadels, engineering complexes, refineries, and POSes." %}</p>
+    </div>
+    <div class="d-flex gap-2">
+        <button type="button" class="btn btn-primary btn-sm fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#addStructureModal">
+            <i class="fas fa-plus me-1"></i>{% translate "Add Structure" %}
+        </button>
+    </div>
+</div>
+
+<div class="card bg-dark text-white border-secondary hostile-card shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-dark table-hover mb-0 align-middle">
+                <thead>
+                    <tr class="text-muted small text-uppercase">
+                        <th>{% translate "Name" %}</th>
+                        <th>{% translate "Type" %}</th>
+                        <th>{% translate "Solar System" %}</th>
+                        <th>{% translate "Owner" %}</th>
+                        <th>{% translate "Vulnerability" %}</th>
+                        <th>{% translate "Quantum Core" %}</th>
+                        <th>{% translate "State" %}</th>
+                        <th>{% translate "Verified" %}</th>
+                        <th>{% translate "Last Updated" %}</th>
+                        <th class="text-end">{% translate "Actions" %}</th>
+                    </tr>
+                </thead>
+                <tbody class="border-secondary">
+                    {% for struct in structures %}
+                    <tr>
+                        <td class="fw-bold">
+                            {{ struct.name }}
+                            {% if struct.location_details %}
+                                <div class="small text-muted">{{ struct.location_details }}</div>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if struct.structure_type %}
+                                <img src="https://images.evetech.net/types/{{ struct.structure_type.id }}/icon?size=32" alt="" class="me-1 rounded" style="width: 24px; height: 24px;">
+                                {{ struct.structure_type.name }}
+                            {% else %}
+                                <span class="text-muted">Structure</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-info fw-bold font-mono">{{ struct.solar_system.name|default:"Unknown" }}</td>
+                        <td>
+                            {% if struct.alliance %}
+                                <a href="{% url 'hostile:alliance_detail' struct.alliance.id %}" class="text-light fw-bold text-decoration-none hover-primary">{{ struct.alliance.alliance_name }}</a>
+                            {% elif struct.corporation %}
+                                <a href="{% url 'hostile:corporation_detail' struct.corporation.id %}" class="text-light fw-bold text-decoration-none hover-primary">{{ struct.corporation.corporation_name }}</a>
+                            {% else %}
+                                <div>{{ struct.owner_name }}</div>
+                            {% endif %}
+                            {% if struct.owner_ticker %}
+                                <span class="badge badge-subtle-secondary small">[{{ struct.owner_ticker }}]</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if struct.vulnerability_window %}
+                                <span class="badge badge-subtle-warning"><i class="fas fa-shield-alt me-1"></i>{{ struct.vulnerability_window }}</span>
+                            {% elif struct.vulnerability_hour is not None %}
+                                <span class="badge badge-subtle-warning"><i class="fas fa-shield-alt me-1"></i>{{ struct.vulnerability_hour }}:00 UTC</span>
+                            {% else %}
+                                <span class="text-muted small">{% translate "Unknown" %}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if struct.core_status == "FITTED" %}
+                                <span class="badge badge-subtle-teal"><i class="fas fa-check-circle me-1"></i>Fitted</span>
+                            {% elif struct.core_status == "UNFITTED" %}
+                                <span class="badge badge-subtle-danger"><i class="fas fa-times-circle me-1"></i>No Core</span>
+                            {% else %}
+                                <span class="badge badge-subtle-secondary">Unknown</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if struct.state == "ONLINE" %}
+                                <span class="badge badge-subtle-success"><i class="fas fa-check-circle me-1"></i>Online</span>
+                            {% elif struct.state == "LOW_POWER" %}
+                                <span class="badge badge-subtle-warning"><i class="fas fa-bolt me-1"></i>Low Power</span>
+                            {% elif struct.state == "OFFLINE" %}
+                                <span class="badge badge-subtle-secondary"><i class="fas fa-power-off me-1"></i>Offline</span>
+                            {% elif struct.state == "ABANDONED" %}
+                                <span class="badge badge-subtle-danger"><i class="fas fa-exclamation-triangle me-1"></i>Abandoned</span>
+                            {% elif struct.state == "ANCHORING" %}
+                                <span class="badge badge-subtle-warning"><i class="fas fa-anchor me-1"></i>Anchoring</span>
+                            {% elif struct.state == "UNANCHORING" %}
+                                <span class="badge badge-subtle-secondary"><i class="fas fa-box-open me-1"></i>Unanchoring</span>
+                            {% elif struct.state == "ARMOR" or struct.state == "HULL" or struct.state == "REINFORCED" %}
+                                <span class="badge badge-subtle-danger"><i class="fas fa-stopwatch me-1"></i>{{ struct.get_state_display }}</span>
+                            {% elif struct.state == "DESTROYED" %}
+                                <span class="badge bg-danger text-light"><i class="fas fa-skull me-1"></i>Destroyed</span>
+                            {% else %}
+                                <span class="badge badge-subtle-secondary">{{ struct.state }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if struct.is_verified %}
+                                <span class="badge badge-subtle-teal"><i class="fas fa-check"></i> Verified</span>
+                            {% else %}
+                                <span class="badge badge-subtle-warning"><i class="fas fa-clock"></i> Unverified</span>
+                            {% endif %}
+                        </td>
+                        <td class="small text-muted">{{ struct.updated_at|naturaltime }}</td>
+                        <td class="text-end">
+                            <div class="dropdown d-inline-block me-1">
+                                <button class="btn btn-outline-secondary btn-xs py-0 px-2 dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" title="{% translate 'Change Structure State' %}">
+                                    <i class="fas fa-exchange-alt me-1"></i>State
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end shadow border-secondary" style="z-index: 1080;">
+                                    <li><h6 class="dropdown-header small text-uppercase">{% translate "Change Structure State" %}</h6></li>
+                                    <li>
+                                        <form action="{% url 'hostile:structure_set_state' struct.id %}" method="post" class="m-0 p-0">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="state" value="ONLINE">
+                                            <button type="submit" class="dropdown-item small text-success py-1"><i class="fas fa-check-circle me-2"></i>{% translate "Online" %}</button>
+                                        </form>
+                                    </li>
+                                    <li>
+                                        <form action="{% url 'hostile:structure_set_state' struct.id %}" method="post" class="m-0 p-0">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="state" value="LOW_POWER">
+                                            <button type="submit" class="dropdown-item small text-warning py-1"><i class="fas fa-bolt me-2"></i>{% translate "Low Power" %}</button>
+                                        </form>
+                                    </li>
+                                    <li>
+                                        <form action="{% url 'hostile:structure_set_state' struct.id %}" method="post" class="m-0 p-0">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="state" value="OFFLINE">
+                                            <button type="submit" class="dropdown-item small text-secondary py-1"><i class="fas fa-power-off me-2"></i>{% translate "Offline" %}</button>
+                                        </form>
+                                    </li>
+                                    <li>
+                                        <form action="{% url 'hostile:structure_set_state' struct.id %}" method="post" class="m-0 p-0">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="state" value="ABANDONED">
+                                            <button type="submit" class="dropdown-item small text-warning py-1"><i class="fas fa-exclamation-triangle me-2"></i>{% translate "Abandoned" %}</button>
+                                        </form>
+                                    </li>
+                                    <li>
+                                        <form action="{% url 'hostile:structure_set_state' struct.id %}" method="post" class="m-0 p-0">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="state" value="ARMOR">
+                                            <button type="submit" class="dropdown-item small text-danger py-1"><i class="fas fa-shield-alt me-2"></i>{% translate "Armor Reinforced" %}</button>
+                                        </form>
+                                    </li>
+                                    <li>
+                                        <form action="{% url 'hostile:structure_set_state' struct.id %}" method="post" class="m-0 p-0">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="state" value="HULL">
+                                            <button type="submit" class="dropdown-item small text-danger py-1"><i class="fas fa-stopwatch me-2"></i>{% translate "Hull Reinforced" %}</button>
+                                        </form>
+                                    </li>
+                                    <li><hr class="dropdown-divider border-secondary my-1"></li>
+                                    <li>
+                                        <form action="{% url 'hostile:structure_set_state' struct.id %}" method="post" class="m-0 p-0">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="state" value="DESTROYED">
+                                            <button type="submit" class="dropdown-item small text-danger fw-bold py-1"><i class="fas fa-skull me-2"></i>{% translate "Destroyed" %}</button>
+                                        </form>
+                                    </li>
+                                </ul>
+                            </div>
+                            <a href="{% url 'hostile:calculator' %}?structure_id={{ struct.id }}" class="btn btn-outline-warning btn-xs py-0 px-2 me-1" title="{% translate 'Calculate Reinforce Exit Window' %}" data-hostile-loading="{% translate 'Loading Timer Calculator' %}" data-hostile-loading-detail="{% translate 'Importing structure vulnerability and geometry into calculation engine...' %}">
+                                <i class="fas fa-calculator me-1"></i>{% translate "Calc" %}
+                            </a>
+                            <button type="button" class="btn btn-outline-info btn-xs py-0 px-2 me-1" onclick="loadFittingModal({{ struct.id }})">
+                                <i class="fas fa-crosshairs me-1"></i>{% translate "Fit" %}
+                            </button>
+                            {% if perms.hostile.manage_intel or struct.created_by == request.user %}
+                            <a href="{% url 'hostile:structure_edit' struct.id %}" class="btn btn-outline-primary btn-xs py-0 px-2 me-1" title="{% translate 'Edit Structure' %}">
+                                <i class="fas fa-edit me-1"></i>{% translate "Edit" %}
+                            </a>
+                            {% endif %}
+                            {% if perms.hostile.manage_intel %}
+                            <button type="button" class="btn btn-outline-danger btn-xs py-0 px-2 me-1" data-bs-toggle="modal" data-bs-target="#deleteStructureModal{{ struct.id }}" title="{% translate 'Delete Structure' %}">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                            {% endif %}
+                            {% if perms.hostile.manage_intel and not struct.is_verified %}
+                                <a href="{% url 'hostile:structure_verify' struct.id %}" class="btn btn-outline-success btn-xs py-0 px-2">
+                                    <i class="fas fa-check"></i>
+                                </a>
+                            {% endif %}
+
+                            <!-- Delete Structure Modal -->
+                            <div class="modal fade text-start" id="deleteStructureModal{{ struct.id }}" tabindex="-1" aria-hidden="true">
+                                <div class="modal-dialog">
+                                    <div class="modal-content bg-dark text-white border-secondary">
+                                        <div class="modal-header border-secondary">
+                                            <h5 class="modal-title fw-bold text-danger">
+                                                <i class="fas fa-exclamation-triangle me-2"></i>{% translate "Delete Structure" %}
+                                            </h5>
+                                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                        </div>
+                                        <div class="modal-body text-light">
+                                            <p>{% blocktranslate with name=struct.name system=struct.solar_system.name %}Are you sure you want to permanently delete structure <strong>{{ name }}</strong> in <strong>{{ system }}</strong>?{% endblocktranslate %}</p>
+                                            <div class="alert alert-warning py-2 small mb-0">
+                                                <i class="fas fa-info-circle me-1"></i>{% translate "This action cannot be undone. All associated fittings and active timers will be removed." %}
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer border-secondary">
+                                            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">{% translate "Cancel" %}</button>
+                                            <form action="{% url 'hostile:structure_delete' struct.id %}" method="post" class="d-inline">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-danger btn-sm fw-bold">
+                                                    <i class="fas fa-trash-alt me-1"></i>{% translate "Delete Structure" %}
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="10" class="text-center py-5 text-muted">
+                            <i class="fas fa-monument fa-3x mb-3 text-secondary"></i>
+                            <p>{% translate "No structures recorded yet. Add structures manually or use the universal Smart Ingest button." %}</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Add Structure Modal -->
+<div class="modal fade" id="addStructureModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content bg-dark text-white border-secondary">
+            <form action="{% url 'hostile:structure_add' %}" method="post">
+                {% csrf_token %}
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title"><i class="fas fa-plus-circle text-primary me-2"></i>{% translate "Add Hostile Structure" %}</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Structure Name" %}</label>
+                            {{ structure_form.name }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Structure Type" %}</label>
+                            {{ structure_form.structure_type }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Solar System" %}</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-black text-muted border-secondary"><i class="fas fa-map-marker-alt"></i></span>
+                                <input type="text" id="structSystemSearchInput" class="form-control text-light bg-black border-secondary" placeholder="{% translate 'Search solar system (e.g. Jita, 1DQ1-A)...' %}" list="structSystemsDatalist" autocomplete="off" required>
+                                <button class="btn btn-outline-secondary" type="button" id="clearStructSystemBtn" title="Clear"><i class="fas fa-times"></i></button>
+                            </div>
+                            <div class="d-none">
+                                {{ structure_form.solar_system }}
+                            </div>
+                            <datalist id="structSystemsDatalist"></datalist>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Owner Ticker" %}</label>
+                            {{ structure_form.owner_ticker }}
+                            <div class="form-text text-muted small">{% translate "Auto-prefilled from alliance or corporation selection" %}</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Alliance" %}</label>
+                            {{ structure_form.alliance }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Corporation" %}</label>
+                            {{ structure_form.corporation }}
+                        </div>
+
+                        <!-- Collapsible Untracked Entity Entry -->
+                        <div class="col-12">
+                            <a class="btn btn-outline-secondary btn-sm" data-bs-toggle="collapse" href="#untrackedEntityCollapse" role="button" aria-expanded="false" aria-controls="untrackedEntityCollapse">
+                                <i class="fas fa-plus me-1"></i>{% translate "Add Untracked Alliance or Corporation" %}
+                            </a>
+                        </div>
+                        <div class="collapse col-12" id="untrackedEntityCollapse">
+                            <div class="card card-body bg-black bg-opacity-50 border-secondary">
+                                <div class="row g-2">
+                                    <div class="col-md-6">
+                                        <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Untracked Alliance Name / Ticker / ID" %}</label>
+                                        {{ structure_form.untracked_alliance }}
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Untracked Corporation Name / Ticker / ID" %}</label>
+                                        {{ structure_form.untracked_corporation }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">{% translate "State / Status" %}</label>
+                            {{ structure_form.state }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Quantum Core Status" %}</label>
+                            {{ structure_form.core_status }}
+                            <div class="form-text text-muted small" id="coreStatusHelp">{% translate "Anchoring structures automatically have no quantum core." %}</div>
+                        </div>
+
+                        <!-- Vulnerability Section -->
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">
+                                <i class="fas fa-clock text-warning me-1"></i>{% translate "Vulnerability Hour (UTC 0-23)" %}
+                            </label>
+                            {{ structure_form.vulnerability_hour }}
+                            <div class="form-text text-muted small">{% translate "Enter base hour set (e.g. 18). Window will auto-compute ±3 hours." %}</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Vulnerability Window (Auto-filled ±3h)" %}</label>
+                            {{ structure_form.vulnerability_window }}
+                        </div>
+
+                        <!-- Dynamic Structure Timer Creation Section -->
+                        <div class="col-12" id="structureTimerSection">
+                            <div class="card card-body bg-danger bg-opacity-10 border-danger border-opacity-50">
+                                <h6 class="text-danger fw-bold mb-2">
+                                    <i class="fas fa-stopwatch me-1"></i>{% translate "Structure Timer Creation" %}
+                                </h6>
+                                <p class="small text-muted mb-3">{% translate "Set the target exit timer for this anchoring or reinforced structure to register it on the Timer Board." %}</p>
+                                <div class="row g-2">
+                                    <div class="col-md-6">
+                                        <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Timer Type" %}</label>
+                                        {{ structure_form.timer_stage }}
+                                        <div class="form-text text-muted small" id="timerStageHelpText">{% translate "Available reinforcement stages depend on structure type." %}</div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Target Exit DateTime (UTC)" %}</label>
+                                        {{ structure_form.timer_datetime }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Location Details" %}</label>
+                            {{ structure_form.location_details }}
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Notes & Intelligence" %}</label>
+                            {{ structure_form.notes }}
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% translate "Cancel" %}</button>
+                    <button type="submit" class="btn btn-primary fw-bold"><i class="fas fa-save me-1"></i>{% translate "Save Structure" %}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% block extra_javascript %}
+{{ block.super }}
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    attachSolarSystemAutocomplete("structSystemSearchInput", "id_solar_system", "structSystemsDatalist", "clearStructSystemBtn");
+
+    const allianceSelect = document.getElementById("id_alliance");
+    const corpSelect = document.getElementById("id_corporation");
+    const tickerInput = document.getElementById("id_owner_ticker");
+    const vulnHourInput = document.getElementById("id_vulnerability_hour");
+    const vulnWindowInput = document.getElementById("id_vulnerability_window");
+    const stateSelect = document.getElementById("id_state");
+    const coreSelect = document.getElementById("id_core_status");
+    const timerSection = document.getElementById("structureTimerSection");
+    const timerStageSelect = document.getElementById("id_timer_stage");
+    const structureTypeSelect = document.getElementById("id_structure_type");
+    const timerStageHelp = document.getElementById("timerStageHelpText");
+
+    const ALL_TIMER_STAGES = {
+        ANCHORING: { value: "ANCHORING", text: "{% translate 'Anchoring Timer' %}" },
+        ARMOR: { value: "ARMOR", text: "{% translate 'Armor Reinforce Timer' %}" },
+        HULL: { value: "HULL", text: "{% translate 'Hull Reinforce Timer' %}" },
+        REINFORCED: { value: "REINFORCED", text: "{% translate 'Reinforced (General)' %}" }
+    };
+
+    function inferStructureCategoryFromText(name) {
+        if (!name) return "UNKNOWN";
+        const n = name.toLowerCase();
+        if (n.includes("ansiblex") || n.includes("pharolux") || n.includes("tenebrex") || n.includes("metenox") || n.includes("moon drill") || n.includes("drill") || n.includes("jump gate") || n.includes("cyno beacon") || n.includes("cyno jammer") || n.includes("flex")) {
+            return "FLEX";
+        }
+        if (n.includes("fortizar") || n.includes("azbel") || n.includes("tatara") || n.includes("keepstar") || n.includes("sotiyo") || n.includes("faction fortizar") || n.includes("palatine")) {
+            return "LARGE_XL";
+        }
+        if (n.includes("astrahus") || n.includes("raitaru") || n.includes("athanor") || n.includes("citadel") || n.includes("refinery") || n.includes("engineering")) {
+            return "MEDIUM";
+        }
+        if (n.includes("customs office") || n.includes("poco")) {
+            return "POCO";
+        }
+        return "UNKNOWN";
+    }
+
+    function updateAvailableTimerStages() {
+        if (!timerStageSelect) return;
+        const state = stateSelect ? stateSelect.value : "ONLINE";
+        const structText = structureTypeSelect && structureTypeSelect.selectedIndex >= 0 ? structureTypeSelect.options[structureTypeSelect.selectedIndex].text : "";
+        const cat = inferStructureCategoryFromText(structText);
+        const currentStage = timerStageSelect.value;
+
+        let stages = [];
+        let helpNote = "";
+
+        if (cat === "MEDIUM" || cat === "POCO") {
+            stages = [ALL_TIMER_STAGES.ANCHORING, ALL_TIMER_STAGES.ARMOR];
+            helpNote = "{% translate 'Medium structures and POCOs have no hull timer (hull is vulnerable immediately after armor).' %}";
+        } else if (cat === "FLEX") {
+            stages = [ALL_TIMER_STAGES.ANCHORING, ALL_TIMER_STAGES.HULL];
+            helpNote = "{% translate 'FLEX structures have no armor timer (shield drops directly to vulnerable armor).' %}";
+        } else if (cat === "LARGE_XL") {
+            stages = [ALL_TIMER_STAGES.ANCHORING, ALL_TIMER_STAGES.ARMOR, ALL_TIMER_STAGES.HULL];
+            helpNote = "{% translate 'Large/XL structures feature two reinforcement cycles (Armor and Final Hull).' %}";
+        } else {
+            stages = [ALL_TIMER_STAGES.ANCHORING, ALL_TIMER_STAGES.ARMOR, ALL_TIMER_STAGES.HULL, ALL_TIMER_STAGES.REINFORCED];
+        }
+
+        // Rebuild options
+        timerStageSelect.innerHTML = "";
+        stages.forEach(s => {
+            const opt = document.createElement("option");
+            opt.value = s.value;
+            opt.textContent = s.text;
+            timerStageSelect.appendChild(opt);
+        });
+
+        // Retain selection if valid, or select based on state
+        if (state === "ANCHORING") {
+            timerStageSelect.value = "ANCHORING";
+        } else if (state === "ARMOR" || state === "REINFORCED") {
+            if (cat === "FLEX") {
+                timerStageSelect.value = "HULL";
+            } else {
+                timerStageSelect.value = "ARMOR";
+            }
+        } else if (state === "HULL") {
+            if (cat === "MEDIUM" || cat === "POCO") {
+                timerStageSelect.value = "ARMOR";
+            } else {
+                timerStageSelect.value = "HULL";
+            }
+        } else if (stages.some(s => s.value === currentStage)) {
+            timerStageSelect.value = currentStage;
+        } else if (stages.length > 0) {
+            timerStageSelect.value = stages[0].value;
+        }
+
+        if (timerStageHelp) {
+            timerStageHelp.textContent = helpNote || "{% translate 'Available reinforcement stages depend on structure type.' %}";
+        }
+    }
+
+    // Auto-fill ticker on alliance selection
+    if (allianceSelect) {
+        allianceSelect.addEventListener("change", function() {
+            const selectedText = allianceSelect.options[allianceSelect.selectedIndex]?.text || '';
+            const match = selectedText.match(/\[(.*?)\]/);
+            if (match && match[1]) {
+                tickerInput.value = match[1];
+            } else if (allianceSelect.value) {
+                fetch(`/hostile/api/alliance-resolve/?query=${encodeURIComponent(allianceSelect.value)}`)
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success && data.alliance && data.alliance.ticker) {
+                            tickerInput.value = data.alliance.ticker;
+                        }
+                    }).catch(() => {});
+            }
+        });
+    }
+
+    // Auto-fill ticker on corporation selection if not set by alliance
+    if (corpSelect) {
+        corpSelect.addEventListener("change", function() {
+            const selectedText = corpSelect.options[corpSelect.selectedIndex]?.text || '';
+            const match = selectedText.match(/\[(.*?)\]/);
+            if (match && match[1] && (!tickerInput.value || !allianceSelect.value)) {
+                tickerInput.value = match[1];
+            } else if (corpSelect.value && (!tickerInput.value || !allianceSelect.value)) {
+                fetch(`/hostile/api/corporation-resolve/?query=${encodeURIComponent(corpSelect.value)}`)
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success && data.corporation && data.corporation.ticker) {
+                            tickerInput.value = data.corporation.ticker;
+                        }
+                    }).catch(() => {});
+            }
+        });
+    }
+
+    // Vulnerability hour -> +-3 hour window auto computation
+    function updateVulnerabilityWindow() {
+        if (!vulnHourInput) return;
+        const val = parseInt(vulnHourInput.value, 10);
+        if (!isNaN(val) && val >= 0 && val <= 23) {
+            const startHour = (val - 3 + 24) % 24;
+            const endHour = (val + 3) % 24;
+            const pad = n => String(n).padStart(2, '0');
+            vulnWindowInput.value = `${pad(startHour)}:00 - ${pad(endHour)}:00 UTC`;
+        }
+    }
+
+    if (vulnHourInput) {
+        vulnHourInput.addEventListener("input", updateVulnerabilityWindow);
+        vulnHourInput.addEventListener("change", updateVulnerabilityWindow);
+    }
+
+    // Status / Anchoring / Timer visibility handling
+    function updateStateHandling() {
+        if (!stateSelect) return;
+        const state = stateSelect.value;
+        if (state === "ANCHORING") {
+            if (coreSelect) {
+                coreSelect.value = "UNFITTED";
+            }
+            if (timerSection) {
+                timerSection.style.display = "block";
+            }
+            if (timerStageSelect) {
+                timerStageSelect.value = "ANCHORING";
+            }
+        } else if (["ARMOR", "HULL", "REINFORCED"].includes(state)) {
+            if (timerSection) {
+                timerSection.style.display = "block";
+            }
+            if (timerStageSelect) {
+                timerStageSelect.value = state === "REINFORCED" ? "ARMOR" : state;
+            }
+        } else {
+            if (timerSection) {
+                // Keep visible if datetime is filled, otherwise collapsed
+                const timerDt = document.getElementById("id_timer_datetime");
+                if (timerDt && timerDt.value) {
+                    timerSection.style.display = "block";
+                } else {
+                    timerSection.style.display = "none";
+                }
+            }
+        }
+    }
+
+    if (structureTypeSelect) {
+        structureTypeSelect.addEventListener("change", function() {
+            updateAvailableTimerStages();
+        });
+    }
+
+    if (stateSelect) {
+        stateSelect.addEventListener("change", function() {
+            updateStateHandling();
+            updateAvailableTimerStages();
+        });
+        updateStateHandling();
+    }
+
+    updateAvailableTimerStages();
+});
+</script>
+{% endblock %}
+{% endblock %}

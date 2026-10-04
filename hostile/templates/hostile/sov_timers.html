@@ -1,0 +1,1222 @@
+{% extends 'hostile/base.html' %}
+{% load i18n humanize %}
+
+{% block details %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-0 fw-bold"><i class="fas fa-flag text-warning me-2"></i>{% translate "Sovereignty Campaign Timers" %}</h4>
+        <p class="text-muted small mb-0">{% translate "Live EVE Online sovereignty contest campaigns, node capture events, and territorial defense windows." %}</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'hostile:timers' %}" class="btn btn-outline-secondary btn-sm" data-hostile-loading="{% translate 'Loading Timer Board' %}">
+            <i class="fas fa-stopwatch me-1"></i>{% translate "Structure Timer Board" %}
+        </a>
+    </div>
+</div>
+
+<!-- Notice regarding 1-minute ESI sync & dynamic live updates -->
+<div class="alert alert-info bg-dark border-info text-info d-flex flex-wrap justify-content-between align-items-center mb-4 py-2 px-3 shadow-sm gap-2">
+    <div class="d-flex align-items-center">
+        <div class="small">
+            {% translate "Sovereignty contest progress and capture scores are synchronized every minute from ESI." %}
+            <span class="text-slate-300 ms-1 d-none d-md-inline">{% translate "Checking automatically once a minute for new campaigns, contest score updates, and conclusions without reloading." %}</span>
+        </div>
+    </div>
+    <div class="d-flex align-items-center gap-2 small">
+        <span id="sovLastSyncBadge" class="badge badge-subtle-info font-mono">
+            <i class="fas fa-history me-1"></i><span id="sovLastSyncText">{% translate "Live Active" %}</span>
+        </span>
+        <span id="sovNextCheckBadge" class="badge badge-subtle-secondary font-mono d-none d-sm-inline">
+            <i class="fas fa-stopwatch me-1"></i><span id="sovNextCheckCountdown">60s</span>
+        </span>
+        <button type="button" id="sovManualSyncBtn" class="btn btn-outline-info btn-xs py-1 px-2" title="{% translate 'Check for sovereignty contest updates now' %}">
+            <i class="fas fa-sync-alt me-1" id="sovSyncIcon"></i>{% translate "Sync Now" %}
+        </button>
+    </div>
+</div>
+
+<!-- Dynamic update notification banner -->
+<div id="sovUpdateBanner" class="alert alert-warning bg-dark border-warning text-warning align-items-center justify-content-between py-2 px-3 mb-4 shadow-sm d-none">
+    <div class="d-flex align-items-center">
+        <i class="fas fa-bell fa-lg me-3 text-warning"></i>
+        <div id="sovUpdateBannerMessage" class="small fw-bold"></div>
+    </div>
+    <button type="button" class="btn-close btn-close-white btn-sm" aria-label="Close" onclick="document.getElementById('sovUpdateBanner').classList.add('d-none'); document.getElementById('sovUpdateBanner').classList.remove('d-flex');"></button>
+</div>
+
+<!-- Origin / Reference Solar System for Jump Distance Calculation -->
+<div class="card bg-dark text-white border-secondary hostile-card shadow-sm mb-4" style="overflow: visible;">
+    <div class="card-body py-3" style="overflow: visible;">
+        <div class="row align-items-center g-3">
+            <div class="col-md-5 col-lg-4">
+                <label for="sovReferenceSystem" class="form-label text-muted small fw-bold text-uppercase mb-1">
+                    <i class="fas fa-map-marker-alt text-danger me-1"></i>{% translate "Origin / Reference Solar System" %}
+                </label>
+                <select id="sovReferenceSystem" class="form-select form-select-sm" data-searchable="true">
+                    <option value="">{% translate "-- Select Staging / Reference System --" %}</option>
+                    {% for sys in reference_systems %}
+                        <option value="{{ sys.id }}" data-name="{{ sys.name }}" data-x="{{ sys.x }}" data-y="{{ sys.y }}" data-z="{{ sys.z }}" {% if selected_origin_id == sys.id %}selected{% endif %}>
+                            {{ sys.name }} ({{ sys.constellation.region.name|default:"Unknown Region" }})
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-7 col-lg-8 d-flex align-items-center justify-content-between pt-md-4">
+                <div id="originSystemDetails" class="text-slate-300 small">
+                    <span class="text-muted">{% translate "Select an origin system to calculate real-time jump drive distance (LY) and safest stargate jumps to all campaign targets." %}</span>
+                </div>
+                <button type="button" id="clearReferenceSystemBtn" class="btn btn-outline-secondary btn-xs py-1 px-2" style="display: none;">
+                    <i class="fas fa-times me-1"></i>{% translate "Reset" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Active Sovereignty Contest Campaigns -->
+<div class="card bg-dark text-white border-secondary hostile-card mb-4 shadow-sm">
+    <div class="card-header hostile-card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <h6 class="card-title mb-0 fw-bold text-uppercase text-warning">
+                <i class="fas fa-hourglass-half me-2"></i>{% translate "Active Sovereignty Contests" %}
+            </h6>
+            <span id="activeContestsCountBadge" class="badge badge-subtle-warning font-mono">{{ upcoming_timers|length }} active events</span>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <label for="activeTableSort" class="small text-muted fw-bold text-uppercase mb-0 d-none d-sm-inline">
+                <i class="fas fa-sort-amount-down me-1"></i>{% translate "Sort By:" %}
+            </label>
+            <select id="activeTableSort" class="form-select form-select-xs py-1 px-2 table-sort-select" style="width: auto; font-size: 0.8rem; background-color: #1e293b; color: #f8fafc; border-color: #475569;">
+                <option value="time-asc" {% if current_sort == "time" and current_order == "asc" or not current_sort %}selected{% endif %}>{% translate "Time: Soonest First" %}</option>
+                <option value="time-desc" {% if current_sort == "time" and current_order == "desc" %}selected{% endif %}>{% translate "Time: Latest First" %}</option>
+                <option value="ly-asc" {% if current_sort == "ly" and current_order == "asc" %}selected{% endif %}>{% translate "Distance: Closest (LY)" %}</option>
+                <option value="ly-desc" {% if current_sort == "ly" and current_order == "desc" %}selected{% endif %}>{% translate "Distance: Furthest (LY)" %}</option>
+                <option value="jumps-asc" {% if current_sort == "jumps" and current_order == "asc" %}selected{% endif %}>{% translate "Jumps from Origin: Fewest" %}</option>
+                <option value="jumps-desc" {% if current_sort == "jumps" and current_order == "desc" %}selected{% endif %}>{% translate "Jumps from Origin: Most" %}</option>
+                <option value="region-asc" {% if current_sort == "region" and current_order == "asc" %}selected{% endif %}>{% translate "Region: A &rarr; Z" %}</option>
+                <option value="region-desc" {% if current_sort == "region" and current_order == "desc" %}selected{% endif %}>{% translate "Region: Z &rarr; A" %}</option>
+                <option value="system-asc" {% if current_sort == "system" and current_order == "asc" %}selected{% endif %}>{% translate "System: A &rarr; Z" %}</option>
+                <option value="system-desc" {% if current_sort == "system" and current_order == "desc" %}selected{% endif %}>{% translate "System: Z &rarr; A" %}</option>
+                <option value="defender-asc" {% if current_sort == "defender" and current_order == "asc" %}selected{% endif %}>{% translate "Defender: A &rarr; Z" %}</option>
+                <option value="defender-desc" {% if current_sort == "defender" and current_order == "desc" %}selected{% endif %}>{% translate "Defender: Z &rarr; A" %}</option>
+            </select>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table id="activeContestsTable" class="table table-dark table-hover mb-0 align-middle">
+                <thead>
+                    <tr class="text-muted small text-uppercase">
+                        <th>
+                            <span class="sortable-header" data-sort-key="structure" role="button" title="{% translate "Sort by Structure" %}">
+                                {% translate "Reinforced Structure" %} <i class="fas fa-sort text-muted sort-icon ms-1"></i>
+                            </span>
+                        </th>
+                        <th>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="sortable-header" data-sort-key="system" role="button" title="{% translate "Sort by Solar System" %}">
+                                    {% translate "System" %} <i class="fas fa-sort text-muted sort-icon ms-1"></i>
+                                </span>
+                                <span class="text-secondary">&amp;</span>
+                                <span class="sortable-header" data-sort-key="region" role="button" title="{% translate "Sort by Region" %}">
+                                    {% translate "Region" %} <i class="fas fa-sort text-muted sort-icon ms-1"></i>
+                                </span>
+                            </div>
+                        </th>
+                        <th class="distance-header text-center" style="display: none;">
+                            <div class="d-flex align-items-center justify-content-center gap-2">
+                                <span class="sortable-header" data-sort-key="ly" role="button" title="{% translate "Sort by Light Years (LY)" %}">
+                                    <i class="fas fa-satellite-dish me-1"></i>{% translate "LY" %} <i class="fas fa-sort text-muted sort-icon ms-1"></i>
+                                </span>
+                                <span class="text-secondary">&middot;</span>
+                                <span class="sortable-header" data-sort-key="jumps" role="button" title="{% translate "Sort by Stargate Jumps from Origin" %}">
+                                    <i class="fas fa-route me-1"></i>{% translate "Jumps" %} <i class="fas fa-sort text-muted sort-icon ms-1"></i>
+                                </span>
+                            </div>
+                        </th>
+                        <th>
+                            <span class="sortable-header" data-sort-key="defender" role="button" title="{% translate "Sort by Sovereignty Owner" %}">
+                                {% translate "Sovereignty Owner (Defender)" %} <i class="fas fa-sort text-muted sort-icon ms-1"></i>
+                            </span>
+                        </th>
+                        <th>
+                            <span class="sortable-header" data-sort-key="score" role="button" title="{% translate "Sort by Contest Score" %}">
+                                {% translate "Contest Score" %} <i class="fas fa-sort text-muted sort-icon ms-1"></i>
+                            </span>
+                        </th>
+                        <th>
+                            <span class="sortable-header" data-sort-key="time" role="button" title="{% translate "Sort by Event Window" %}">
+                                {% translate "Event Window (UTC)" %} <i class="fas fa-sort text-muted sort-icon ms-1"></i>
+                            </span>
+                        </th>
+                        <th>
+                            <span class="sortable-header" data-sort-key="time" role="button" title="{% translate "Sort by Time Remaining" %}">
+                                {% translate "Time Remaining" %} <i class="fas fa-sort text-muted sort-icon ms-1"></i>
+                            </span>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody class="border-secondary">
+                    {% for timer in upcoming_timers %}
+                    <tr data-sov-row="true"
+                        data-timer-id="{{ timer.id }}"
+                        data-structure="{{ timer.structure_event_name|lower }}"
+                        data-system="{{ timer.solar_system.name|default:''|lower }}"
+                        data-region="{{ timer.region_name|default:''|lower }}"
+                        data-defender="{{ timer.defender_display|default:''|lower }}"
+                        data-score="{{ timer.defender_percent|default:0 }}"
+                        data-time="{{ timer.timer_datetime|date:'U' }}"
+                        data-ly="{% if timer.distance_data and timer.distance_data.ly is not None %}{{ timer.distance_data.ly }}{% else %}999999{% endif %}"
+                        data-jumps="{% if timer.distance_data and timer.distance_data.jumps is not None %}{{ timer.distance_data.jumps }}{% else %}999999{% endif %}"
+                        class="{% if timer.is_tracked_hostile %}table-sov-row-hostile{% endif %}">
+                        <td>
+                            <div class="fw-bold text-light">
+                                <i class="fas {% if timer.timer_type == 'SOV_IHUB' %}fa-network-wired text-info{% elif timer.timer_type == 'SOV_TCU' %}fa-flag text-warning{% else %}fa-satellite text-secondary{% endif %} me-2"></i>
+                                {{ timer.structure_event_name }}
+                            </div>
+                            {% if timer.is_tracked_hostile %}
+                                <div class="mt-1">
+                                    <span class="badge badge-subtle-danger"><i class="fas fa-crosshairs me-1"></i>{% translate "Tracked Hostile" %}</span>
+                                </div>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="fw-bold text-info font-mono">{{ timer.solar_system.name|default:"Unknown" }}</div>
+                            <div class="small text-muted"><i class="fas fa-compass me-1"></i>{{ timer.region_name }}</div>
+                        </td>
+                        <td class="distance-cell text-center" data-dest-id="{{ timer.solar_system.id }}" data-x="{{ timer.solar_system.x }}" data-y="{{ timer.solar_system.y }}" data-z="{{ timer.solar_system.z }}" style="display: none;">
+                            <span class="badge badge-subtle-info font-mono fw-bold distance-badge">
+                                <i class="fas fa-route me-1"></i><span class="distance-text">{% if timer.distance_data %}{{ timer.distance_data.display }}{% else %}-{% endif %}</span>
+                            </span>
+                        </td>
+                        <td>
+                            <div class="fw-bold text-light">
+                                {{ timer.defender_display }}
+                            </div>
+                            {% if timer.defender_id and timer.is_tracked_hostile %}
+                                <span class="badge badge-subtle-warning font-mono small"><i class="fas fa-crosshairs me-1"></i>{% translate "Hostile Territory" %}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if timer.has_started %}
+                                <div class="sov-score-wrapper">
+                                    <div class="sov-score-container">
+                                        <div class="sov-score-donut" style="background: conic-gradient(#10b981 0% {{ timer.defender_percent }}%, #ef4444 {{ timer.defender_percent }}% 100%);">
+                                            <div class="sov-score-donut-inner">
+                                                <span>{{ timer.defender_percent }}%</span>
+                                            </div>
+                                        </div>
+                                        <div class="sov-score-breakdown font-mono">
+                                            <span class="text-success"><i class="fas fa-shield-alt me-1"></i>Def: {{ timer.defender_percent }}%</span>
+                                            <span class="text-danger"><i class="fas fa-crosshairs me-1"></i>Atk: {{ timer.attacker_percent }}%</span>
+                                        </div>
+                                    </div>
+                                    {% if timer.defender_percent == 60 and timer.attacker_percent == 40 %}
+                                        <div class="small text-muted font-mono mt-1">{% translate "No progress has been made yet" %}</div>
+                                    {% endif %}
+                                </div>
+                            {% else %}
+                                <div>
+                                    <span class="badge bg-secondary text-light font-mono px-2 py-1">
+                                        <i class="fas fa-clock me-1"></i>{% translate "N/A" %}
+                                    </span>
+                                    <div class="small text-muted mt-1 font-mono">{% translate "Not Started" %}</div>
+                                </div>
+                            {% endif %}
+                        </td>
+                        <td class="font-mono small">
+                            <div>{{ timer.timer_datetime|date:"Y-m-d H:i:s" }} UTC</div>
+                        </td>
+                        <td>
+                            <div class="countdown-timer font-mono fw-bold text-light" data-expiry="{{ timer.timer_datetime|date:'c' }}">
+                                {% if timer.has_started %}
+                                    <span class="text-success"><i class="fas fa-play-circle me-1"></i>{% translate "ON-GOING" %}</span>
+                                {% else %}
+                                    {{ timer.timer_datetime|naturaltime }}
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center py-5 text-muted">
+                            <i class="fas fa-check-circle fa-3x mb-3 text-secondary"></i>
+                            <p class="mb-0">{% translate "No active sovereignty contest campaigns detected." %}</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Past / Expired Sovereignty Campaigns (Last 24 Hours) -->
+<div class="card bg-dark text-white border-secondary hostile-card shadow-sm">
+    <div class="card-header hostile-card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <h6 class="card-title mb-0 fw-bold text-uppercase text-muted">
+                <i class="fas fa-history me-2"></i>{% translate "Concluded Campaigns (Past 24 Hours)" %}
+            </h6>
+            <span class="small text-muted">{% translate "Auto-purged after 24 hours" %}</span>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <label for="concludedTableSort" class="small text-muted fw-bold text-uppercase mb-0 d-none d-sm-inline">
+                <i class="fas fa-sort-amount-down me-1"></i>{% translate "Sort By:" %}
+            </label>
+            <select id="concludedTableSort" class="form-select form-select-xs py-1 px-2 table-sort-select" style="width: auto; font-size: 0.8rem; background-color: #1e293b; color: #f8fafc; border-color: #475569;">
+                <option value="time-desc" {% if current_sort == "time" and current_order == "desc" or not current_sort %}selected{% endif %}>{% translate "Time: Most Recent First" %}</option>
+                <option value="time-asc" {% if current_sort == "time" and current_order == "asc" %}selected{% endif %}>{% translate "Time: Oldest First" %}</option>
+                <option value="ly-asc" {% if current_sort == "ly" and current_order == "asc" %}selected{% endif %}>{% translate "Distance: Closest (LY)" %}</option>
+                <option value="ly-desc" {% if current_sort == "ly" and current_order == "desc" %}selected{% endif %}>{% translate "Distance: Furthest (LY)" %}</option>
+                <option value="jumps-asc" {% if current_sort == "jumps" and current_order == "asc" %}selected{% endif %}>{% translate "Jumps from Origin: Fewest" %}</option>
+                <option value="jumps-desc" {% if current_sort == "jumps" and current_order == "desc" %}selected{% endif %}>{% translate "Jumps from Origin: Most" %}</option>
+                <option value="region-asc" {% if current_sort == "region" and current_order == "asc" %}selected{% endif %}>{% translate "Region: A &rarr; Z" %}</option>
+                <option value="region-desc" {% if current_sort == "region" and current_order == "desc" %}selected{% endif %}>{% translate "Region: Z &rarr; A" %}</option>
+                <option value="system-asc" {% if current_sort == "system" and current_order == "asc" %}selected{% endif %}>{% translate "System: A &rarr; Z" %}</option>
+                <option value="system-desc" {% if current_sort == "system" and current_order == "desc" %}selected{% endif %}>{% translate "System: Z &rarr; A" %}</option>
+                <option value="defender-asc" {% if current_sort == "defender" and current_order == "asc" %}selected{% endif %}>{% translate "Defender: A &rarr; Z" %}</option>
+                <option value="defender-desc" {% if current_sort == "defender" and current_order == "desc" %}selected{% endif %}>{% translate "Defender: Z &rarr; A" %}</option>
+            </select>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table id="concludedCampaignsTable" class="table table-dark table-hover mb-0 align-middle">
+                <thead>
+                    <tr class="text-slate-300 small text-uppercase">
+                        <th>
+                            <span class="sortable-header" data-sort-key="structure" role="button" title="{% translate "Sort by Structure" %}">
+                                {% translate "Reinforced Structure" %} <i class="fas fa-sort text-muted sort-icon ms-1"></i>
+                            </span>
+                        </th>
+                        <th>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="sortable-header" data-sort-key="system" role="button" title="{% translate "Sort by Solar System" %}">
+                                    {% translate "System" %} <i class="fas fa-sort text-muted sort-icon ms-1"></i>
+                                </span>
+                                <span class="text-secondary">&amp;</span>
+                                <span class="sortable-header" data-sort-key="region" role="button" title="{% translate "Sort by Region" %}">
+                                    {% translate "Region" %} <i class="fas fa-sort text-muted sort-icon ms-1"></i>
+                                </span>
+                            </div>
+                        </th>
+                        <th class="distance-header text-center" style="display: none;">
+                            <div class="d-flex align-items-center justify-content-center gap-2">
+                                <span class="sortable-header" data-sort-key="ly" role="button" title="{% translate "Sort by Light Years (LY)" %}">
+                                    <i class="fas fa-satellite-dish me-1"></i>{% translate "LY" %} <i class="fas fa-sort text-muted sort-icon ms-1"></i>
+                                </span>
+                                <span class="text-secondary">&middot;</span>
+                                <span class="sortable-header" data-sort-key="jumps" role="button" title="{% translate "Sort by Stargate Jumps from Origin" %}">
+                                    <i class="fas fa-route me-1"></i>{% translate "Jumps" %} <i class="fas fa-sort text-muted sort-icon ms-1"></i>
+                                </span>
+                            </div>
+                        </th>
+                        <th>
+                            <span class="sortable-header" data-sort-key="defender" role="button" title="{% translate "Sort by Sovereignty Owner" %}">
+                                {% translate "Sovereignty Owner (Defender)" %} <i class="fas fa-sort text-muted sort-icon ms-1"></i>
+                            </span>
+                        </th>
+                        <th>
+                            <span class="sortable-header" data-sort-key="score" role="button" title="{% translate "Sort by Campaign Result" %}">
+                                {% translate "Campaign Result" %} <i class="fas fa-sort text-muted sort-icon ms-1"></i>
+                            </span>
+                        </th>
+                        <th>
+                            <span class="sortable-header" data-sort-key="score" role="button" title="{% translate "Sort by Final Score" %}">
+                                {% translate "Final Score" %} <i class="fas fa-sort text-muted sort-icon ms-1"></i>
+                            </span>
+                        </th>
+                        <th>
+                            <span class="sortable-header" data-sort-key="time" role="button" title="{% translate "Sort by Event Window" %}">
+                                {% translate "Event Window (UTC)" %} <i class="fas fa-sort text-muted sort-icon ms-1"></i>
+                            </span>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody class="border-secondary">
+                    {% for timer in expired_timers %}
+                    <tr data-sov-row="true"
+                        data-timer-id="{{ timer.id }}"
+                        data-structure="{{ timer.structure_event_name|lower }}"
+                        data-system="{{ timer.solar_system.name|default:''|lower }}"
+                        data-region="{{ timer.region_name|default:''|lower }}"
+                        data-defender="{{ timer.defender_display|default:''|lower }}"
+                        data-score="{{ timer.defender_percent|default:0 }}"
+                        data-time="{{ timer.timer_datetime|date:'U' }}"
+                        data-ly="{% if timer.distance_data and timer.distance_data.ly is not None %}{{ timer.distance_data.ly }}{% else %}999999{% endif %}"
+                        data-jumps="{% if timer.distance_data and timer.distance_data.jumps is not None %}{{ timer.distance_data.jumps }}{% else %}999999{% endif %}"
+                        class="{% if timer.is_tracked_hostile %}table-sov-row-hostile{% endif %}">
+                        <td>
+                            <div class="fw-bold text-light">
+                                <i class="fas {% if timer.timer_type == 'SOV_IHUB' %}fa-network-wired text-info{% elif timer.timer_type == 'SOV_TCU' %}fa-flag text-warning{% else %}fa-satellite text-secondary{% endif %} me-2"></i>
+                                {{ timer.structure_event_name }}
+                            </div>
+                            {% if timer.is_tracked_hostile %}
+                                <div class="mt-1">
+                                    <span class="badge badge-subtle-danger"><i class="fas fa-crosshairs me-1"></i>{% translate "Tracked Hostile" %}</span>
+                                </div>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="fw-bold text-info font-mono">{{ timer.solar_system.name|default:"Unknown" }}</div>
+                            <div class="small text-slate-300"><i class="fas fa-compass me-1"></i>{{ timer.region_name }}</div>
+                        </td>
+                        <td class="distance-cell text-center" data-dest-id="{{ timer.solar_system.id }}" data-x="{{ timer.solar_system.x }}" data-y="{{ timer.solar_system.y }}" data-z="{{ timer.solar_system.z }}" style="display: none;">
+                            <span class="badge badge-subtle-info font-mono fw-bold distance-badge">
+                                <i class="fas fa-route me-1"></i><span class="distance-text">{% if timer.distance_data %}{{ timer.distance_data.display }}{% else %}-{% endif %}</span>
+                            </span>
+                        </td>
+                        <td>
+                            <div class="fw-bold text-light">
+                                {{ timer.defender_display }}
+                            </div>
+                            {% if timer.defender_id and timer.is_tracked_hostile %}
+                                <span class="badge badge-subtle-warning font-mono small"><i class="fas fa-crosshairs me-1"></i>{% translate "Hostile Territory" %}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if timer.defender_percent >= 60 or timer.defender_score >= 1.0 %}
+                                <span class="badge badge-subtle-success font-mono px-2 py-1">
+                                    <i class="fas fa-shield-alt me-1"></i>{% translate "Defended" %}
+                                </span>
+                            {% elif timer.defender_percent <= 40 or timer.defender_score <= 0.0 %}
+                                <span class="badge badge-subtle-danger font-mono px-2 py-1">
+                                    <i class="fas fa-skull me-1"></i>{% translate "Captured" %}
+                                </span>
+                            {% else %}
+                                <span class="badge badge-subtle-warning font-mono px-2 py-1">
+                                    <i class="fas fa-flag-checkered me-1"></i>{% translate "Concluded" %}
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="sov-score-container">
+                                <div class="sov-score-donut" style="background: conic-gradient(#10b981 0% {{ timer.defender_percent }}%, #ef4444 {{ timer.defender_percent }}% 100%); width: 34px; height: 34px;">
+                                    <div class="sov-score-donut-inner" style="width: 22px; height: 22px; font-size: 0.6rem;">
+                                        <span>{{ timer.defender_percent }}%</span>
+                                    </div>
+                                </div>
+                                <div class="sov-score-breakdown font-mono small">
+                                    <span class="text-success small">Def: {{ timer.defender_percent }}%</span>
+                                    <span class="text-danger small">Atk: {{ timer.attacker_percent }}%</span>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="font-mono small text-slate-300">{{ timer.timer_datetime|date:"Y-m-d H:i:s" }} UTC</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center py-4 text-muted">
+                            <p class="mb-0">{% translate "No concluded campaigns in the past 24 hours." %}</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<style>
+.sov-row-updated {
+    animation: sovRowPulse 2.5s ease-out;
+}
+.sov-row-new {
+    animation: sovRowNewPulse 3.5s ease-out;
+}
+@keyframes sovRowPulse {
+    0% {
+        background-color: rgba(245, 158, 11, 0.35) !important;
+        box-shadow: inset 0 0 9px rgba(245, 158, 11, 0.35);
+    }
+    100% {
+        background-color: transparent !important;
+        box-shadow: none;
+    }
+}
+@keyframes sovRowNewPulse {
+    0% {
+        background-color: rgba(16, 185, 129, 0.35) !important;
+        box-shadow: inset 0 0 9px rgba(16, 185, 129, 0.35);
+    }
+    100% {
+        background-color: transparent !important;
+        box-shadow: none;
+    }
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const METERS_PER_LY = 9.4607304725808e15;
+    const refSelect = document.getElementById('sovReferenceSystem');
+    const detailsDiv = document.getElementById('originSystemDetails');
+    const clearBtn = document.getElementById('clearReferenceSystemBtn');
+    const manualSyncBtn = document.getElementById('sovManualSyncBtn');
+    const syncIcon = document.getElementById('sovSyncIcon');
+    const lastSyncText = document.getElementById('sovLastSyncText');
+    const nextCheckCountdown = document.getElementById('sovNextCheckCountdown');
+    const updateBanner = document.getElementById('sovUpdateBanner');
+    const updateBannerMessage = document.getElementById('sovUpdateBannerMessage');
+    const activeContestsBadge = document.getElementById('activeContestsCountBadge');
+    const distanceHeaders = document.querySelectorAll('.distance-header');
+    const distanceCells = document.querySelectorAll('.distance-cell');
+    let routeFetchController = null;
+
+    let currentSovHash = null;
+    let pollSecondsRemaining = 60;
+    let isFetchingSov = false;
+
+    // Track active sort state per table
+    const tableSortStates = {
+        activeContestsTable: { key: '{{ current_sort|default:"time" }}', order: '{{ current_order|default:"asc" }}' },
+        concludedCampaignsTable: { key: '{{ current_sort|default:"time" }}', order: '{{ current_order|default:"desc" }}' }
+    };
+
+    function sortTable(table, key, order) {
+        if (!table) return;
+        const tbody = table.querySelector('tbody');
+        if (!tbody) return;
+
+        const rows = Array.from(tbody.querySelectorAll('tr[data-sov-row]'));
+        if (rows.length <= 1) return;
+
+        rows.sort((a, b) => {
+            let valA, valB;
+            if (key === 'ly') {
+                valA = parseFloat(a.getAttribute('data-ly')) || 999999;
+                valB = parseFloat(b.getAttribute('data-ly')) || 999999;
+            } else if (key === 'jumps') {
+                valA = parseInt(a.getAttribute('data-jumps'), 10);
+                if (isNaN(valA)) valA = 999999;
+                valB = parseInt(b.getAttribute('data-jumps'), 10);
+                if (isNaN(valB)) valB = 999999;
+            } else if (key === 'region') {
+                valA = (a.getAttribute('data-region') || '').toLowerCase();
+                valB = (b.getAttribute('data-region') || '').toLowerCase();
+            } else if (key === 'system') {
+                valA = (a.getAttribute('data-system') || '').toLowerCase();
+                valB = (b.getAttribute('data-system') || '').toLowerCase();
+            } else if (key === 'structure') {
+                valA = (a.getAttribute('data-structure') || '').toLowerCase();
+                valB = (b.getAttribute('data-structure') || '').toLowerCase();
+            } else if (key === 'defender') {
+                valA = (a.getAttribute('data-defender') || '').toLowerCase();
+                valB = (b.getAttribute('data-defender') || '').toLowerCase();
+            } else if (key === 'score') {
+                valA = parseFloat(a.getAttribute('data-score')) || 0;
+                valB = parseFloat(b.getAttribute('data-score')) || 0;
+            } else if (key === 'time') {
+                valA = parseInt(a.getAttribute('data-time'), 10) || 0;
+                valB = parseInt(b.getAttribute('data-time'), 10) || 0;
+            } else {
+                valA = parseInt(a.getAttribute('data-time'), 10) || 0;
+                valB = parseInt(b.getAttribute('data-time'), 10) || 0;
+            }
+
+            if (valA < valB) return order === 'asc' ? -1 : 1;
+            if (valA > valB) return order === 'asc' ? 1 : -1;
+            return 0;
+        });
+
+        rows.forEach(r => tbody.appendChild(r));
+
+        tableSortStates[table.id] = { key, order };
+
+        // Update table header sort icons
+        const headers = table.querySelectorAll('.sortable-header');
+        headers.forEach(h => {
+            const hKey = h.getAttribute('data-sort-key');
+            const icon = h.querySelector('.sort-icon');
+            if (hKey === key) {
+                h.classList.add('sort-active');
+                if (icon) {
+                    icon.className = `fas fa-sort-${order === 'asc' ? 'up' : 'down'} sort-icon ms-1`;
+                }
+            } else {
+                h.classList.remove('sort-active');
+                if (icon) {
+                    icon.className = 'fas fa-sort text-muted sort-icon ms-1';
+                }
+            }
+        });
+
+        // Sync dropdown selector if present
+        const tableId = table.id;
+        let selectEl = null;
+        if (tableId === 'activeContestsTable') {
+            selectEl = document.getElementById('activeTableSort');
+        } else if (tableId === 'concludedCampaignsTable') {
+            selectEl = document.getElementById('concludedTableSort');
+        }
+        if (selectEl) {
+            const targetVal = `${key}-${order}`;
+            for (let i = 0; i < selectEl.options.length; i++) {
+                if (selectEl.options[i].value === targetVal) {
+                    selectEl.selectedIndex = i;
+                    break;
+                }
+            }
+        }
+    }
+
+    function reSortIfApplicable(keys) {
+        ['activeContestsTable', 'concludedCampaignsTable'].forEach(tId => {
+            const table = document.getElementById(tId);
+            const state = tableSortStates[tId];
+            if (table && state && keys.includes(state.key)) {
+                sortTable(table, state.key, state.order);
+            }
+        });
+    }
+
+    function updateDistances(originOption) {
+        const currentDistanceHeaders = document.querySelectorAll('.distance-header');
+        const currentDistanceCells = document.querySelectorAll('.distance-cell');
+
+        if (!originOption || !originOption.value) {
+            currentDistanceHeaders.forEach(el => el.style.display = 'none');
+            currentDistanceCells.forEach(el => {
+                el.style.display = 'none';
+                const row = el.closest('tr');
+                if (row) {
+                    row.setAttribute('data-ly', '999999');
+                    row.setAttribute('data-jumps', '999999');
+                }
+            });
+            if (clearBtn) clearBtn.style.display = 'none';
+            if (detailsDiv) {
+                detailsDiv.innerHTML = '<span class="text-muted">{% translate "Select an origin system to calculate real-time jump drive distance (LY) and shortest stargate jumps to all campaign targets." %}</span>';
+            }
+            localStorage.removeItem('hostile_sov_origin_id');
+            if (routeFetchController) {
+                routeFetchController.abort();
+                routeFetchController = null;
+            }
+            reSortIfApplicable(['ly', 'jumps']);
+            return;
+        }
+
+        const ox = parseFloat(originOption.getAttribute('data-x'));
+        const oy = parseFloat(originOption.getAttribute('data-y'));
+        const oz = parseFloat(originOption.getAttribute('data-z'));
+        const origName = originOption.getAttribute('data-name') || originOption.textContent.trim();
+        const origId = originOption.value;
+
+        localStorage.setItem('hostile_sov_origin_id', origId);
+
+        if (clearBtn) clearBtn.style.display = 'inline-block';
+        if (detailsDiv) {
+            detailsDiv.innerHTML = `<span class="text-info fw-bold"><i class="fas fa-location-arrow me-1"></i>Origin: ${origName}</span> &mdash; <span class="text-slate-300">Direct Jump Drive Distances (LY) &amp; Shortest Route Stargate Jumps</span> <span id="routeCalcLoading" class="badge badge-subtle-info ms-2"><i class="fas fa-spinner fa-spin me-1"></i>{% translate "Calculating routes..." %}</span>`;
+        }
+
+        currentDistanceHeaders.forEach(el => el.style.display = '');
+
+        const destIds = [];
+        currentDistanceCells.forEach(cell => {
+            cell.style.display = '';
+            const row = cell.closest('tr');
+            const destId = cell.getAttribute('data-dest-id');
+            const dx = parseFloat(cell.getAttribute('data-x'));
+            const dy = parseFloat(cell.getAttribute('data-y'));
+            const dz = parseFloat(cell.getAttribute('data-z'));
+            const textEl = cell.querySelector('.distance-text');
+            const badge = cell.querySelector('.distance-badge');
+
+            if (destId) {
+                destIds.push(destId);
+            }
+
+            if (destId === origId) {
+                if (textEl) textEl.textContent = '0.00 LY · 0 Jumps';
+                if (badge) badge.className = 'badge badge-subtle-success font-mono fw-bold distance-badge';
+                if (row) {
+                    row.setAttribute('data-ly', '0.00');
+                    row.setAttribute('data-jumps', '0');
+                }
+            } else if (!isNaN(ox) && !isNaN(oy) && !isNaN(oz) && !isNaN(dx) && !isNaN(dy) && !isNaN(dz)) {
+                const diffM = Math.sqrt((ox - dx) * (ox - dx) + (oy - dy) * (oy - dy) + (oz - dz) * (oz - dz));
+                const distLy = (diffM / METERS_PER_LY).toFixed(2);
+                if (textEl) {
+                    textEl.innerHTML = `${distLy} LY &middot; <span class="text-muted"><i class="fas fa-circle-notch fa-spin text-info" style="font-size: 0.8em;" title="{% translate "Calculating shortest route..." %}"></i></span>`;
+                }
+                if (row) {
+                    row.setAttribute('data-ly', distLy);
+                    row.setAttribute('data-jumps', '999999');
+                }
+                if (badge) {
+                    if (parseFloat(distLy) <= 6.0) {
+                        badge.className = 'badge badge-subtle-success font-mono fw-bold distance-badge';
+                    } else if (parseFloat(distLy) <= 10.0) {
+                        badge.className = 'badge badge-subtle-warning font-mono fw-bold distance-badge';
+                    } else {
+                        badge.className = 'badge badge-subtle-secondary font-mono fw-bold distance-badge';
+                    }
+                }
+            } else {
+                if (textEl) textEl.textContent = '-';
+                if (row) {
+                    row.setAttribute('data-ly', '999999');
+                    row.setAttribute('data-jumps', '999999');
+                }
+            }
+        });
+
+        reSortIfApplicable(['ly']);
+
+        // Asynchronously fetch shortest stargate jump routes for all destinations
+        if (destIds.length > 0 && origId) {
+            if (routeFetchController) {
+                routeFetchController.abort();
+            }
+            routeFetchController = new AbortController();
+
+            const uniqueDestIds = Array.from(new Set(destIds));
+            const routesUrl = `{% url 'hostile:api_routes_batch' %}?origin=${encodeURIComponent(origId)}&destinations=${encodeURIComponent(uniqueDestIds.join(','))}&flag=shortest`;
+
+            fetch(routesUrl, { signal: routeFetchController.signal })
+                .then(response => {
+                    if (!response.ok) throw new Error('Network response error');
+                    return response.json();
+                })
+                .then(data => {
+                    if (data && data.routes) {
+                        document.querySelectorAll('.distance-cell').forEach(cell => {
+                            const destId = cell.getAttribute('data-dest-id');
+                            const routeInfo = data.routes[destId];
+                            const row = cell.closest('tr');
+                            if (routeInfo && routeInfo.display) {
+                                const textEl = cell.querySelector('.distance-text');
+                                if (textEl) {
+                                    textEl.textContent = routeInfo.display;
+                                }
+                                if (row && routeInfo.jumps !== undefined && routeInfo.jumps !== null) {
+                                    row.setAttribute('data-jumps', routeInfo.jumps);
+                                }
+                            }
+                        });
+                        reSortIfApplicable(['jumps']);
+                    }
+                    const loadingIndicator = document.getElementById('routeCalcLoading');
+                    if (loadingIndicator) {
+                        loadingIndicator.remove();
+                    }
+                })
+                .catch(err => {
+                    if (err.name !== 'AbortError') {
+                        console.debug('Failed to fetch batch route shortest jumps:', err);
+                        const loadingIndicator = document.getElementById('routeCalcLoading');
+                        if (loadingIndicator) {
+                            loadingIndicator.remove();
+                        }
+                    }
+                });
+        }
+    }
+
+    // Generate active contest row HTML
+    function createActiveRow(t, isOriginActive) {
+        const tr = document.createElement('tr');
+        tr.setAttribute('data-sov-row', 'true');
+        tr.setAttribute('data-timer-id', t.id);
+        tr.setAttribute('data-structure', (t.structure_event_name || '').toLowerCase());
+        tr.setAttribute('data-system', (t.solar_system_name || '').toLowerCase());
+        tr.setAttribute('data-region', (t.region_name || '').toLowerCase());
+        tr.setAttribute('data-defender', (t.defender_display || '').toLowerCase());
+        tr.setAttribute('data-score', t.defender_percent || 0);
+        tr.setAttribute('data-time', t.timestamp || 0);
+        tr.setAttribute('data-ly', (t.distance_data && t.distance_data.ly !== null) ? t.distance_data.ly : '999999');
+        tr.setAttribute('data-jumps', (t.distance_data && t.distance_data.jumps !== null) ? t.distance_data.jumps : '999999');
+        tr.className = (t.is_tracked_hostile ? 'table-sov-row-hostile ' : '') + 'sov-row-new';
+
+        let iconClass = 'fa-satellite text-secondary';
+        if (t.timer_type === 'SOV_IHUB') iconClass = 'fa-network-wired text-info';
+        else if (t.timer_type === 'SOV_TCU') iconClass = 'fa-flag text-warning';
+
+        const hostileBadge = t.is_tracked_hostile
+            ? '<div class="mt-1"><span class="badge badge-subtle-danger"><i class="fas fa-crosshairs me-1"></i>Tracked Hostile</span></div>'
+            : '';
+
+        const territoryBadge = (t.defender_id && t.is_tracked_hostile)
+            ? '<span class="badge badge-subtle-warning font-mono small"><i class="fas fa-crosshairs me-1"></i>Hostile Territory</span>'
+            : '';
+
+        let scoreHtml = '';
+        if (t.has_started) {
+            const defPercent = (t.defender_percent !== undefined && t.defender_percent !== null) ? t.defender_percent : 60;
+            const atkPercent = (t.attacker_percent !== undefined && t.attacker_percent !== null) ? t.attacker_percent : (100 - defPercent);
+            const noProgressNote = (defPercent === 60 && atkPercent === 40)
+                ? '<div class="small text-muted font-mono mt-1">No progress has been made yet</div>'
+                : '';
+            scoreHtml = `<div class="sov-score-wrapper">
+                    <div class="sov-score-container">
+                        <div class="sov-score-donut" style="background: conic-gradient(#10b981 0% ${defPercent}%, #ef4444 ${defPercent}% 100%);">
+                            <div class="sov-score-donut-inner">
+                                <span>${defPercent}%</span>
+                            </div>
+                        </div>
+                        <div class="sov-score-breakdown font-mono">
+                            <span class="text-success"><i class="fas fa-shield-alt me-1"></i>Def: ${defPercent}%</span>
+                            <span class="text-danger"><i class="fas fa-crosshairs me-1"></i>Atk: ${atkPercent}%</span>
+                        </div>
+                    </div>
+                    ${noProgressNote}
+                </div>`;
+        } else {
+            scoreHtml = `<div>
+                    <span class="badge bg-secondary text-light font-mono px-2 py-1">
+                        <i class="fas fa-clock me-1"></i>N/A
+                    </span>
+                    <div class="small text-muted mt-1 font-mono">Not Started</div>
+                </div>`;
+        }
+
+        const countdownHtml = `<div class="countdown-timer font-mono fw-bold text-light" data-expiry="${t.timer_datetime}">
+            ${t.has_started ? '<span class="text-success"><i class="fas fa-play-circle me-1"></i>ON-GOING</span>' : ''}
+        </div>`;
+
+        const distDisplay = t.distance_data ? t.distance_data.display : '-';
+
+        tr.innerHTML = `
+            <td>
+                <div class="fw-bold text-light">
+                    <i class="fas ${iconClass} me-2"></i>
+                    ${t.structure_event_name}
+                </div>
+                ${hostileBadge}
+            </td>
+            <td>
+                <div class="fw-bold text-info font-mono">${t.solar_system_name}</div>
+                <div class="small text-muted"><i class="fas fa-compass me-1"></i>${t.region_name}</div>
+            </td>
+            <td class="distance-cell text-center" data-dest-id="${t.solar_system_id || ''}" data-x="${t.solar_system_x || ''}" data-y="${t.solar_system_y || ''}" data-z="${t.solar_system_z || ''}" style="${isOriginActive ? '' : 'display: none;'}">
+                <span class="badge badge-subtle-info font-mono fw-bold distance-badge">
+                    <i class="fas fa-route me-1"></i><span class="distance-text">${distDisplay}</span>
+                </span>
+            </td>
+            <td>
+                <div class="fw-bold text-light">${t.defender_display}</div>
+                ${territoryBadge}
+            </td>
+            <td>${scoreHtml}</td>
+            <td class="font-mono small">
+                <div>${t.timer_datetime_formatted}</div>
+            </td>
+            <td>${countdownHtml}</td>
+        `;
+        return tr;
+    }
+
+    // Generate concluded campaign row HTML
+    function createConcludedRow(t, isOriginActive) {
+        const tr = document.createElement('tr');
+        tr.setAttribute('data-sov-row', 'true');
+        tr.setAttribute('data-timer-id', t.id);
+        tr.setAttribute('data-structure', (t.structure_event_name || '').toLowerCase());
+        tr.setAttribute('data-system', (t.solar_system_name || '').toLowerCase());
+        tr.setAttribute('data-region', (t.region_name || '').toLowerCase());
+        tr.setAttribute('data-defender', (t.defender_display || '').toLowerCase());
+        tr.setAttribute('data-score', t.defender_percent || 0);
+        tr.setAttribute('data-time', t.timestamp || 0);
+        tr.setAttribute('data-ly', (t.distance_data && t.distance_data.ly !== null) ? t.distance_data.ly : '999999');
+        tr.setAttribute('data-jumps', (t.distance_data && t.distance_data.jumps !== null) ? t.distance_data.jumps : '999999');
+        tr.className = (t.is_tracked_hostile ? 'table-sov-row-hostile ' : '') + 'sov-row-new';
+
+        let iconClass = 'fa-satellite text-secondary';
+        if (t.timer_type === 'SOV_IHUB') iconClass = 'fa-network-wired text-info';
+        else if (t.timer_type === 'SOV_TCU') iconClass = 'fa-flag text-warning';
+
+        const hostileBadge = t.is_tracked_hostile
+            ? '<div class="mt-1"><span class="badge badge-subtle-danger"><i class="fas fa-crosshairs me-1"></i>Tracked Hostile</span></div>'
+            : '';
+
+        const territoryBadge = (t.defender_id && t.is_tracked_hostile)
+            ? '<span class="badge badge-subtle-warning font-mono small"><i class="fas fa-crosshairs me-1"></i>Hostile Territory</span>'
+            : '';
+
+        let outcomeBadge = '<span class="badge badge-subtle-warning font-mono px-2 py-1"><i class="fas fa-flag-checkered me-1"></i>Concluded</span>';
+        if (t.defender_percent >= 60 || t.defender_score >= 1.0) {
+            outcomeBadge = '<span class="badge badge-subtle-success font-mono px-2 py-1"><i class="fas fa-shield-alt me-1"></i>Defended</span>';
+        } else if (t.defender_percent <= 40 || t.defender_score <= 0.0) {
+            outcomeBadge = '<span class="badge badge-subtle-danger font-mono px-2 py-1"><i class="fas fa-skull me-1"></i>Captured</span>';
+        }
+
+        const scoreHtml = `
+            <div class="sov-score-container">
+                <div class="sov-score-donut" style="background: conic-gradient(#10b981 0% ${t.defender_percent}%, #ef4444 ${t.defender_percent}% 100%); width: 34px; height: 34px;">
+                    <div class="sov-score-donut-inner" style="width: 22px; height: 22px; font-size: 0.6rem;">
+                        <span>${t.defender_percent}%</span>
+                    </div>
+                </div>
+                <div class="sov-score-breakdown font-mono small">
+                    <span class="text-success small">Def: ${t.defender_percent}%</span>
+                    <span class="text-danger small">Atk: ${t.attacker_percent}%</span>
+                </div>
+            </div>`;
+
+        const distDisplay = t.distance_data ? t.distance_data.display : '-';
+
+        tr.innerHTML = `
+            <td>
+                <div class="fw-bold text-light">
+                    <i class="fas ${iconClass} me-2"></i>
+                    ${t.structure_event_name}
+                </div>
+                ${hostileBadge}
+            </td>
+            <td>
+                <div class="fw-bold text-info font-mono">${t.solar_system_name}</div>
+                <div class="small text-slate-300"><i class="fas fa-compass me-1"></i>${t.region_name}</div>
+            </td>
+            <td class="distance-cell text-center" data-dest-id="${t.solar_system_id || ''}" data-x="${t.solar_system_x || ''}" data-y="${t.solar_system_y || ''}" data-z="${t.solar_system_z || ''}" style="${isOriginActive ? '' : 'display: none;'}">
+                <span class="badge badge-subtle-info font-mono fw-bold distance-badge">
+                    <i class="fas fa-route me-1"></i><span class="distance-text">${distDisplay}</span>
+                </span>
+            </td>
+            <td>
+                <div class="fw-bold text-light">${t.defender_display}</div>
+                ${territoryBadge}
+            </td>
+            <td>${outcomeBadge}</td>
+            <td>${scoreHtml}</td>
+            <td class="font-mono small text-slate-300">${t.timer_datetime_formatted}</td>
+        `;
+        return tr;
+    }
+
+    // Dynamic Polling Engine
+    function pollSovTimers(isManual = false) {
+        if (isFetchingSov) return;
+        isFetchingSov = true;
+
+        if (syncIcon) syncIcon.classList.add('fa-spin');
+        if (lastSyncText && isManual) lastSyncText.textContent = '{% translate "Syncing ESI..." %}';
+
+        const origId = refSelect ? refSelect.value : '';
+        const url = `{% url 'hostile:api_sov_timers' %}?origin=${encodeURIComponent(origId)}${isManual ? '&sync=1' : ''}`;
+
+        fetch(url)
+            .then(res => {
+                if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+                return res.json();
+            })
+            .then(data => {
+                const now = new Date();
+                if (lastSyncText) {
+                    lastSyncText.textContent = `{% translate "Synced" %} ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+                }
+
+                if (data && data.success) {
+                    if (currentSovHash !== null && currentSovHash !== data.hash) {
+                        // Detect specific changes for operator notification
+                        let addedCount = 0;
+                        let updatedCount = 0;
+
+                        const activeTable = document.getElementById('activeContestsTable');
+                        const activeTbody = activeTable ? activeTable.querySelector('tbody') : null;
+
+                        if (activeTbody) {
+                            const existingActiveIds = new Set(
+                                Array.from(activeTbody.querySelectorAll('tr[data-timer-id]')).map(r => parseInt(r.getAttribute('data-timer-id'), 10))
+                            );
+                            data.upcoming_timers.forEach(t => {
+                                if (!existingActiveIds.has(t.id)) {
+                                    addedCount++;
+                                } else {
+                                    const row = activeTbody.querySelector(`tr[data-timer-id="${t.id}"]`);
+                                    if (row && parseFloat(row.getAttribute('data-score')) !== parseFloat(t.defender_percent)) {
+                                        updatedCount++;
+                                    }
+                                }
+                            });
+                        }
+
+                        if (updateBanner && updateBannerMessage) {
+                            let details = [];
+                            if (addedCount > 0) details.push(`<strong>${addedCount}</strong> {% translate "new campaign(s) added." %}`);
+                            if (updatedCount > 0) details.push(`<strong>${updatedCount}</strong> {% translate "contest score(s) updated." %}`);
+
+                            let msg = '{% translate "Sovereignty intelligence update detected." %}';
+                            if (details.length > 0) {
+                                msg += ' ' + details.join(' ');
+                            } else {
+                                msg += ' {% translate "Campaign status and timers refreshed." %}';
+                            }
+                            updateBannerMessage.innerHTML = msg;
+                            updateBanner.classList.remove('d-none');
+                            updateBanner.classList.add('d-flex');
+                        }
+                    }
+
+                    currentSovHash = data.hash;
+
+                    // Update Active Contests Badge
+                    if (activeContestsBadge && data.active_count !== undefined) {
+                        activeContestsBadge.textContent = `${data.active_count} active events`;
+                    }
+
+                    const isOriginActive = Boolean(refSelect && refSelect.value);
+
+                    // Update Active Contests Table
+                    const activeTable = document.getElementById('activeContestsTable');
+                    const activeTbody = activeTable ? activeTable.querySelector('tbody') : null;
+                    if (activeTbody) {
+                        const newActiveIds = new Set(data.upcoming_timers.map(t => t.id));
+
+                        // Remove rows no longer in upcoming
+                        activeTbody.querySelectorAll('tr[data-sov-row]').forEach(row => {
+                            const tid = parseInt(row.getAttribute('data-timer-id'), 10);
+                            if (tid && !newActiveIds.has(tid)) {
+                                row.remove();
+                            }
+                        });
+
+                        // Update or add rows
+                        data.upcoming_timers.forEach(t => {
+                            let row = activeTbody.querySelector(`tr[data-timer-id="${t.id}"]`);
+                            if (row) {
+                                const oldScore = parseFloat(row.getAttribute('data-score')) || 0;
+                                row.setAttribute('data-score', t.defender_percent || 0);
+                                row.setAttribute('data-time', t.timestamp || 0);
+                                if (t.distance_data) {
+                                    row.setAttribute('data-ly', t.distance_data.ly !== null ? t.distance_data.ly : '999999');
+                                    row.setAttribute('data-jumps', t.distance_data.jumps !== null ? t.distance_data.jumps : '999999');
+                                    const distText = row.querySelector('.distance-text');
+                                    if (distText && t.distance_data.display) distText.textContent = t.distance_data.display;
+                                }
+
+                                if (oldScore !== t.defender_percent) {
+                                    row.classList.remove('sov-row-updated');
+                                    void row.offsetWidth; // Trigger reflow for animation restart
+                                    row.classList.add('sov-row-updated');
+
+                                    // Update score cell
+                                    const scoreCell = row.children[4];
+                                    if (scoreCell) {
+                                        if (t.has_started) {
+                                            const defPercent = (t.defender_percent !== undefined && t.defender_percent !== null) ? t.defender_percent : 60;
+                                            const atkPercent = (t.attacker_percent !== undefined && t.attacker_percent !== null) ? t.attacker_percent : (100 - defPercent);
+                                            const noProgressNote = (defPercent === 60 && atkPercent === 40)
+                                                ? '<div class="small text-muted font-mono mt-1">No progress has been made yet</div>'
+                                                : '';
+                                            scoreCell.innerHTML = `<div class="sov-score-wrapper">
+                                                    <div class="sov-score-container">
+                                                        <div class="sov-score-donut" style="background: conic-gradient(#10b981 0% ${defPercent}%, #ef4444 ${defPercent}% 100%);">
+                                                            <div class="sov-score-donut-inner">
+                                                                <span>${defPercent}%</span>
+                                                            </div>
+                                                        </div>
+                                                        <div class="sov-score-breakdown font-mono">
+                                                            <span class="text-success"><i class="fas fa-shield-alt me-1"></i>Def: ${defPercent}%</span>
+                                                            <span class="text-danger"><i class="fas fa-crosshairs me-1"></i>Atk: ${atkPercent}%</span>
+                                                        </div>
+                                                    </div>
+                                                    ${noProgressNote}
+                                                </div>`;
+                                        } else {
+                                            scoreCell.innerHTML = `<div>
+                                                    <span class="badge bg-secondary text-light font-mono px-2 py-1">
+                                                        <i class="fas fa-clock me-1"></i>N/A
+                                                    </span>
+                                                    <div class="small text-muted mt-1 font-mono">Not Started</div>
+                                                </div>`;
+                                        }
+                                    }
+                                }
+                            } else {
+                                const newRow = createActiveRow(t, isOriginActive);
+                                activeTbody.appendChild(newRow);
+                            }
+                        });
+
+                        // Empty state check
+                        const activeRows = activeTbody.querySelectorAll('tr[data-sov-row]');
+                        const existingEmpty = activeTbody.querySelector('.sov-empty-row');
+                        if (activeRows.length === 0) {
+                            if (!existingEmpty) {
+                                activeTbody.innerHTML = `
+                                    <tr class="sov-empty-row">
+                                        <td colspan="7" class="text-center py-5 text-muted">
+                                            <i class="fas fa-check-circle fa-3x mb-3 text-secondary"></i>
+                                            <p class="mb-0">{% translate "No active sovereignty contest campaigns detected." %}</p>
+                                        </td>
+                                    </tr>`;
+                            }
+                        } else if (existingEmpty) {
+                            existingEmpty.remove();
+                        }
+                    }
+
+                    // Update Concluded Campaigns Table
+                    const concludedTable = document.getElementById('concludedCampaignsTable');
+                    const concludedTbody = concludedTable ? concludedTable.querySelector('tbody') : null;
+                    if (concludedTbody) {
+                        const newExpiredIds = new Set(data.expired_timers.map(t => t.id));
+
+                        concludedTbody.querySelectorAll('tr[data-sov-row]').forEach(row => {
+                            const tid = parseInt(row.getAttribute('data-timer-id'), 10);
+                            if (tid && !newExpiredIds.has(tid)) {
+                                row.remove();
+                            }
+                        });
+
+                        data.expired_timers.forEach(t => {
+                            let row = concludedTbody.querySelector(`tr[data-timer-id="${t.id}"]`);
+                            if (row) {
+                                row.setAttribute('data-score', t.defender_percent || 0);
+                                row.setAttribute('data-time', t.timestamp || 0);
+                            } else {
+                                const newRow = createConcludedRow(t, isOriginActive);
+                                concludedTbody.appendChild(newRow);
+                            }
+                        });
+
+                        const concludedRows = concludedTbody.querySelectorAll('tr[data-sov-row]');
+                        const existingConcludedEmpty = concludedTbody.querySelector('.sov-empty-row');
+                        if (concludedRows.length === 0) {
+                            if (!existingConcludedEmpty) {
+                                concludedTbody.innerHTML = `
+                                    <tr class="sov-empty-row">
+                                        <td colspan="7" class="text-center py-4 text-muted">
+                                            <p class="mb-0">{% translate "No concluded campaigns in the past 24 hours." %}</p>
+                                        </td>
+                                    </tr>`;
+                            }
+                        } else if (existingConcludedEmpty) {
+                            existingConcludedEmpty.remove();
+                        }
+                    }
+
+                    // Re-apply sort state on both tables
+                    ['activeContestsTable', 'concludedCampaignsTable'].forEach(tId => {
+                        const table = document.getElementById(tId);
+                        const state = tableSortStates[tId];
+                        if (table && state) {
+                            sortTable(table, state.key, state.order);
+                        }
+                    });
+
+                    // If origin selected, ensure coordinates and distances match
+                    if (refSelect && refSelect.selectedIndex > 0) {
+                        updateDistances(refSelect.options[refSelect.selectedIndex]);
+                    }
+                }
+            })
+            .catch(err => {
+                console.debug('Sovereignty live polling check encountered an error:', err);
+                if (lastSyncText) lastSyncText.textContent = '{% translate "Sync Error (Retrying in 60s)" %}';
+            })
+            .finally(() => {
+                isFetchingSov = false;
+                pollSecondsRemaining = 60;
+                if (syncIcon) syncIcon.classList.remove('fa-spin');
+            });
+    }
+
+    // 1-second interval timer for UI countdown badge & trigger 60-second auto-poll
+    setInterval(function() {
+        pollSecondsRemaining--;
+        if (pollSecondsRemaining <= 0) {
+            pollSecondsRemaining = 60;
+            pollSovTimers(false);
+        }
+        if (nextCheckCountdown) {
+            nextCheckCountdown.textContent = `${pollSecondsRemaining}s`;
+        }
+    }, 1000);
+
+    if (manualSyncBtn) {
+        manualSyncBtn.addEventListener('click', function() {
+            pollSovTimers(true);
+        });
+    }
+
+    // Initialize Sortable Headers on all tables
+    document.querySelectorAll('.sortable-header').forEach(header => {
+        header.addEventListener('click', function(e) {
+            e.preventDefault();
+            const sortKey = this.getAttribute('data-sort-key');
+            const table = this.closest('table');
+            if (!table || !sortKey) return;
+
+            const currentState = tableSortStates[table.id] || { key: '', order: 'asc' };
+            let newOrder = 'asc';
+            if (currentState.key === sortKey) {
+                newOrder = currentState.order === 'asc' ? 'desc' : 'asc';
+            } else if (sortKey === 'time') {
+                newOrder = table.id === 'concludedCampaignsTable' ? 'desc' : 'asc';
+            }
+
+            sortTable(table, sortKey, newOrder);
+        });
+    });
+
+    // Initialize Dropdown Sort Selectors
+    const activeSortSelect = document.getElementById('activeTableSort');
+    if (activeSortSelect) {
+        activeSortSelect.addEventListener('change', function() {
+            const val = this.value;
+            const parts = val.split('-');
+            const key = parts[0];
+            const order = parts[1] || 'asc';
+            const table = document.getElementById('activeContestsTable');
+            sortTable(table, key, order);
+        });
+    }
+
+    const concludedSortSelect = document.getElementById('concludedTableSort');
+    if (concludedSortSelect) {
+        concludedSortSelect.addEventListener('change', function() {
+            const val = this.value;
+            const parts = val.split('-');
+            const key = parts[0];
+            const order = parts[1] || 'desc';
+            const table = document.getElementById('concludedCampaignsTable');
+            sortTable(table, key, order);
+        });
+    }
+
+    if (refSelect) {
+        refSelect.addEventListener('change', function() {
+            const selectedOpt = refSelect.options[refSelect.selectedIndex];
+            updateDistances(selectedOpt);
+        });
+
+        // Restore persisted origin
+        const savedOriginId = localStorage.getItem('hostile_sov_origin_id');
+        if (savedOriginId && !refSelect.value) {
+            for (let i = 0; i < refSelect.options.length; i++) {
+                if (refSelect.options[i].value === savedOriginId) {
+                    refSelect.selectedIndex = i;
+                    // Trigger custom searchable select sync if present
+                    refSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                    break;
+                }
+            }
+        } else if (refSelect.selectedIndex > 0) {
+            updateDistances(refSelect.options[refSelect.selectedIndex]);
+        }
+    }
+
+    if (clearBtn) {
+        clearBtn.addEventListener('click', function() {
+            if (refSelect) {
+                refSelect.selectedIndex = 0;
+                refSelect.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            updateDistances(null);
+        });
+    }
+
+    // Set initial active table sorting states
+    ['activeContestsTable', 'concludedCampaignsTable'].forEach(tId => {
+        const table = document.getElementById(tId);
+        const state = tableSortStates[tId];
+        if (table && state) {
+            sortTable(table, state.key, state.order);
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,836 @@
+{% extends 'hostile/base.html' %}
+{% load i18n static %}
+
+{% block content %}
+{{ block.super }}
+
+<!-- Threat Scan Actions & Breadcrumb -->
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <a href="{% url 'hostile:threat_scans' %}" class="btn btn-sm btn-outline-secondary">
+        <i class="fas fa-arrow-left me-1"></i>{% translate "Back to Threat Scans" %}
+    </a>
+    {% if perms.hostile.manage_intel %}
+    <a href="{% url 'hostile:threat_scan_delete' scan.id %}" class="btn btn-sm btn-outline-danger">
+        <i class="fas fa-trash-alt me-1"></i>{% translate "Delete Threat Scan" %}
+    </a>
+    {% endif %}
+</div>
+
+<!-- Threat Header & Drop Risk KPI Banner -->
+<div class="row g-3 mb-4">
+    <!-- Main Threat Status Card -->
+    <div class="col-lg-4 col-md-6">
+        <div class="card bg-dark text-white border-secondary hostile-card shadow-sm h-100 p-3">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <div>
+                    <span class="text-muted small text-uppercase fw-bold">{% translate "Solar System & Grid" %}</span>
+                    <h3 class="mb-0 text-info fw-bold">
+                        {% if scan.solar_system %}
+                        {{ scan.solar_system.name }}
+                        <small class="text-muted fs-6">({{ scan.solar_system.constellation.name }} / {{ scan.solar_system.constellation.region.name }})</small>
+                        {% else %}
+                        {% translate "Unknown System" %}
+                        {% endif %}
+                    </h3>
+                </div>
+                <div id="threat-level-container">
+                    {% if scan.threat_level == 'CRITICAL' %}
+                    <span id="threat-level-badge" class="badge bg-danger fs-6 px-3 py-2"><i class="fas fa-skull-crossbones me-1"></i> CRITICAL</span>
+                    {% elif scan.threat_level == 'HIGH' %}
+                    <span id="threat-level-badge" class="badge bg-warning text-dark fs-6 px-3 py-2"><i class="fas fa-exclamation-triangle me-1"></i> HIGH THREAT</span>
+                    {% elif scan.threat_level == 'MODERATE' %}
+                    <span id="threat-level-badge" class="badge bg-info text-dark fs-6 px-3 py-2"><i class="fas fa-shield-alt me-1"></i> MODERATE</span>
+                    {% else %}
+                    <span id="threat-level-badge" class="badge bg-success fs-6 px-3 py-2"><i class="fas fa-check-circle me-1"></i> LOW THREAT</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="d-flex justify-content-between align-items-center text-muted small mt-auto pt-2 border-top border-secondary">
+                <span><i class="fas fa-clock me-1"></i> {{ scan.created_at|date:"Y-m-d H:i:s" }} UTC</span>
+                <span><i class="fas fa-user-shield me-1"></i> {{ scan.created_by.username|default:"Intel Scout" }}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Black Ops Drop Probability KPI -->
+    <div class="col-lg-4 col-md-6">
+        <div class="card bg-dark text-white border-secondary hostile-card shadow-sm h-100 p-3">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <span class="text-muted small text-uppercase fw-bold">
+                        <i class="fas fa-user-ninja text-purple me-1" style="color: #b197fc;"></i>{% translate "Black Ops Drop Risk" %}
+                    </span>
+                    <h2 id="blops-chance-text" class="mb-0 fw-bold mt-1 {% if scan.blops_drop_chance >= 75 %}text-danger{% elif scan.blops_drop_chance >= 40 %}text-warning{% else %}text-info{% endif %}">
+                        {{ scan.blops_drop_chance }}%
+                    </h2>
+                </div>
+                <div class="text-end">
+                    <div class="progress" style="width: 100px; height: 10px; background-color: #2b3035;">
+                        <div id="blops-progress-bar" class="progress-bar {% if scan.blops_drop_chance >= 75 %}bg-danger{% elif scan.blops_drop_chance >= 40 %}bg-warning{% else %}bg-info{% endif %}"
+                             role="progressbar" style="width: {{ scan.blops_drop_chance }}%;"></div>
+                    </div>
+                    <span id="blops-risk-badge" class="badge bg-dark border border-secondary text-muted mt-2 small">
+                        {% if scan.blops_drop_chance >= 75 %}CRITICAL RISK{% elif scan.blops_drop_chance >= 40 %}ELEVATED RISK{% else %}STANDARD RISK{% endif %}
+                    </span>
+                </div>
+            </div>
+            <div class="text-muted small mt-auto pt-2 border-top border-secondary">
+                <span>{% translate "Assesses covert cyno alts, blops battleships, recons & hunting bases" %}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Capital / Super Drop Probability KPI -->
+    <div class="col-lg-4 col-md-12">
+        <div class="card bg-dark text-white border-secondary hostile-card shadow-sm h-100 p-3">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <span class="text-muted small text-uppercase fw-bold">
+                        <i class="fas fa-crosshairs text-danger me-1"></i>{% translate "Capital / Super Drop Risk" %}
+                    </span>
+                    <h2 id="cap-chance-text" class="mb-0 fw-bold mt-1 {% if scan.cap_drop_chance >= 75 %}text-danger{% elif scan.cap_drop_chance >= 40 %}text-warning{% else %}text-info{% endif %}">
+                        {{ scan.cap_drop_chance }}%
+                    </h2>
+                </div>
+                <div class="text-end">
+                    <div class="progress" style="width: 100px; height: 10px; background-color: #2b3035;">
+                        <div id="cap-progress-bar" class="progress-bar {% if scan.cap_drop_chance >= 75 %}bg-danger{% elif scan.cap_drop_chance >= 40 %}bg-warning{% else %}bg-info{% endif %}"
+                             role="progressbar" style="width: {{ scan.cap_drop_chance }}%;"></div>
+                    </div>
+                    <span id="cap-risk-badge" class="badge bg-dark border border-secondary text-muted mt-2 small">
+                        {% if scan.cap_drop_chance >= 75 %}CRITICAL RISK{% elif scan.cap_drop_chance >= 40 %}ELEVATED RISK{% else %}STANDARD RISK{% endif %}
+                    </span>
+                </div>
+            </div>
+            <div class="text-muted small mt-auto pt-2 border-top border-secondary">
+                <span>{% translate "Assesses heavy cynos, dread/titan/super pilots, bubbles & capital staging" %}</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Threat Factors & Activity Profile Row -->
+<div class="row g-4 mb-4">
+    <!-- Key Threat Indicators -->
+    <div class="col-lg-7">
+        <div class="card bg-dark text-white border-secondary hostile-card shadow-sm h-100">
+            <div class="card-header bg-dark border-secondary d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 text-warning fw-bold">
+                    <i class="fas fa-exclamation-circle me-2"></i>{% translate "Tactical Risk Factors & Triggers" %}
+                </h6>
+                <span id="threat-factors-badge" class="badge bg-secondary">{{ threat_factors|length }} {% translate "Factors" %}</span>
+            </div>
+            <div class="card-body">
+                <ul id="threat-factors-list" class="list-group list-group-flush bg-transparent">
+                    {% for factor in threat_factors %}
+                    <li class="list-group-item bg-transparent text-light border-secondary py-2 px-0 d-flex align-items-center">
+                        <i class="fas fa-angle-right text-warning me-2"></i>
+                        <span>{{ factor }}</span>
+                    </li>
+                    {% empty %}
+                    <li class="list-group-item bg-transparent text-muted py-2 px-0">
+                        {% translate "No critical tactical risk indicators detected for this scan." %}
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Activity Profile & Timezone Distribution -->
+    <div class="col-lg-5">
+        <div class="card bg-dark text-white border-secondary hostile-card shadow-sm h-100">
+            <div class="card-header bg-dark border-secondary d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 text-light fw-bold">
+                    <i class="fas fa-chart-line me-2 text-info"></i>{% translate "Local Activity Profile" %}
+                </h6>
+                <span class="badge bg-info text-dark">{{ activity_profile.primary_timezone|default:"UNKNOWN" }}</span>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between mb-3 text-center">
+                    <div class="p-2 border border-secondary rounded flex-fill me-2 bg-dark">
+                        <div class="small text-muted">EUTZ (14-22 UTC)</div>
+                        <div class="fw-bold text-info fs-5">{{ activity_profile.tz_breakdown.EUTZ|default:0 }}</div>
+                    </div>
+                    <div class="p-2 border border-secondary rounded flex-fill me-2 bg-dark">
+                        <div class="small text-muted">USTZ (00-08 UTC)</div>
+                        <div class="fw-bold text-warning fs-5">{{ activity_profile.tz_breakdown.USTZ|default:0 }}</div>
+                    </div>
+                    <div class="p-2 border border-secondary rounded flex-fill bg-dark">
+                        <div class="small text-muted">AUTZ (08-14 UTC)</div>
+                        <div class="fw-bold text-success fs-5">{{ activity_profile.tz_breakdown.AUTZ|default:0 }}</div>
+                    </div>
+                </div>
+                <div class="small text-muted d-flex justify-content-between">
+                    <span>{% translate "Total Timestamped Events:" %} <strong class="text-light">{{ activity_profile.total_events|default:0 }}</strong></span>
+                    {% if activity_profile.first_seen %}
+                    <span>{% translate "First Seen:" %} <strong class="text-light">{{ activity_profile.first_seen }}</strong></span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Coupled D-Scan Ships on Grid (if provided) -->
+{% if scan.raw_dscan_text and ship_profile.total_ships %}
+<div class="card bg-dark text-white border-secondary hostile-card shadow-sm mb-4">
+    <div class="card-header bg-dark border-secondary d-flex justify-content-between align-items-center">
+        <h6 class="mb-0 text-info fw-bold">
+            <i class="fas fa-satellite-dish me-2"></i>{% translate "Coupled D-Scan Ship Classification" %}
+        </h6>
+        <span class="badge bg-primary">{{ ship_profile.total_ships }} {% translate "Hulls on Grid" %}</span>
+    </div>
+    <div class="card-body">
+        <div class="row g-2">
+            {% if ship_profile.supers %}
+            <div class="col-md-3 col-sm-6">
+                <div class="p-2 border border-danger rounded bg-dark">
+                    <span class="text-danger fw-bold small"><i class="fas fa-crown me-1"></i> Supercapitals ({{ ship_profile.supers|length }})</span>
+                    <div class="small text-light mt-1">{% for s in ship_profile.supers %}{{ s.type_name }}{% if not forloop.last %}, {% endif %}{% endfor %}</div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if ship_profile.capitals %}
+            <div class="col-md-3 col-sm-6">
+                <div class="p-2 border border-danger rounded bg-dark">
+                    <span class="text-danger fw-bold small"><i class="fas fa-shield-virus me-1"></i> Capitals ({{ ship_profile.capitals|length }})</span>
+                    <div class="small text-light mt-1">{% for s in ship_profile.capitals %}{{ s.type_name }}{% if not forloop.last %}, {% endif %}{% endfor %}</div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if ship_profile.blops %}
+            <div class="col-md-3 col-sm-6">
+                <div class="p-2 border border-warning rounded bg-dark">
+                    <span class="text-warning fw-bold small"><i class="fas fa-user-ninja me-1"></i> Black Ops ({{ ship_profile.blops|length }})</span>
+                    <div class="small text-light mt-1">{% for s in ship_profile.blops %}{{ s.type_name }}{% if not forloop.last %}, {% endif %}{% endfor %}</div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if ship_profile.recons %}
+            <div class="col-md-3 col-sm-6">
+                <div class="p-2 border border-info rounded bg-dark">
+                    <span class="text-info fw-bold small"><i class="fas fa-eye me-1"></i> Covert Recons / Bombers ({{ ship_profile.recons|length }})</span>
+                    <div class="small text-light mt-1">{% for s in ship_profile.recons %}{{ s.type_name }}{% if not forloop.last %}, {% endif %}{% endfor %}</div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if ship_profile.bubbles %}
+            <div class="col-md-3 col-sm-6">
+                <div class="p-2 border border-secondary rounded bg-dark">
+                    <span class="text-light fw-bold small"><i class="fas fa-circle-notch me-1"></i> Bubbles / HICs ({{ ship_profile.bubbles|length }})</span>
+                    <div class="small text-light mt-1">{% for s in ship_profile.bubbles %}{{ s.type_name }}{% if not forloop.last %}, {% endif %}{% endfor %}</div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if ship_profile.battleships %}
+            <div class="col-md-3 col-sm-6">
+                <div class="p-2 border border-secondary rounded bg-dark">
+                    <span class="text-light fw-bold small"><i class="fas fa-ship me-1"></i> Battleships ({{ ship_profile.battleships|length }})</span>
+                    <div class="small text-light mt-1">{% for s in ship_profile.battleships %}{{ s.type_name }}{% if not forloop.last %}, {% endif %}{% endfor %}</div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Hostile Pilots Roster (localthreat.xyz style) -->
+<div class="card bg-dark text-white border-secondary hostile-card shadow-sm mb-4">
+    <div class="card-header bg-dark border-secondary d-flex justify-content-between align-items-center">
+        <div>
+            <h5 class="mb-0 text-light fw-bold">
+                <i class="fas fa-users me-2 text-danger"></i>{% translate "Hostile Local Roster" %}
+            </h5>
+            <span class="text-muted small">
+                {{ scan.pilot_count }} {% translate "hostile pilot(s) analyzed" %}
+                {% if scan.ignored_count %}
+                &bull; <span class="text-success">{{ scan.ignored_count }} {% translate "friendly/main alliance pilot(s) excluded" %}</span>
+                {% endif %}
+            </span>
+        </div>
+        <div>
+            <button class="btn btn-sm btn-outline-secondary" onclick="navigator.clipboard.writeText(window.location.href); alert('Scan URL copied to clipboard!');">
+                <i class="fas fa-share-alt me-1"></i>{% translate "Share Scan" %}
+            </button>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <!-- Dynamic Loading Status Banner -->
+        <div id="intel-loading-status" class="alert alert-dark border-secondary d-none align-items-center justify-content-between m-3 py-2 px-3">
+            <div class="d-flex align-items-center">
+                <div class="spinner-border spinner-border-sm text-info me-2" role="status"></div>
+                <span class="small text-light">
+                    <i class="fas fa-satellite-dish text-info me-1"></i>
+                    {% translate "Dynamically fetching combat intelligence (corporations, alliances, top ships, cyno history, zKill tags)..." %}
+                </span>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <span id="intel-progress-text" class="badge bg-info text-dark font-mono">0 / {{ pilots|length }}</span>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-dark table-hover align-middle mb-0">
+                <thead>
+                    <tr class="text-muted small text-uppercase">
+                        <th>{% translate "Pilot" %}</th>
+                        <th>{% translate "Corporation & Alliance" %}</th>
+                        <th>{% translate "Threat Classification & Role Tags" %}</th>
+                        <th>{% translate "Coupled D-Scan Ship" %}</th>
+                        <th>{% translate "Messages / Sightings" %}</th>
+                        <th class="text-end">{% translate "Dossier" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for pilot in pilots %}
+                    <tr class="pilot-row {% if pilot.is_super_pilot or pilot.is_titan_pilot %}pilot-row-danger{% elif pilot.is_cyno_alt %}pilot-row-warning{% endif %}"
+                        data-pilot-name="{{ pilot.character_name }}"
+                        data-synced="{{ pilot.zkill_synced|yesno:'true,false' }}">
+                        <td>
+                            <div class="d-flex align-items-center">
+                                {% if pilot.character_id %}
+                                <img src="https://images.evetech.net/characters/{{ pilot.character_id }}/portrait?size=64"
+                                     class="rounded-circle me-2 border border-secondary"
+                                     alt="{{ pilot.character_name }}" width="36" height="36">
+                                {% else %}
+                                <div class="bg-secondary rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 36px; height: 36px;">
+                                    <i class="fas fa-user text-dark"></i>
+                                </div>
+                                {% endif %}
+                                <div>
+                                    <div class="d-flex align-items-center gap-1">
+                                        <span class="fw-bold text-light">{{ pilot.character_name }}</span>
+                                        {% if pilot.in_database %}
+                                        <i class="fas fa-check-circle text-info ms-1 small" title="Known in Intel Database"></i>
+                                        {% endif %}
+                                    </div>
+                                    <div class="d-flex align-items-center flex-wrap gap-1 mt-1">
+                                        {% if pilot.danger_ratio %}
+                                        <span class="badge {% if pilot.danger_ratio >= 80 %}bg-danger{% elif pilot.danger_ratio >= 50 %}bg-warning text-dark{% else %}bg-info text-dark{% endif %} font-mono small py-0 px-1" title="PvP Danger Ratio">
+                                            {{ pilot.danger_ratio }}% Danger
+                                        </span>
+                                        {% endif %}
+                                        {% if pilot.kills_count or pilot.losses_count %}
+                                        <span class="text-muted font-mono" style="font-size: 0.75rem;">
+                                            {{ pilot.kills_count }} K / {{ pilot.losses_count }} L
+                                        </span>
+                                        {% endif %}
+                                        {% if pilot.solo_kills %}
+                                        <span class="text-muted" style="font-size: 0.75rem;">
+                                            ({{ pilot.solo_kills }} Solo)
+                                        </span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                {% if pilot.corporation_id %}
+                                <img src="https://images.evetech.net/corporations/{{ pilot.corporation_id }}/logo?size=32" width="16" height="16" class="rounded me-1" alt="">
+                                {% endif %}
+                                <span class="text-light small">{{ pilot.display_corporation_name|default:pilot.corporation_name|default:"-" }}</span>
+                                {% if pilot.corporation_ticker %}
+                                <span class="text-muted small ms-1">[{{ pilot.corporation_ticker }}]</span>
+                                {% endif %}
+                            </div>
+                            {% if pilot.alliance_name %}
+                            <div class="d-flex align-items-center mt-1">
+                                {% if pilot.alliance_id %}
+                                <img src="https://images.evetech.net/alliances/{{ pilot.alliance_id }}/logo?size=32" width="16" height="16" class="rounded me-1" alt="">
+                                {% endif %}
+                                <span class="small text-muted">{{ pilot.alliance_name }}</span>
+                                {% if pilot.alliance_ticker %}
+                                <span class="text-muted small ms-1">[{{ pilot.alliance_ticker }}]</span>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                            {% if pilot.associated_alliance_name %}
+                            <div class="mt-1">
+                                <span class="badge badge-subtle-danger font-mono small"><i class="fas fa-mask me-1"></i>Alt For: {{ pilot.associated_alliance_name }}</span>
+                            </div>
+                            {% endif %}
+                            {% if pilot.is_alt and pilot.main_character_name %}
+                            <div class="mt-1">
+                                <span class="badge badge-subtle-warning font-mono small"><i class="fas fa-link me-1"></i>Alt of: {{ pilot.main_character_name }}</span>
+                            </div>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="d-flex flex-wrap gap-1">
+                                {% if pilot.is_titan_pilot %}
+                                <span class="badge bg-danger"><i class="fas fa-crown me-1"></i>TITAN</span>
+                                {% endif %}
+                                {% if pilot.is_super_pilot %}
+                                <span class="badge bg-danger"><i class="fas fa-skull me-1"></i>SUPER</span>
+                                {% endif %}
+                                {% if pilot.is_dread_pilot %}
+                                <span class="badge bg-danger"><i class="fas fa-crosshairs me-1"></i>DREAD</span>
+                                {% endif %}
+                                {% if pilot.is_fax_pilot %}
+                                <span class="badge bg-success"><i class="fas fa-plus-square me-1"></i>FAX</span>
+                                {% endif %}
+                                {% if pilot.is_capital_pilot and not pilot.is_super_pilot and not pilot.is_dread_pilot and not pilot.is_fax_pilot and not pilot.is_titan_pilot %}
+                                <span class="badge bg-warning text-dark"><i class="fas fa-shield-virus me-1"></i>CAPITAL</span>
+                                {% endif %}
+                                {% if pilot.is_cyno_alt %}
+                                <span class="badge bg-danger"><i class="fas fa-broadcast-tower me-1"></i>CYNO ALT</span>
+                                {% endif %}
+                                {% if pilot.is_blops_pilot %}
+                                <span class="badge bg-purple" style="background-color: #6f42c1;"><i class="fas fa-user-ninja me-1"></i>BLOPS</span>
+                                {% endif %}
+                                {% if pilot.is_fc %}
+                                <span class="badge bg-primary" title="{% if pilot.fc_score %}Score: {{ pilot.fc_score }}{% endif %}">
+                                    <i class="fas fa-chess-king me-1"></i>FC {% if pilot.fc_level %}({{ pilot.fc_level }}){% endif %}
+                                </span>
+                                {% endif %}
+                                {% if pilot.is_awox %}
+                                <span class="badge bg-danger text-light"><i class="fas fa-skull-crossbones me-1"></i>AWOX</span>
+                                {% endif %}
+                                {% if pilot.is_alliance_awox %}
+                                <span class="badge bg-danger text-light"><i class="fas fa-skull-crossbones me-1"></i>ALLIANCE AWOX</span>
+                                {% endif %}
+                                {% if pilot.is_faction_awox %}
+                                <span class="badge bg-danger text-light"><i class="fas fa-skull-crossbones me-1"></i>FACTION AWOX</span>
+                                {% endif %}
+                                {% if pilot.is_bait %}
+                                <span class="badge bg-warning text-dark"><i class="fas fa-fish me-1"></i>BAIT {% if pilot.bait_level %}({{ pilot.bait_level }}){% endif %}</span>
+                                {% endif %}
+                                {% if pilot.is_ganker %}
+                                <span class="badge bg-danger text-light"><i class="fas fa-bolt me-1"></i>GANKER</span>
+                                {% endif %}
+                                {% if pilot.is_logi_pilot %}
+                                <span class="badge badge-subtle-teal"><i class="fas fa-first-aid me-1"></i>LOGI</span>
+                                {% endif %}
+                                {% if pilot.is_rookie %}
+                                <span class="badge badge-subtle-secondary"><i class="fas fa-seedling me-1"></i>ROOKIE</span>
+                                {% endif %}
+                                {% if pilot.is_out_of_corp %}
+                                <span class="badge bg-dark border border-secondary"><i class="fas fa-mask me-1"></i>OUT OF CORP</span>
+                                {% endif %}
+                                {% if not pilot.is_cyno_alt and not pilot.is_capital_pilot and not pilot.is_blops_pilot and not pilot.is_fc and not pilot.is_super_pilot and not pilot.is_titan_pilot and not pilot.is_dread_pilot and not pilot.is_fax_pilot and not pilot.is_out_of_corp and not pilot.is_awox and not pilot.is_alliance_awox and not pilot.is_faction_awox and not pilot.is_bait and not pilot.is_ganker and not pilot.is_logi_pilot and not pilot.is_rookie %}
+                                <span class="badge bg-secondary">COMBAT PILOT</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td>
+                            {% if pilot.dscan_match %}
+                            <div class="mb-1">
+                                <span class="badge bg-danger text-light"><i class="fas fa-satellite-dish me-1"></i>{{ pilot.dscan_match }}</span>
+                            </div>
+                            {% endif %}
+                            {% if pilot.top_ships %}
+                            <div class="d-flex flex-wrap gap-1">
+                                {% for ship in pilot.top_ships %}
+                                <span class="badge bg-dark border border-secondary text-info small" style="font-size: 0.75rem;">{{ ship }}</span>
+                                {% endfor %}
+                            </div>
+                            {% elif pilot.likely_ship and not pilot.dscan_match %}
+                            <span class="badge bg-dark border border-info text-info">{{ pilot.likely_ship }}</span>
+                            {% else %}
+                            <span class="text-muted small">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="small">
+                            {% if pilot.message_count %}
+                            <span class="badge bg-secondary">{{ pilot.message_count }} msg(s)</span>
+                            {% endif %}
+                            {% if pilot.timestamps %}
+                            <div class="text-muted" style="font-size: 0.75rem;">{{ pilot.timestamps.0 }}</div>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <a href="https://zkillboard.com/character/{% if pilot.character_id %}{{ pilot.character_id }}{% else %}search/{{ pilot.character_name|urlencode }}{% endif %}/"
+                               target="_blank" class="btn btn-sm btn-outline-secondary" title="View on zKillboard">
+                                <i class="fas fa-external-link-alt"></i>
+                            </a>
+                            {% if pilot.dossier_id %}
+                            <a href="{% url 'hostile:pilot_detail' pilot.dossier_id %}"
+                               class="btn btn-sm btn-outline-info" title="View Pilot Dossier">
+                                <i class="fas fa-id-card"></i>
+                            </a>
+                            {% else %}
+                            <a href="{% url 'hostile:pilot_add' %}?name={{ pilot.character_name|urlencode }}&corp={{ pilot.corporation_name|urlencode }}&alliance={{ pilot.alliance_name|urlencode }}"
+                               class="btn btn-sm btn-outline-info" title="Create or Update Dossier">
+                                <i class="fas fa-user-plus"></i>
+                            </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-4">
+                            {% translate "No hostile pilots identified in this scan." %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_javascript %}
+{{ block.super }}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const scanId = "{{ scan.id }}";
+    const apiUrl = "{% url 'hostile:api_threat_scan_pilot_intel' scan.id %}";
+    const loadingStatus = document.getElementById("intel-loading-status");
+    const progressText = document.getElementById("intel-progress-text");
+
+    const unSyncedRows = document.querySelectorAll('tr.pilot-row[data-synced="false"]');
+    if (!unSyncedRows || unSyncedRows.length === 0) {
+        return;
+    }
+
+    if (loadingStatus) {
+        loadingStatus.classList.remove("d-none");
+        loadingStatus.classList.add("d-flex");
+    }
+
+    let isFetching = false;
+
+    function fetchNextBatch() {
+        if (isFetching) return;
+        isFetching = true;
+
+        fetch(`${apiUrl}?batch_size=5`, {
+            headers: {
+                "X-Requested-With": "XMLHttpRequest",
+            }
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error("Network response was not ok");
+            }
+            return response.json();
+        })
+        .then(data => {
+            isFetching = false;
+            if (!data.success) {
+                return;
+            }
+
+            // Update KPI cards
+            updateScanKPIs(data);
+
+            // Update pilot rows
+            if (data.pilots && data.pilots.length > 0) {
+                data.pilots.forEach(pilot => {
+                    updatePilotRow(pilot);
+                });
+            }
+
+            // Update progress text
+            if (progressText) {
+                progressText.textContent = `${data.synced_count} / ${data.total_pilots}`;
+            }
+
+            if (!data.is_finished && data.remaining_count > 0) {
+                // Continue fetching next batch
+                setTimeout(fetchNextBatch, 200);
+            } else {
+                // Finished!
+                if (loadingStatus) {
+                    loadingStatus.classList.remove("alert-dark", "border-secondary");
+                    loadingStatus.classList.add("alert-success", "border-success");
+                    loadingStatus.innerHTML = `
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-check-circle text-success me-2"></i>
+                            <span class="small text-light">{% translate "All hostile combat intelligence, affiliations, and tags loaded successfully." %}</span>
+                        </div>
+                        <div>
+                            <span class="badge bg-success font-mono">${data.total_pilots} / ${data.total_pilots}</span>
+                        </div>
+                    `;
+                    setTimeout(() => {
+                        loadingStatus.style.transition = "opacity 0.6s ease";
+                        loadingStatus.style.opacity = "0";
+                        setTimeout(() => loadingStatus.remove(), 600);
+                    }, 2500);
+                }
+            }
+        })
+        .catch(err => {
+            console.error("Failed to load pilot intelligence batch:", err);
+            isFetching = false;
+            if (loadingStatus) {
+                loadingStatus.classList.remove("alert-dark");
+                loadingStatus.classList.add("alert-warning");
+                loadingStatus.innerHTML = `
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                        <span class="small text-light">{% translate "Intelligence loading interrupted. Refresh page to resume." %}</span>
+                    </div>
+                `;
+            }
+        });
+    }
+
+    function updateScanKPIs(data) {
+        // Black Ops Drop Risk
+        const blopsChanceText = document.getElementById("blops-chance-text");
+        const blopsProgressBar = document.getElementById("blops-progress-bar");
+        const blopsRiskBadge = document.getElementById("blops-risk-badge");
+        if (blopsChanceText) {
+            blopsChanceText.textContent = `${data.blops_drop_chance}%`;
+            blopsChanceText.className = "mb-0 fw-bold mt-1 " + (data.blops_drop_chance >= 75 ? "text-danger" : (data.blops_drop_chance >= 40 ? "text-warning" : "text-info"));
+        }
+        if (blopsProgressBar) {
+            blopsProgressBar.style.width = `${data.blops_drop_chance}%`;
+            blopsProgressBar.className = "progress-bar " + (data.blops_drop_chance >= 75 ? "bg-danger" : (data.blops_drop_chance >= 40 ? "bg-warning" : "bg-info"));
+        }
+        if (blopsRiskBadge) {
+            blopsRiskBadge.textContent = data.blops_drop_chance >= 75 ? "CRITICAL RISK" : (data.blops_drop_chance >= 40 ? "ELEVATED RISK" : "STANDARD RISK");
+        }
+
+        // Capital Drop Risk
+        const capChanceText = document.getElementById("cap-chance-text");
+        const capProgressBar = document.getElementById("cap-progress-bar");
+        const capRiskBadge = document.getElementById("cap-risk-badge");
+        if (capChanceText) {
+            capChanceText.textContent = `${data.cap_drop_chance}%`;
+            capChanceText.className = "mb-0 fw-bold mt-1 " + (data.cap_drop_chance >= 75 ? "text-danger" : (data.cap_drop_chance >= 40 ? "text-warning" : "text-info"));
+        }
+        if (capProgressBar) {
+            capProgressBar.style.width = `${data.cap_drop_chance}%`;
+            capProgressBar.className = "progress-bar " + (data.cap_drop_chance >= 75 ? "bg-danger" : (data.cap_drop_chance >= 40 ? "bg-warning" : "bg-info"));
+        }
+        if (capRiskBadge) {
+            capRiskBadge.textContent = data.cap_drop_chance >= 75 ? "CRITICAL RISK" : (data.cap_drop_chance >= 40 ? "ELEVATED RISK" : "STANDARD RISK");
+        }
+
+        // Threat Level Badge
+        const threatLevelContainer = document.getElementById("threat-level-container");
+        if (threatLevelContainer) {
+            if (data.threat_level === "CRITICAL") {
+                threatLevelContainer.innerHTML = '<span id="threat-level-badge" class="badge bg-danger fs-6 px-3 py-2"><i class="fas fa-skull-crossbones me-1"></i> CRITICAL</span>';
+            } else if (data.threat_level === "HIGH") {
+                threatLevelContainer.innerHTML = '<span id="threat-level-badge" class="badge bg-warning text-dark fs-6 px-3 py-2"><i class="fas fa-exclamation-triangle me-1"></i> HIGH THREAT</span>';
+            } else if (data.threat_level === "MODERATE") {
+                threatLevelContainer.innerHTML = '<span id="threat-level-badge" class="badge bg-info text-dark fs-6 px-3 py-2"><i class="fas fa-shield-alt me-1"></i> MODERATE</span>';
+            } else {
+                threatLevelContainer.innerHTML = '<span id="threat-level-badge" class="badge bg-success fs-6 px-3 py-2"><i class="fas fa-check-circle me-1"></i> LOW THREAT</span>';
+            }
+        }
+
+        // Threat Factors list
+        const factorsList = document.getElementById("threat-factors-list");
+        const factorsBadge = document.getElementById("threat-factors-badge");
+        if (factorsBadge && data.threat_factors) {
+            factorsBadge.textContent = `${data.threat_factors.length} {% translate "Factors" %}`;
+        }
+        if (factorsList && data.threat_factors) {
+            if (data.threat_factors.length > 0) {
+                factorsList.innerHTML = data.threat_factors.map(f => `
+                    <li class="list-group-item bg-transparent text-light border-secondary py-2 px-0 d-flex align-items-center">
+                        <i class="fas fa-angle-right text-warning me-2"></i>
+                        <span>${escapeHtml(f)}</span>
+                    </li>
+                `).join("");
+            } else {
+                factorsList.innerHTML = `
+                    <li class="list-group-item bg-transparent text-muted py-2 px-0">
+                        {% translate "No critical tactical risk indicators detected for this scan." %}
+                    </li>
+                `;
+            }
+        }
+    }
+
+    function updatePilotRow(pilot) {
+        const row = document.querySelector(`tr.pilot-row[data-pilot-name="${CSS.escape(pilot.character_name)}"]`);
+        if (!row) return;
+
+        row.setAttribute("data-synced", "true");
+
+        // Row highlighting
+        row.classList.remove("table-danger", "table-warning", "pilot-row-danger", "pilot-row-warning");
+        if (pilot.is_super_pilot || pilot.is_titan_pilot) {
+            row.classList.add("pilot-row-danger");
+        } else if (pilot.is_cyno_alt) {
+            row.classList.add("pilot-row-warning");
+        }
+
+        // Cell 0: Pilot
+        const pilotCell = row.cells[0];
+        if (pilotCell) {
+            let portraitHtml = "";
+            if (pilot.character_id) {
+                portraitHtml = `<img src="https://images.evetech.net/characters/${pilot.character_id}/portrait?size=64" class="rounded-circle me-2 border border-secondary" alt="${escapeHtml(pilot.character_name)}" width="36" height="36">`;
+            } else {
+                portraitHtml = `<div class="bg-secondary rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 36px; height: 36px;"><i class="fas fa-user text-dark"></i></div>`;
+            }
+
+            let dangerHtml = "";
+            if (pilot.danger_ratio) {
+                const bgClass = pilot.danger_ratio >= 80 ? "bg-danger" : (pilot.danger_ratio >= 50 ? "bg-warning text-dark" : "bg-info text-dark");
+                dangerHtml += `<span class="badge ${bgClass} font-mono small py-0 px-1" title="PvP Danger Ratio">${pilot.danger_ratio}% Danger</span> `;
+            }
+            if (pilot.kills_count || pilot.losses_count) {
+                dangerHtml += `<span class="text-muted font-mono" style="font-size: 0.75rem;">${pilot.kills_count} K / ${pilot.losses_count} L</span> `;
+            }
+            if (pilot.solo_kills) {
+                dangerHtml += `<span class="text-muted" style="font-size: 0.75rem;">(${pilot.solo_kills} Solo)</span>`;
+            }
+
+            pilotCell.innerHTML = `
+                <div class="d-flex align-items-center">
+                    ${portraitHtml}
+                    <div>
+                        <div class="d-flex align-items-center gap-1">
+                            <span class="fw-bold text-light">${escapeHtml(pilot.character_name)}</span>
+                            ${pilot.in_database ? '<i class="fas fa-check-circle text-info ms-1 small" title="Known in Intel Database"></i>' : ''}
+                        </div>
+                        <div class="d-flex align-items-center flex-wrap gap-1 mt-1">
+                            ${dangerHtml}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Cell 1: Corp & Alliance
+        const corpCell = row.cells[1];
+        if (corpCell) {
+            let corpLogo = pilot.corporation_id ? `<img src="https://images.evetech.net/corporations/${pilot.corporation_id}/logo?size=32" width="16" height="16" class="rounded me-1" alt="">` : '';
+            let corpTicker = pilot.corporation_ticker ? `<span class="text-muted small ms-1">[${escapeHtml(pilot.corporation_ticker)}]</span>` : '';
+            let corpName = escapeHtml(pilot.corporation_name || "-");
+
+            let allianceHtml = "";
+            if (pilot.alliance_name) {
+                let allianceLogo = pilot.alliance_id ? `<img src="https://images.evetech.net/alliances/${pilot.alliance_id}/logo?size=32" width="16" height="16" class="rounded me-1" alt="">` : '';
+                let allianceTicker = pilot.alliance_ticker ? `<span class="text-muted small ms-1">[${escapeHtml(pilot.alliance_ticker)}]</span>` : '';
+                allianceHtml = `
+                    <div class="d-flex align-items-center mt-1">
+                        ${allianceLogo}
+                        <span class="small text-muted">${escapeHtml(pilot.alliance_name)}</span>
+                        ${allianceTicker}
+                    </div>
+                `;
+            }
+
+            let altForHtml = pilot.associated_alliance_name ? `
+                <div class="mt-1">
+                    <span class="badge badge-subtle-danger font-mono small"><i class="fas fa-mask me-1"></i>Alt For: ${escapeHtml(pilot.associated_alliance_name)}</span>
+                </div>
+            ` : '';
+
+            let altOfHtml = (pilot.is_alt && pilot.main_character_name) ? `
+                <div class="mt-1">
+                    <span class="badge badge-subtle-warning font-mono small"><i class="fas fa-link me-1"></i>Alt of: ${escapeHtml(pilot.main_character_name)}</span>
+                </div>
+            ` : '';
+
+            corpCell.innerHTML = `
+                <div class="d-flex align-items-center">
+                    ${corpLogo}
+                    <span class="text-light small">${corpName}</span>
+                    ${corpTicker}
+                </div>
+                ${allianceHtml}
+                ${altForHtml}
+                ${altOfHtml}
+            `;
+        }
+
+        // Cell 2: Role tags
+        const rolesCell = row.cells[2];
+        if (rolesCell) {
+            let badges = [];
+            if (pilot.is_titan_pilot) badges.push('<span class="badge bg-danger"><i class="fas fa-crown me-1"></i>TITAN</span>');
+            if (pilot.is_super_pilot) badges.push('<span class="badge bg-danger"><i class="fas fa-skull me-1"></i>SUPER</span>');
+            if (pilot.is_dread_pilot) badges.push('<span class="badge bg-danger"><i class="fas fa-crosshairs me-1"></i>DREAD</span>');
+            if (pilot.is_fax_pilot) badges.push('<span class="badge bg-success"><i class="fas fa-plus-square me-1"></i>FAX</span>');
+            if (pilot.is_capital_pilot && !pilot.is_super_pilot && !pilot.is_dread_pilot && !pilot.is_fax_pilot && !pilot.is_titan_pilot) {
+                badges.push('<span class="badge bg-warning text-dark"><i class="fas fa-shield-virus me-1"></i>CAPITAL</span>');
+            }
+            if (pilot.is_cyno_alt) badges.push('<span class="badge bg-danger"><i class="fas fa-broadcast-tower me-1"></i>CYNO ALT</span>');
+            if (pilot.is_blops_pilot) badges.push('<span class="badge bg-purple" style="background-color: #6f42c1;"><i class="fas fa-user-ninja me-1"></i>BLOPS</span>');
+            if (pilot.is_fc) {
+                let fcTitle = pilot.fc_score ? `Score: ${pilot.fc_score}` : '';
+                let fcSub = pilot.fc_level ? ` (${escapeHtml(pilot.fc_level)})` : '';
+                badges.push(`<span class="badge bg-primary" title="${fcTitle}"><i class="fas fa-chess-king me-1"></i>FC${fcSub}</span>`);
+            }
+            if (pilot.is_awox) badges.push('<span class="badge bg-danger text-light"><i class="fas fa-skull-crossbones me-1"></i>AWOX</span>');
+            if (pilot.is_alliance_awox) badges.push('<span class="badge bg-danger text-light"><i class="fas fa-skull-crossbones me-1"></i>ALLIANCE AWOX</span>');
+            if (pilot.is_faction_awox) badges.push('<span class="badge bg-danger text-light"><i class="fas fa-skull-crossbones me-1"></i>FACTION AWOX</span>');
+            if (pilot.is_bait) {
+                let baitSub = pilot.bait_level ? ` (${escapeHtml(pilot.bait_level)})` : '';
+                badges.push(`<span class="badge bg-warning text-dark"><i class="fas fa-fish me-1"></i>BAIT${baitSub}</span>`);
+            }
+            if (pilot.is_ganker) badges.push('<span class="badge bg-danger text-light"><i class="fas fa-bolt me-1"></i>GANKER</span>');
+            if (pilot.is_logi_pilot) badges.push('<span class="badge badge-subtle-teal"><i class="fas fa-first-aid me-1"></i>LOGI</span>');
+            if (pilot.is_rookie) badges.push('<span class="badge badge-subtle-secondary"><i class="fas fa-seedling me-1"></i>ROOKIE</span>');
+            if (pilot.is_out_of_corp) badges.push('<span class="badge bg-dark border border-secondary"><i class="fas fa-mask me-1"></i>OUT OF CORP</span>');
+
+            if (badges.length === 0) {
+                badges.push('<span class="badge bg-secondary">COMBAT PILOT</span>');
+            }
+
+            rolesCell.innerHTML = `<div class="d-flex flex-wrap gap-1">${badges.join(" ")}</div>`;
+        }
+
+        // Cell 3: Coupled D-Scan Ship / Top ships
+        const shipCell = row.cells[3];
+        if (shipCell) {
+            let shipHtml = "";
+            if (pilot.dscan_match) {
+                shipHtml += `<div class="mb-1"><span class="badge bg-danger text-light"><i class="fas fa-satellite-dish me-1"></i>${escapeHtml(pilot.dscan_match)}</span></div>`;
+            }
+            if (pilot.top_ships && pilot.top_ships.length > 0) {
+                shipHtml += `<div class="d-flex flex-wrap gap-1">` + pilot.top_ships.map(s => `<span class="badge bg-dark border border-secondary text-info small" style="font-size: 0.75rem;">${escapeHtml(s)}</span>`).join("") + `</div>`;
+            } else if (pilot.likely_ship && !pilot.dscan_match) {
+                shipHtml += `<span class="badge bg-dark border border-info text-info">${escapeHtml(pilot.likely_ship)}</span>`;
+            } else if (!pilot.dscan_match) {
+                shipHtml += `<span class="text-muted small">-</span>`;
+            }
+            shipCell.innerHTML = shipHtml;
+        }
+
+        // Cell 5: Actions
+        const actionCell = row.cells[5];
+        if (actionCell) {
+            const zkillUrl = pilot.character_id ? `https://zkillboard.com/character/${pilot.character_id}/` : `https://zkillboard.com/character/search/${encodeURIComponent(pilot.character_name)}/`;
+            let dossierBtn = "";
+            if (pilot.dossier_id) {
+                dossierBtn = `<a href="/hostile/pilots/${pilot.dossier_id}/" class="btn btn-sm btn-outline-info" title="View Pilot Dossier"><i class="fas fa-id-card"></i></a>`;
+            } else {
+                const dossierUrl = `{% url 'hostile:pilot_add' %}?name=${encodeURIComponent(pilot.character_name)}&corp=${encodeURIComponent(pilot.corporation_name || '')}&alliance=${encodeURIComponent(pilot.alliance_name || '')}`;
+                dossierBtn = `<a href="${dossierUrl}" class="btn btn-sm btn-outline-info" title="Create or Update Dossier"><i class="fas fa-user-plus"></i></a>`;
+            }
+            actionCell.innerHTML = `
+                <a href="${zkillUrl}" target="_blank" class="btn btn-sm btn-outline-secondary" title="View on zKillboard">
+                    <i class="fas fa-external-link-alt"></i>
+                </a>
+                ${dossierBtn}
+            `;
+        }
+    }
+
+    function escapeHtml(str) {
+        if (!str) return "";
+        return String(str)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    // Start fetching
+    fetchNextBatch();
+});
+</script>
+{% endblock %}

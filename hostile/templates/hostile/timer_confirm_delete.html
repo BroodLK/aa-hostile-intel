@@ -1,0 +1,52 @@
+{% extends 'hostile/base.html' %}
+{% load i18n %}
+
+{% block details %}
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="card bg-dark text-white border-danger hostile-card shadow-sm">
+            <div class="card-header bg-danger bg-opacity-25 border-danger d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-bold text-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>{% translate "Confirm Timer Deletion" %}
+                </h5>
+                <a href="{% url 'hostile:timers' %}" class="btn btn-sm btn-outline-secondary">
+                    <i class="fas fa-times me-1"></i>{% translate "Cancel" %}
+                </a>
+            </div>
+            <div class="card-body">
+                <p class="lead fs-6 mb-3">
+                    {% blocktranslate with type=timer.timer_type target=timer.target_name %}Are you sure you want to permanently delete the <strong>{{ type }}</strong> timer for <strong>{{ target }}</strong>?{% endblocktranslate %}
+                </p>
+
+                <div class="bg-black bg-opacity-50 p-3 rounded border border-secondary mb-3">
+                    <div class="row g-2 small">
+                        <div class="col-4 text-muted text-uppercase fw-bold">{% translate "Timer Type:" %}</div>
+                        <div class="col-8 text-light fw-bold">{{ timer.timer_type }}</div>
+
+                        <div class="col-4 text-muted text-uppercase fw-bold">{% translate "Target:" %}</div>
+                        <div class="col-8 text-light">{{ timer.target_name }}</div>
+
+                        <div class="col-4 text-muted text-uppercase fw-bold">{% translate "Solar System:" %}</div>
+                        <div class="col-8 text-info font-mono">{{ timer.solar_system.name|default:"Unknown" }}</div>
+
+                        <div class="col-4 text-muted text-uppercase fw-bold">{% translate "Exit UTC:" %}</div>
+                        <div class="col-8 text-warning font-mono">{{ timer.timer_datetime|date:"Y-m-d H:i" }} UTC</div>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center">
+                    <a href="{% url 'hostile:timers' %}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left me-1"></i>{% translate "Go Back" %}
+                    </a>
+                    <form action="{% url 'hostile:timer_delete' timer.id %}" method="post">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger fw-bold px-4">
+                            <i class="fas fa-trash-alt me-1"></i>{% translate "Delete Timer" %}
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

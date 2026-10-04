@@ -1,0 +1,501 @@
+{% extends 'hostile/base.html' %}
+{% load i18n humanize %}
+
+{% block details %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h4 class="mb-0 fw-bold"><i class="fas fa-globe-americas text-primary me-2"></i>{% translate "Hostile Alliances, Coalitions & Corporations" %}</h4>
+        <p class="text-muted small mb-0">{% translate "Vulnerability timezone distributions, coalition hierarchies, member corporations, max formup capacities, active PvP pilots, and staging hubs." %}</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        {% if perms.hostile.manage_intel %}
+        <button type="button" class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#coalitionManageModal">
+            <i class="fas fa-crown me-1"></i>{% translate "Manage Coalitions" %}
+        </button>
+        {% endif %}
+        <a href="{% url 'hostile:corporation_add' %}" class="btn btn-sm btn-outline-info">
+            <i class="fas fa-building me-1"></i>{% translate "Add Corporation" %}
+        </a>
+        <a href="{% url 'hostile:alliance_add' %}" class="btn btn-sm btn-primary">
+            <i class="fas fa-plus me-1"></i>{% translate "Add Alliance" %}
+        </a>
+    </div>
+</div>
+
+{% if is_zkill_syncing %}
+<div class="alert alert-info border-info d-flex align-items-center mb-4 bg-dark text-info shadow-sm">
+    <div class="spinner-border spinner-border-sm me-3 text-info" role="status"></div>
+    <div>
+        <strong>{% translate "zKillboard Synchronization in Progress:" %}</strong>
+        <span class="text-light ms-1">{% translate "Pulling latest kills, activity distributions, and fleet statistics from zKillboard..." %}</span>
+    </div>
+</div>
+{% endif %}
+
+<!-- Coalitions Hierarchy Overview -->
+{% if coalitions %}
+<div class="mb-5">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0 fw-bold text-warning">
+            <i class="fas fa-shield-alt text-warning me-2"></i>{% translate "Coalitions & Power Blocs" %}
+        </h5>
+        <span class="badge bg-secondary">{{ coalitions|length }} {% translate "Tracked Coalitions" %}</span>
+    </div>
+    <div class="row g-3">
+        {% for coal in coalitions %}
+        <div class="col-md-6 col-xl-4">
+            <div class="card bg-dark text-white border-secondary hostile-card shadow-sm h-100">
+                <div class="card-header hostile-card-header d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-shield-alt text-warning me-2 fs-5"></i>
+                        <div>
+                            <h6 class="card-title mb-0 fw-bold text-light">{{ coal.name }}</h6>
+                            {% if coal.leader %}
+                                <div class="small text-warning" title="Designated Coalition Leader">
+                                    <i class="fas fa-crown me-1 text-warning"></i>Leader: <a href="{% url 'hostile:alliance_detail' coal.leader.id %}" class="text-warning text-decoration-none fw-bold">{{ coal.leader.alliance_name }}</a>
+                                </div>
+                            {% else %}
+                                <div class="small text-muted italic">{% translate "No leader alliance designated" %}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <span class="badge badge-subtle-primary">{{ coal.alliances|length }} Alliances</span>
+                </div>
+                <div class="card-body">
+                    <div class="row g-2 mb-3 text-center">
+                        <div class="col-4">
+                            <div class="bg-black bg-opacity-40 p-1 rounded border border-secondary">
+                                <div class="small text-muted" style="font-size: 0.65rem;">Active PvP</div>
+                                <div class="fw-bold text-info font-mono">{{ coal.total_active_pilots }}</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="bg-black bg-opacity-40 p-1 rounded border border-secondary">
+                                <div class="small text-muted" style="font-size: 0.65rem;">7d Kills</div>
+                                <div class="fw-bold text-danger font-mono">{{ coal.total_kills }}</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="bg-black bg-opacity-40 p-1 rounded border border-secondary">
+                                <div class="small text-muted" style="font-size: 0.65rem;">Structures</div>
+                                <div class="fw-bold text-light font-mono">{{ coal.total_structures }}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="small text-muted text-uppercase fw-bold mb-1" style="font-size: 0.7rem;">{% translate "Member Alliances" %}</div>
+                    <div class="d-flex flex-wrap gap-1">
+                        {% for a in coal.alliances %}
+                            <a href="{% url 'hostile:alliance_detail' a.id %}" class="badge {% if a.is_coalition_leader %}bg-warning text-dark border-warning{% else %}badge-subtle-primary{% endif %} text-decoration-none">
+                                {% if a.is_coalition_leader %}<i class="fas fa-crown me-1"></i>{% endif %}
+                                {{ a.alliance_name }}{% if a.ticker %} [{{ a.ticker }}]{% endif %}
+                            </a>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Hostile Alliances Section -->
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0 fw-bold"><i class="fas fa-globe-americas text-primary me-2"></i>{% translate "Hostile Alliances" %}</h5>
+    <span class="badge bg-secondary">{{ alliances|length }} {% translate "Alliances" %}</span>
+</div>
+
+<div class="row g-4">
+    {% for alliance in alliances %}
+    <div class="col-md-6 col-xl-4">
+        <div class="card bg-dark text-white border-secondary hostile-card h-100 shadow-sm">
+            <div class="card-header hostile-card-header d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center">
+                    <a href="{% url 'hostile:alliance_detail' alliance.id %}">
+                        <img src="https://images.evetech.net/alliances/{{ alliance.alliance_id }}/logo?size=64" alt="{{ alliance.alliance_name }}" class="rounded me-2 border border-secondary" style="width: 36px; height: 36px;">
+                    </a>
+                    <div>
+                        <h6 class="card-title mb-0 fw-bold">
+                            <a href="{% url 'hostile:alliance_detail' alliance.id %}" class="text-light text-decoration-none hover-primary">
+                                {{ alliance.alliance_name }}
+                            </a>
+                        </h6>
+                        <div class="d-flex flex-wrap gap-1 align-items-center mt-1">
+                            {% if alliance.ticker %}
+                                <span class="badge badge-subtle-secondary small">[{{ alliance.ticker }}]</span>
+                            {% endif %}
+                            {% if alliance.coalition %}
+                                <span class="badge badge-subtle-primary small"><i class="fas fa-shield-alt me-1"></i>{{ alliance.coalition }}</span>
+                            {% endif %}
+                            {% if alliance.is_friendly %}
+                                <span class="badge bg-success small"><i class="fas fa-handshake me-1"></i>Friendly</span>
+                            {% endif %}
+                            {% if alliance.is_coalition_leader %}
+                                <span class="badge bg-warning text-dark small" title="Coalition Leader / Exec Alliance"><i class="fas fa-crown me-1"></i>Leader</span>
+                            {% endif %}
+                            {% if alliance.is_alt_alliance %}
+                                <span class="badge badge-subtle-warning small" title="Alt / Holding entity{% if alliance.main_alliance %} for {{ alliance.main_alliance.alliance_name }}{% endif %}"><i class="fas fa-user-secret me-1"></i>Alt Alliance</span>
+                            {% endif %}
+                            {% if alliance.sov_capital %}
+                                <span class="badge badge-subtle-danger small" title="Designated Sovereignty Capital"><i class="fas fa-chess-king text-danger me-1"></i>{{ alliance.sov_capital.name }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center gap-1">
+                    {% if alliance.is_zkill_syncing %}
+                        <span class="badge badge-subtle-info text-info"><i class="fas fa-spinner fa-spin me-1"></i>{% translate "Pulling zKill..." %}</span>
+                    {% elif not alliance.zkill_stats_updated_at %}
+                        <span class="badge badge-subtle-warning text-warning"><i class="fas fa-clock me-1"></i>{% translate "zKill Pending" %}</span>
+                    {% endif %}
+                    {% if alliance.override_timezone %}
+                        <span class="badge badge-subtle-warning" title="{% translate 'Manual Timezone Override' %}"><i class="fas fa-lock me-1"></i>{{ alliance.primary_timezone }}</span>
+                    {% else %}
+                        {% if alliance.primary_timezone == "EUTZ" %}
+                            <span class="badge badge-subtle-warning" title="{% translate 'Auto-detected from zKill & Timers' %}"><i class="fas fa-sun me-1"></i>EUTZ</span>
+                        {% elif alliance.primary_timezone == "USTZ" %}
+                            <span class="badge badge-subtle-info" title="{% translate 'Auto-detected from zKill & Timers' %}"><i class="fas fa-moon me-1"></i>USTZ</span>
+                        {% elif alliance.primary_timezone == "AUTZ" %}
+                            <span class="badge badge-subtle-teal" title="{% translate 'Auto-detected from zKill & Timers' %}"><i class="fas fa-umbrella-beach me-1"></i>AUTZ</span>
+                        {% else %}
+                            <span class="badge badge-subtle-secondary" title="{% translate 'Auto-detected from zKill & Timers' %}">Unknown TZ</span>
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- Activity & Pilot KPI Metrics -->
+                <div class="row g-2 mb-3 text-center">
+                    <div class="col-3">
+                        <div class="bg-black bg-opacity-40 p-2 rounded border border-secondary h-100">
+                            <div class="small text-muted text-uppercase" style="font-size: 0.65rem;"><i class="fas fa-users text-primary me-1"></i>Members</div>
+                            <div class="fs-6 fw-bold text-light font-mono">{{ alliance.member_count|default:"0"|intcomma }}</div>
+                            {% if alliance.zkill_deltas.members %}
+                                <div class="small {% if alliance.zkill_deltas.members.pct >= 0 %}text-success{% else %}text-danger{% endif %}" style="font-size: 0.62rem;" title="{{ alliance.zkill_deltas.members.text }}">
+                                    {% if alliance.zkill_deltas.members.pct >= 0 %}+{% endif %}{{ alliance.zkill_deltas.members.pct }}%
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="bg-black bg-opacity-40 p-2 rounded border border-secondary h-100">
+                            <div class="small text-muted text-uppercase" style="font-size: 0.65rem;"><i class="fas fa-flag text-warning me-1"></i>Sov Systems</div>
+                            <div class="fs-6 fw-bold text-warning font-mono">{{ alliance.systems_held_count|default:"0" }}</div>
+                            {% if alliance.zkill_deltas.systems_held %}
+                                <div class="small {% if alliance.zkill_deltas.systems_held.pct >= 0 %}text-success{% else %}text-danger{% endif %}" style="font-size: 0.62rem;" title="{{ alliance.zkill_deltas.systems_held.text }}">
+                                    {% if alliance.zkill_deltas.systems_held.pct >= 0 %}+{% endif %}{{ alliance.zkill_deltas.systems_held.pct }}%
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="bg-black bg-opacity-40 p-2 rounded border border-secondary h-100">
+                            <div class="small text-muted text-uppercase" style="font-size: 0.65rem;"><i class="fas fa-crosshairs text-info me-1"></i>Active PvP</div>
+                            <div class="fs-6 fw-bold text-info font-mono">{{ alliance.active_pilots_count|default:"0" }}</div>
+                            {% if alliance.zkill_deltas.pilots %}
+                                <div class="small {% if alliance.zkill_deltas.pilots.pct >= 0 %}text-success{% else %}text-danger{% endif %}" style="font-size: 0.62rem;" title="{{ alliance.zkill_deltas.pilots.text }}">
+                                    {% if alliance.zkill_deltas.pilots.pct >= 0 %}+{% endif %}{{ alliance.zkill_deltas.pilots.pct }}%
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="bg-black bg-opacity-40 p-2 rounded border border-secondary h-100">
+                            <div class="small text-muted text-uppercase" style="font-size: 0.65rem;"><i class="fas fa-skull-crossbones text-danger me-1"></i>7d Kills</div>
+                            <div class="fs-6 fw-bold text-danger font-mono">{{ alliance.weekly_kills_count|default:"0" }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Max Formup Capabilities -->
+                <div class="bg-black bg-opacity-30 p-2 rounded border border-secondary mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <div class="small text-muted text-uppercase fw-bold" style="font-size: 0.7rem;"><i class="fas fa-shield-alt text-primary me-1"></i>{% translate "Max Formup Capacity (3m Rolling)" %}</div>
+                    </div>
+                    <div class="row g-1 text-center font-mono">
+                        <div class="col-4">
+                            <div class="bg-dark p-1 rounded border border-secondary">
+                                <div class="text-muted small" style="font-size: 0.65rem;">Subcaps</div>
+                                <div class="fw-bold text-light">{{ alliance.max_subcap_form }}</div>
+                                {% if alliance.zkill_deltas.subcap %}
+                                    <div class="small {% if alliance.zkill_deltas.subcap.pct >= 0 %}text-success{% else %}text-danger{% endif %}" style="font-size: 0.62rem;" title="{{ alliance.zkill_deltas.subcap.text }}">
+                                        {% if alliance.zkill_deltas.subcap.pct >= 0 %}+{% endif %}{{ alliance.zkill_deltas.subcap.pct }}%
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="bg-dark p-1 rounded border border-secondary">
+                                <div class="text-muted small" style="font-size: 0.65rem;">Capitals</div>
+                                <div class="fw-bold text-warning">{{ alliance.max_cap_form }}</div>
+                                {% if alliance.zkill_deltas.cap %}
+                                    <div class="small {% if alliance.zkill_deltas.cap.pct >= 0 %}text-success{% else %}text-danger{% endif %}" style="font-size: 0.62rem;" title="{{ alliance.zkill_deltas.cap.text }}">
+                                        {% if alliance.zkill_deltas.cap.pct >= 0 %}+{% endif %}{{ alliance.zkill_deltas.cap.pct }}%
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="bg-dark p-1 rounded border border-secondary">
+                                <div class="text-muted small" style="font-size: 0.65rem;">Supers</div>
+                                <div class="fw-bold text-danger">{{ alliance.max_super_form }}</div>
+                                {% if alliance.zkill_deltas.super %}
+                                    <div class="small {% if alliance.zkill_deltas.super.pct >= 0 %}text-success{% else %}text-danger{% endif %}" style="font-size: 0.62rem;" title="{{ alliance.zkill_deltas.super.text }}">
+                                        {% if alliance.zkill_deltas.super.pct >= 0 %}+{% endif %}{{ alliance.zkill_deltas.super.pct }}%
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-2 mb-3 text-center">
+                    <div class="col-3">
+                        <div class="bg-black bg-opacity-30 p-2 rounded border border-secondary">
+                            <div class="small text-muted text-uppercase" style="font-size: 0.65rem;">Corps</div>
+                            <div class="fs-6 fw-bold text-primary font-mono">{{ alliance.member_corps_count|default:alliance.corporations.count }}</div>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="bg-black bg-opacity-30 p-2 rounded border border-secondary">
+                            <div class="small text-muted text-uppercase" style="font-size: 0.65rem;">Structures</div>
+                            <div class="fs-6 fw-bold text-info font-mono">{{ alliance.structures.count }}</div>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="bg-black bg-opacity-30 p-2 rounded border border-secondary">
+                            <div class="small text-muted text-uppercase" style="font-size: 0.65rem;">Stagings</div>
+                            <div class="fs-6 fw-bold text-warning font-mono">{{ alliance.staging_systems.count }}</div>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="bg-black bg-opacity-30 p-2 rounded border border-secondary">
+                            <div class="small text-muted text-uppercase" style="font-size: 0.65rem;">Doctrines</div>
+                            <div class="fs-6 fw-bold text-light font-mono">{{ alliance.doctrines.count }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Staging Hubs -->
+                {% if alliance.staging_systems.all %}
+                <div class="mb-3">
+                    <div class="small text-muted text-uppercase fw-bold mb-1">{% translate "Staging Hubs" %}</div>
+                    <div class="d-flex flex-wrap gap-1">
+                        {% for st in alliance.staging_systems.all %}
+                            <span class="badge {% if st.is_primary %}badge-subtle-danger{% else %}badge-subtle-info{% endif %} small">
+                                <i class="fas fa-map-marker-alt me-1"></i>{{ st.solar_system.name }}
+                                {% if st.is_primary %}(Primary){% endif %}
+                            </span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Vulnerability distribution -->
+                <h6 class="small text-muted text-uppercase fw-bold mb-2">{% translate "Structure Vulnerability Schedule" %}</h6>
+                {% if alliance.sov_timer_distribution %}
+                    <div class="d-flex flex-wrap gap-1 bg-black bg-opacity-40 p-2 rounded border border-secondary">
+                        {% for hour, count in alliance.sov_timer_distribution.items %}
+                            <span class="badge bg-dark border border-secondary font-mono small" title="{{ count }} structure(s) / timer(s) at {{ hour }}:00 UTC">
+                                {{ hour }}:00 <strong class="text-warning">({{ count }})</strong>
+                            </span>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="small text-muted italic">{% translate "No vulnerability windows or structure timers recorded yet." %}</div>
+                {% endif %}
+            </div>
+            <div class="card-footer hostile-card-header border-secondary d-flex justify-content-between align-items-center small text-muted">
+                <a href="{% url 'hostile:alliance_detail' alliance.id %}" class="btn btn-primary btn-sm py-0 px-2 fw-bold" title="{% translate 'View full alliance dossier, member corps, structures, and timers' %}">
+                    <i class="fas fa-folder-open me-1"></i>{% translate "View Dossier" %}
+                </a>
+                <div class="d-inline-flex gap-1">
+                    {% if perms.hostile.manage_intel %}
+                        {% if alliance.is_zkill_syncing %}
+                            <span class="btn btn-outline-info btn-xs py-0 px-2 disabled"><i class="fas fa-spinner fa-spin me-1"></i>Syncing...</span>
+                        {% else %}
+                            <a href="{% url 'hostile:alliance_sync_zkill' alliance.id %}" class="btn btn-outline-info btn-xs py-0 px-2" title="Sync active pilots & kills from zKillboard" data-hostile-loading="{% translate 'Syncing zKillboard' %}" data-hostile-loading-detail="{% translate 'Querying zKillboard API for active pilots and kill statistics...' %}">
+                                <i class="fas fa-sync me-1"></i>Sync
+                            </a>
+                        {% endif %}
+                    {% endif %}
+                    {% if perms.hostile.manage_intel or alliance.created_by == request.user %}
+                        <a href="{% url 'hostile:alliance_edit' alliance.id %}" class="btn btn-outline-secondary btn-xs py-0 px-2" title="{% translate 'Edit Alliance Intel' %}">
+                            <i class="fas fa-edit"></i>
+                        </a>
+                    {% endif %}
+                    {% if perms.hostile.manage_intel %}
+                        <a href="{% url 'hostile:alliance_delete' alliance.id %}" class="btn btn-outline-danger btn-xs py-0 px-2" title="{% translate 'Delete Alliance' %}">
+                            <i class="fas fa-trash-alt"></i>
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-12 text-center py-5 text-muted">
+        <i class="fas fa-globe-americas fa-3x mb-3 text-secondary"></i>
+        <p>{% translate "No hostile alliances tracked yet." %}</p>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Hostile Corporations & Alt Corps Section -->
+<div class="mt-5">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h5 class="mb-0 fw-bold"><i class="fas fa-building text-info me-2"></i>{% translate "Hostile Corporations & Alt Corps" %}</h5>
+            <p class="text-muted small mb-0">{% translate "Tracked member corporations, holding corps, cyno entities, and coalition affiliations." %}</p>
+        </div>
+        <a href="{% url 'hostile:corporation_add' %}" class="btn btn-sm btn-outline-info">
+            <i class="fas fa-plus me-1"></i>{% translate "Add Corporation" %}
+        </a>
+    </div>
+
+    <div class="card bg-dark text-white border-secondary hostile-card shadow-sm">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-dark table-hover mb-0 align-middle">
+                    <thead>
+                        <tr class="text-muted small text-uppercase">
+                            <th>{% translate "Corporation" %}</th>
+                            <th>{% translate "Ticker" %}</th>
+                            <th>{% translate "Alliance" %}</th>
+                            <th>{% translate "Members" %}</th>
+                            <th>{% translate "Coalition" %}</th>
+                            <th>{% translate "Alt / Holding Status" %}</th>
+                            <th>{% translate "Fleet Capacity" %}</th>
+                            <th class="text-end">{% translate "Actions" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody class="border-secondary">
+                        {% for corp in corporations %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'hostile:corporation_detail' corp.id %}" class="d-flex align-items-center text-light text-decoration-none hover-primary">
+                                    <img src="https://images.evetech.net/corporations/{{ corp.corporation_id }}/logo?size=32" alt="{{ corp.corporation_name }}" class="rounded me-2 border border-secondary" style="width: 24px; height: 24px;">
+                                    <span class="fw-bold">{{ corp.corporation_name }}</span>
+                                </a>
+                            </td>
+                            <td>
+                                {% if corp.ticker %}<span class="badge badge-subtle-secondary">[{{ corp.ticker }}]</span>{% else %}<span class="text-muted">-</span>{% endif %}
+                            </td>
+                            <td>
+                                {% if corp.alliance %}
+                                    <a href="{% url 'hostile:alliance_detail' corp.alliance.id %}" class="text-info text-decoration-none">
+                                        {{ corp.alliance.alliance_name }}
+                                    </a>
+                                {% else %}
+                                    <span class="text-muted">{% translate "Independent / None" %}</span>
+                                {% endif %}
+                            </td>
+                            <td class="font-mono text-light fw-bold">{{ corp.member_count|default:"0"|intcomma }}</td>
+                            <td>
+                                {% if corp.coalition %}
+                                    <span class="badge badge-subtle-primary"><i class="fas fa-shield-alt me-1"></i>{{ corp.coalition }}</span>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if corp.is_friendly %}
+                                    <span class="badge bg-success"><i class="fas fa-handshake me-1"></i>Friendly</span>
+                                {% endif %}
+                                {% if corp.is_alt_corp %}
+                                    <span class="badge badge-subtle-warning"><i class="fas fa-user-secret me-1"></i>Alt Corp</span>
+                                    {% if corp.main_alliance %}
+                                        <div class="small text-muted">{% translate "For:" %} <a href="{% url 'hostile:alliance_detail' corp.main_alliance.id %}" class="text-warning text-decoration-none">{{ corp.main_alliance.alliance_name }}</a></div>
+                                    {% elif corp.main_corporation %}
+                                        <div class="small text-muted">{% translate "For:" %} <a href="{% url 'hostile:corporation_detail' corp.main_corporation.id %}" class="text-warning text-decoration-none">{{ corp.main_corporation.corporation_name }}</a></div>
+                                    {% endif %}
+                                {% elif not corp.is_friendly %}
+                                    <span class="badge badge-subtle-secondary">{% translate "Primary Line Corp" %}</span>
+                                {% endif %}
+                            </td>
+                            <td class="font-mono small">
+                                <span class="text-light">{{ corp.max_subcap_form }} Sub</span> /
+                                <span class="text-warning">{{ corp.max_cap_form }} Cap</span> /
+                                <span class="text-danger">{{ corp.max_super_form }} Super</span>
+                            </td>
+                            <td class="text-end">
+                                <div class="d-inline-flex gap-1">
+                                    <a href="{% url 'hostile:corporation_detail' corp.id %}" class="btn btn-outline-info btn-xs py-0 px-2" title="{% translate 'View Corporation Dossier' %}">
+                                        <i class="fas fa-folder-open me-1"></i>{% translate "Dossier" %}
+                                    </a>
+                                    {% if perms.hostile.manage_intel or corp.created_by == request.user %}
+                                    <a href="{% url 'hostile:corporation_edit' corp.id %}" class="btn btn-outline-secondary btn-xs py-0 px-2" title="{% translate 'Edit Corporation' %}">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    {% endif %}
+                                    {% if perms.hostile.manage_intel %}
+                                    <a href="{% url 'hostile:corporation_delete' corp.id %}" class="btn btn-outline-danger btn-xs py-0 px-2" title="{% translate 'Delete Corporation' %}">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center py-4 text-muted">
+                                <i class="fas fa-building fa-2x mb-2 text-secondary"></i>
+                                <p class="mb-0">{% translate "No hostile corporations registered separately yet." %}</p>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Coalition Management Modal -->
+{% if perms.hostile.manage_intel %}
+<div class="modal fade" id="coalitionManageModal" tabindex="-1" aria-labelledby="coalitionManageModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content bg-dark text-white border-secondary">
+            <form action="{% url 'hostile:coalition_manage' %}" method="post">
+                {% csrf_token %}
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title" id="coalitionManageModalLabel">
+                        <i class="fas fa-crown text-warning me-2"></i>{% translate "Manage Coalition Alliances & Leadership" %}
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small">
+                        {% translate "Group multiple hostile alliances under a shared coalition banner and designate an executor / leader alliance for the power bloc." %}
+                    </p>
+                    <div class="mb-3">
+                        <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Coalition Name" %}</label>
+                        {{ coalition_form.coalition_name }}
+                        <div class="form-text text-muted small">{% translate "Enter or update coalition identifier (e.g. Imperium, PanFam, WinterCo, FI.RE)" %}</div>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-7">
+                            <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Member Alliances (Multi-Select)" %}</label>
+                            {{ coalition_form.alliances }}
+                            <div class="form-text text-muted small">{% translate "Hold Ctrl / Cmd to select multiple alliances." %}</div>
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Coalition Leader / Exec Alliance" %}</label>
+                            {{ coalition_form.leader_alliance }}
+                            <div class="form-text text-muted small">{% translate "Select which alliance serves as the coalition leader / primary executor." %}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% translate "Cancel" %}</button>
+                    <button type="submit" class="btn btn-warning fw-bold">
+                        <i class="fas fa-save me-1"></i>{% translate "Save Coalition Alliances" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,178 @@
+{% extends 'hostile/base.html' %}
+{% load i18n %}
+
+{% block details %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card bg-dark text-white border-secondary hostile-card shadow-sm">
+            <div class="card-header hostile-card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-bold">
+                    <i class="fas fa-building text-info me-2"></i>
+                    {% if corporation %}{% translate "Edit Hostile Corporation:" %} {{ corporation.corporation_name }}{% else %}{% translate "Add Hostile Corporation" %}{% endif %}
+                </h5>
+                <a href="{% url 'hostile:alliances' %}" class="btn btn-sm btn-outline-secondary">
+                    <i class="fas fa-times me-1"></i>{% translate "Cancel" %}
+                </a>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger py-2 small mb-3">{{ form.non_field_errors }}</div>
+                    {% endif %}
+                    <div class="row g-3">
+                        <div class="col-md-5">
+                            <label class="form-label text-muted small fw-bold text-uppercase">
+                                <i class="fas fa-signature text-primary me-1"></i>{% translate "Corporation Name" %}
+                            </label>
+                            <div class="input-group">
+                                {{ form.corporation_name }}
+                                <button type="button" class="btn btn-outline-info" id="btnLookupCorpName" title="{% translate 'Lookup Name & Auto-fill' %}">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                            </div>
+                            {% if form.corporation_name.errors %}<div class="text-danger small mt-1">{{ form.corporation_name.errors }}</div>{% endif %}
+                            <div class="form-text text-muted small">{% translate "Search by corporation name" %}</div>
+                        </div>
+                        <div class="col-md-2 d-flex flex-column justify-content-center align-items-center text-center">
+                            <span class="badge bg-secondary px-3 py-2 fw-bold font-mono">{% translate "OR" %}</span>
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label text-muted small fw-bold text-uppercase">
+                                <i class="fas fa-hashtag text-info me-1"></i>{% translate "Corporation ID" %}
+                            </label>
+                            <div class="input-group">
+                                {{ form.corporation_id }}
+                                <button type="button" class="btn btn-outline-info" id="btnLookupCorpId" title="{% translate 'Lookup ID & Auto-fill' %}">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                            </div>
+                            {% if form.corporation_id.errors %}<div class="text-danger small mt-1">{{ form.corporation_id.errors }}</div>{% endif %}
+                            <div class="form-text text-muted small">{% translate "Direct CCP ID (e.g. 98000001)" %}</div>
+                        </div>
+
+                        <div class="col-12" id="corpLookupStatus" style="display: none;">
+                            <div class="alert alert-info py-2 small mb-0 d-flex align-items-center">
+                                <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                <span id="corpLookupText">{% translate "Looking up entity details..." %}</span>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Ticker" %}</label>
+                            {{ form.ticker }}
+                            {% if form.ticker.errors %}<div class="text-danger small mt-1">{{ form.ticker.errors }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Member Alliance" %}</label>
+                            {{ form.alliance }}
+                            {% if form.alliance.errors %}<div class="text-danger small mt-1">{{ form.alliance.errors }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Coalition Affiliation" %}</label>
+                            {{ form.coalition }}
+                            {% if form.coalition.errors %}<div class="text-danger small mt-1">{{ form.coalition.errors }}</div>{% endif %}
+                        </div>
+
+                        <div class="col-12"><hr class="border-secondary my-2"></div>
+
+                        <div class="col-12">
+                            <div class="form-check form-switch mb-2">
+                                {{ form.is_friendly }}
+                                <label class="form-check-label fw-bold text-success" for="id_is_friendly">
+                                    <i class="fas fa-handshake me-1"></i>{% translate "Flag as Friendly / Ignored Corporation" %}
+                                </label>
+                            </div>
+                            <div class="form-text text-muted small mb-2">{% translate "If flagged as friendly, pilots and structures of this corporation are excluded/ignored across threat scans and hostile intel tracking." %}</div>
+                            <div class="form-check form-switch">
+                                {{ form.is_alt_corp }}
+                                <label class="form-check-label fw-bold text-warning" for="id_is_alt_corp">
+                                    <i class="fas fa-user-secret me-1"></i>{% translate "Flag as Alt / Holding / Cyno Corporation" %}
+                                </label>
+                            </div>
+                            <div class="form-text text-muted small">{% translate "Enable if this corporation is an alt holding, shell entity, or cyno beacon corporation for a main alliance or parent corporation." %}</div>
+                        </div>
+
+                        <div class="col-md-6 alt-corp-field">
+                            <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Main Alliance Affiliation" %}</label>
+                            {{ form.main_alliance }}
+                            {% if form.main_alliance.errors %}<div class="text-danger small mt-1">{{ form.main_alliance.errors }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-6 alt-corp-field">
+                            <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Parent Corporation" %}</label>
+                            {{ form.main_corporation }}
+                            {% if form.main_corporation.errors %}<div class="text-danger small mt-1">{{ form.main_corporation.errors }}</div>{% endif %}
+                        </div>
+
+                        <div class="col-12"><hr class="border-secondary my-2"></div>
+                        <div class="col-12">
+                            <h6 class="text-uppercase fw-bold text-muted small mb-1">{% translate "Formup & Fleet Capacity" %}</h6>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Max Subcap Form" %}</label>
+                            {{ form.max_subcap_form }}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Max Capital Form" %}</label>
+                            {{ form.max_cap_form }}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Max Super Form" %}</label>
+                            {{ form.max_super_form }}
+                        </div>
+
+                        <div class="col-12 d-flex justify-content-end gap-2 mt-4">
+                            <a href="{% url 'hostile:alliances' %}" class="btn btn-outline-secondary">{% translate "Cancel" %}</a>
+                            <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i>{% translate "Save Corporation Intel" %}</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_javascript %}
+{{ block.super }}
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const nameInput = document.getElementById("id_corporation_name");
+    const idInput = document.getElementById("id_corporation_id");
+    const tickerInput = document.getElementById("id_corp_ticker");
+    const btnName = document.getElementById("btnLookupCorpName");
+    const btnId = document.getElementById("btnLookupCorpId");
+    const statusDiv = document.getElementById("corpLookupStatus");
+    const statusText = document.getElementById("corpLookupText");
+
+    function doLookup(query) {
+        if (!query || !query.trim()) return;
+        statusDiv.style.display = "block";
+        statusText.textContent = `Resolving corporation '${query}'...`;
+
+        fetch(`/hostile/api/corporation-resolve/?query=${encodeURIComponent(query.trim())}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.success && data.corporation) {
+                    const c = data.corporation;
+                    if (c.corporation_name) nameInput.value = c.corporation_name;
+                    if (c.corporation_id) idInput.value = c.corporation_id;
+                    if (c.ticker) tickerInput.value = c.ticker;
+                    statusText.textContent = `Found: ${c.corporation_name} [${c.ticker || ''}] (ID: ${c.corporation_id})`;
+                    setTimeout(() => { statusDiv.style.display = "none"; }, 3000);
+                } else {
+                    statusText.textContent = data.error || "Corporation not found.";
+                    setTimeout(() => { statusDiv.style.display = "none"; }, 3000);
+                }
+            })
+            .catch(err => {
+                statusText.textContent = "Error resolving corporation.";
+                setTimeout(() => { statusDiv.style.display = "none"; }, 3000);
+            });
+    }
+
+    if (btnName) btnName.addEventListener("click", () => doLookup(nameInput.value));
+    if (btnId) btnId.addEventListener("click", () => doLookup(idInput.value));
+});
+</script>
+{% endblock %}
+{% endblock %}

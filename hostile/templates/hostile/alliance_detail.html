@@ -1,0 +1,1273 @@
+{% extends 'hostile/base.html' %}
+{% load i18n humanize %}
+
+{% block details %}
+<!-- Navigation and Quick Breadcrumb -->
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <a href="{% url 'hostile:alliances' %}" class="btn btn-sm btn-outline-secondary mb-2">
+            <i class="fas fa-arrow-left me-1"></i>{% translate "Back to Alliances & Sov" %}
+        </a>
+        <h4 class="mb-0 fw-bold d-flex align-items-center gap-2">
+            <i class="fas fa-globe-americas text-primary"></i>
+            <span>{{ alliance.alliance_name }}</span>
+            {% if alliance.ticker %}
+                <span class="badge badge-subtle-secondary fs-6">[{{ alliance.ticker }}]</span>
+            {% endif %}
+        </h4>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="{% url 'hostile:corporation_add' %}?alliance_id={{ alliance.id }}" class="btn btn-sm btn-outline-info">
+            <i class="fas fa-plus me-1"></i>{% translate "Add Member Corp" %}
+        </a>
+        <a href="{% url 'hostile:corporation_add' %}?main_alliance_id={{ alliance.id }}&is_alt_corp=1" class="btn btn-sm btn-outline-warning">
+            <i class="fas fa-user-secret me-1"></i>{% translate "Add Alt Corp" %}
+        </a>
+        <a href="{% url 'hostile:staging_add' %}?alliance_id={{ alliance.id }}" class="btn btn-sm btn-outline-danger">
+            <i class="fas fa-map-marker-alt me-1"></i>{% translate "Add Staging" %}
+        </a>
+        <a href="{% url 'hostile:structure_add' %}?alliance_id={{ alliance.id }}" class="btn btn-sm btn-outline-light">
+            <i class="fas fa-monument me-1"></i>{% translate "Add Structure" %}
+        </a>
+        {% if perms.hostile.manage_intel or alliance.created_by == request.user %}
+        <a href="{% url 'hostile:alliance_edit' alliance.id %}" class="btn btn-sm btn-secondary">
+            <i class="fas fa-edit me-1"></i>{% translate "Edit Alliance" %}
+        </a>
+        {% endif %}
+        {% if perms.hostile.manage_intel %}
+        <a href="{% url 'hostile:alliance_delete' alliance.id %}" class="btn btn-sm btn-outline-danger">
+            <i class="fas fa-trash-alt me-1"></i>{% translate "Delete Alliance" %}
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Main Alliance Dossier Header Card -->
+<div class="card bg-dark text-white border-secondary hostile-card shadow-sm mb-4">
+    <div class="card-body p-4">
+        <div class="row align-items-center g-4">
+            <div class="col-auto">
+                <img src="https://images.evetech.net/alliances/{{ alliance.alliance_id }}/logo?size=128" alt="{{ alliance.alliance_name }}" class="rounded border border-secondary shadow-sm" style="width: 96px; height: 96px;">
+            </div>
+            <div class="col">
+                <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                    <h3 class="mb-0 fw-bold text-light">{{ alliance.alliance_name }}</h3>
+                    {% if alliance.ticker %}
+                        <span class="badge bg-secondary font-mono fs-6">[{{ alliance.ticker }}]</span>
+                    {% endif %}
+                    {% if alliance.coalition %}
+                        <span class="badge bg-primary fs-6"><i class="fas fa-shield-alt me-1"></i>{{ alliance.coalition }}</span>
+                    {% endif %}
+                    {% if alliance.is_friendly %}
+                        <span class="badge bg-success fs-6"><i class="fas fa-handshake me-1"></i>{% translate "Friendly / Ignored" %}</span>
+                    {% endif %}
+                    {% if alliance.is_coalition_leader %}
+                        <span class="badge bg-warning text-dark fs-6" title="Coalition Leader / Exec Alliance"><i class="fas fa-crown me-1"></i>{% translate "Coalition Leader" %}</span>
+                    {% endif %}
+                    {% if alliance.is_alt_alliance %}
+                        <span class="badge bg-warning text-dark fs-6"><i class="fas fa-user-secret me-1"></i>{% translate "Alt Alliance" %}</span>
+                    {% endif %}
+                    {% if alliance.sov_capital %}
+                        <span class="badge bg-danger text-light fs-6" title="{% translate 'Designated Sovereignty Capital' %}"><i class="fas fa-chess-king me-1"></i>Capital: {{ alliance.sov_capital.name }}</span>
+                    {% endif %}
+                    {% if alliance.primary_timezone == "EUTZ" %}
+                        <span class="badge badge-subtle-warning fs-6"><i class="fas fa-sun me-1"></i>EUTZ</span>
+                    {% elif alliance.primary_timezone == "USTZ" %}
+                        <span class="badge badge-subtle-info fs-6"><i class="fas fa-moon me-1"></i>USTZ</span>
+                    {% elif alliance.primary_timezone == "AUTZ" %}
+                        <span class="badge badge-subtle-teal fs-6"><i class="fas fa-umbrella-beach me-1"></i>AUTZ</span>
+                    {% else %}
+                        <span class="badge badge-subtle-secondary fs-6">Unknown TZ</span>
+                    {% endif %}
+                </div>
+
+                {% if alliance.is_alt_alliance and alliance.main_alliance %}
+                <div class="text-warning small mb-2">
+                    <i class="fas fa-link me-1"></i>{% translate "Main / Parent Alliance:" %}
+                    <a href="{% url 'hostile:alliance_detail' alliance.main_alliance.id %}" class="fw-bold text-warning text-decoration-underline">
+                        {{ alliance.main_alliance.alliance_name }} [{{ alliance.main_alliance.ticker }}]
+                    </a>
+                </div>
+                {% endif %}
+
+                <div class="d-flex flex-wrap gap-3 text-muted small font-mono">
+                    <span><i class="fas fa-hashtag me-1"></i>ID: {{ alliance.alliance_id }}</span>
+                    <a href="https://zkillboard.com/alliance/{{ alliance.alliance_id }}/" target="_blank" rel="noopener noreferrer" class="text-danger text-decoration-none">
+                        <i class="fas fa-skull-crossbones me-1"></i>zKillboard <i class="fas fa-external-link-alt fa-xs"></i>
+                    </a>
+                    <a href="https://evewho.com/alliance/{{ alliance.alliance_id }}" target="_blank" rel="noopener noreferrer" class="text-info text-decoration-none">
+                        <i class="fas fa-users me-1"></i>Evewho <i class="fas fa-external-link-alt fa-xs"></i>
+                    </a>
+                    <a href="https://evemaps.dotlan.net/alliance/{{ alliance.alliance_name|urlencode }}" target="_blank" rel="noopener noreferrer" class="text-light text-decoration-none">
+                        <i class="fas fa-map me-1"></i>Dotlan <i class="fas fa-external-link-alt fa-xs"></i>
+                    </a>
+                </div>
+            </div>
+            <div class="col-lg-auto text-lg-end">
+                <div class="text-muted small mb-1">
+                    {% if alliance.is_zkill_syncing %}
+                        <span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>{% translate "zKillboard Sync in Progress..." %}</span>
+                    {% elif alliance.zkill_stats_updated_at %}
+                        <i class="fas fa-sync-alt me-1"></i>{% translate "zKill Stats Synced:" %} {{ alliance.zkill_stats_updated_at|naturaltime }}
+                    {% else %}
+                        <span class="text-warning"><i class="fas fa-clock me-1"></i>{% translate "zKill sync pending" %}</span>
+                    {% endif %}
+                </div>
+                {% if perms.hostile.manage_intel and not alliance.is_zkill_syncing %}
+                <a href="{% url 'hostile:alliance_sync_zkill' alliance.id %}" class="btn btn-outline-info btn-sm" data-hostile-loading="{% translate 'Syncing zKillboard' %}" data-hostile-loading-detail="{% translate 'Fetching active pilot numbers and recent kills from zKillboard API...' %}">
+                    <i class="fas fa-sync me-1"></i>{% translate "Sync zKill Stats" %}
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- KPI Metrics Overview Grid -->
+<div class="row g-3 mb-4 text-center">
+    <div class="col-6 col-md-4 col-xl-2">
+        <div class="card bg-dark text-white border-secondary hostile-card p-3 shadow-sm h-100">
+            <div class="small text-muted text-uppercase" style="font-size: 0.7rem;"><i class="fas fa-users text-primary me-1"></i>{% translate "Total Members" %}</div>
+            <div class="fs-4 fw-bold text-light font-mono">{{ alliance.member_count|default:"0"|intcomma }}</div>
+            {% if alliance.zkill_deltas.members %}
+                <div class="small {% if alliance.zkill_deltas.members.pct >= 0 %}text-success{% else %}text-danger{% endif %}" style="font-size: 0.65rem;" title="{{ alliance.zkill_deltas.members.text }}">
+                    {% if alliance.zkill_deltas.members.pct >= 0 %}+{% endif %}{{ alliance.zkill_deltas.members.pct }}%
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+        <div class="card bg-dark text-white border-secondary hostile-card p-3 shadow-sm h-100">
+            <div class="small text-muted text-uppercase" style="font-size: 0.7rem;"><i class="fas fa-flag text-warning me-1"></i>{% translate "Sov Systems Held" %}</div>
+            <div class="fs-4 fw-bold text-warning font-mono">{{ alliance.systems_held_count|default:"0" }}</div>
+            {% if alliance.zkill_deltas.systems_held %}
+                <div class="small {% if alliance.zkill_deltas.systems_held.pct >= 0 %}text-success{% else %}text-danger{% endif %}" style="font-size: 0.65rem;" title="{{ alliance.zkill_deltas.systems_held.text }}">
+                    {% if alliance.zkill_deltas.systems_held.pct >= 0 %}+{% endif %}{{ alliance.zkill_deltas.systems_held.pct }}%
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+        <div class="card bg-dark text-white border-secondary hostile-card p-3 shadow-sm h-100">
+            <div class="small text-muted text-uppercase" style="font-size: 0.7rem;"><i class="fas fa-crosshairs text-info me-1"></i>{% translate "Active PvP (7d)" %}</div>
+            <div class="fs-4 fw-bold text-info font-mono">{{ alliance.active_pilots_count|default:"0" }}</div>
+            {% if alliance.zkill_deltas.pilots %}
+                <div class="small {% if alliance.zkill_deltas.pilots.pct >= 0 %}text-success{% else %}text-danger{% endif %}" style="font-size: 0.65rem;" title="{{ alliance.zkill_deltas.pilots.text }}">
+                    {% if alliance.zkill_deltas.pilots.pct >= 0 %}+{% endif %}{{ alliance.zkill_deltas.pilots.pct }}%
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+        <div class="card bg-dark text-white border-secondary hostile-card p-3 shadow-sm h-100">
+            <div class="small text-muted text-uppercase" style="font-size: 0.7rem;"><i class="fas fa-skull-crossbones text-danger me-1"></i>{% translate "7d Kills / Losses" %}</div>
+            <div class="fs-4 fw-bold font-mono">
+                <span class="text-danger">{{ alliance.weekly_kills_count|default:"0" }}</span>
+                <span class="text-muted fs-6">/</span>
+                <span class="text-secondary fs-6">{{ alliance.weekly_losses_count|default:"0" }}</span>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+        <div class="card bg-dark text-white border-secondary hostile-card p-3 shadow-sm h-100">
+            <div class="small text-muted text-uppercase" style="font-size: 0.7rem;"><i class="fas fa-building text-info me-1"></i>{% translate "Member Corps" %}</div>
+            <div class="fs-4 fw-bold text-info font-mono">{{ alliance.member_corps_count|default:member_corporations.count }}</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+        <div class="card bg-dark text-white border-secondary hostile-card p-3 shadow-sm h-100">
+            <div class="small text-muted text-uppercase" style="font-size: 0.7rem;"><i class="fas fa-monument text-light me-1"></i>{% translate "Structures" %}</div>
+            <div class="fs-4 fw-bold text-light font-mono">{{ structures.count }}</div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4 text-center">
+    <div class="col-4">
+        <div class="card bg-dark text-white border-secondary hostile-card p-3 shadow-sm h-100">
+            <div class="small text-muted text-uppercase" style="font-size: 0.7rem;"><i class="fas fa-fighter-jet text-light me-1"></i>{% translate "Max Subcaps (3m)" %}</div>
+            <div class="fs-4 fw-bold text-light font-mono">{{ alliance.max_subcap_form }}</div>
+            {% if alliance.zkill_deltas.subcap %}
+                <div class="small {% if alliance.zkill_deltas.subcap.pct >= 0 %}text-success{% else %}text-danger{% endif %}" style="font-size: 0.65rem;" title="{{ alliance.zkill_deltas.subcap.text }}">
+                    {% if alliance.zkill_deltas.subcap.pct >= 0 %}+{% endif %}{{ alliance.zkill_deltas.subcap.pct }}%
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    <div class="col-4">
+        <div class="card bg-dark text-white border-secondary hostile-card p-3 shadow-sm h-100">
+            <div class="small text-muted text-uppercase" style="font-size: 0.7rem;"><i class="fas fa-crosshairs text-warning me-1"></i>{% translate "Max Capitals (3m)" %}</div>
+            <div class="fs-4 fw-bold text-warning font-mono">{{ alliance.max_cap_form }}</div>
+            {% if alliance.zkill_deltas.cap %}
+                <div class="small {% if alliance.zkill_deltas.cap.pct >= 0 %}text-success{% else %}text-danger{% endif %}" style="font-size: 0.65rem;" title="{{ alliance.zkill_deltas.cap.text }}">
+                    {% if alliance.zkill_deltas.cap.pct >= 0 %}+{% endif %}{{ alliance.zkill_deltas.cap.pct }}%
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    <div class="col-4">
+        <div class="card bg-dark text-white border-secondary hostile-card p-3 shadow-sm h-100">
+            <div class="small text-muted text-uppercase" style="font-size: 0.7rem;"><i class="fas fa-meteor text-danger me-1"></i>{% translate "Max Supers (3m)" %}</div>
+            <div class="fs-4 fw-bold text-danger font-mono">{{ alliance.max_super_form }}</div>
+            {% if alliance.zkill_deltas.super %}
+                <div class="small {% if alliance.zkill_deltas.super.pct >= 0 %}text-success{% else %}text-danger{% endif %}" style="font-size: 0.65rem;" title="{{ alliance.zkill_deltas.super.text }}">
+                    {% if alliance.zkill_deltas.super.pct >= 0 %}+{% endif %}{{ alliance.zkill_deltas.super.pct }}%
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Combat Activity Heatmap & Timezone Profile -->
+<div class="card bg-dark text-white border-secondary hostile-card shadow-sm mb-4">
+    <div class="card-header hostile-card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div class="d-flex align-items-center">
+            <i class="fas fa-th text-danger me-2 fs-5"></i>
+            <div>
+                <h6 class="mb-0 fw-bold text-light">{% translate "Combat Activity Heatmap (Kills / Hour / Day of Week - 3-Month Rolling)" %}</h6>
+                <div class="small text-muted">{% translate "Distribution of kills per hour across days of the week from zKillboard activity data." %}</div>
+            </div>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            {% if heatmap_data.peak_day and heatmap_data.max_val > 0 %}
+                <span class="badge bg-danger bg-opacity-75 text-white" title="{% translate 'Peak Combat Activity Hour' %}">
+                    <i class="fas fa-fire me-1"></i>Peak: {{ heatmap_data.peak_day }} {{ heatmap_data.peak_hour }}{% if heatmap_data.peak_tz %} ({{ heatmap_data.peak_tz }}){% endif %}
+                </span>
+            {% endif %}
+            <span class="badge {% if alliance.override_timezone %}bg-warning text-dark{% else %}badge-subtle-info{% endif %}" title="{% if alliance.override_timezone %}Manual override locked{% else %}Auto-detected primary timezone from zKill & timers{% endif %}">
+                {% if alliance.override_timezone %}<i class="fas fa-lock me-1"></i>{% endif %}Primary TZ: {{ alliance.primary_timezone }}
+            </span>
+        </div>
+    </div>
+    <div class="card-body">
+        {% if heatmap_data.rows %}
+            <div class="table-responsive hostile-heatmap-responsive">
+                <table class="table table-dark table-bordered table-sm text-center mb-2 align-middle font-mono hostile-heatmap-table">
+                    <thead>
+                        <tr class="text-muted text-uppercase" style="background-color: rgba(0,0,0,0.4);">
+                            <th style="width: 90px; min-width: 90px;" class="text-start ps-3">{% translate "Day / Hour" %}</th>
+                            {% for hour in heatmap_data.hours %}
+                                <th style="width: 28px; padding: 2px;">{{ hour }}</th>
+                            {% endfor %}
+                            <th style="width: 45px;" class="text-warning">{% translate "Tot" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in heatmap_data.rows %}
+                        <tr>
+                            <td class="text-start ps-3 fw-bold text-light">{{ row.day_name|slice:":3" }}</td>
+                            {% for cell in row.cells %}
+                                <td class="hostile-heatmap-cell {{ cell.cell_class }}" style="background-color: {{ cell.bg_color }}; color: {{ cell.text_color }}; border-color: {{ cell.border_color }};" title="{{ row.day_name }} {{ cell.hour }}:00 UTC - {{ cell.count }} kills">
+                                    {% if cell.count > 0 %}{{ cell.count }}{% else %}<span class="text-muted text-opacity-25">-</span>{% endif %}
+                                </td>
+                            {% endfor %}
+                            <td class="fw-bold text-warning" style="background-color: rgba(0,0,0,0.3);">{{ row.total }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr class="text-muted fw-bold" style="background-color: rgba(0,0,0,0.4);">
+                            <td class="text-start ps-3 text-info">{% translate "Hour Tot" %}</td>
+                            {% for h_tot in heatmap_data.hour_totals %}
+                                <td style="padding: 2px;" class="text-info">{{ h_tot }}</td>
+                            {% endfor %}
+                            <td class="text-warning">{{ heatmap_data.grand_total }}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            <!-- Heatmap Legend -->
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 pt-2 border-top border-secondary border-opacity-40 small text-muted">
+                <div class="d-flex align-items-center gap-1 font-mono" style="font-size: 0.7rem;">
+                    <span class="me-1">{% translate "Intensity:" %}</span>
+                    <span class="heatmap-legend-badge legend-zero">0</span>
+                    <span class="heatmap-legend-badge legend-low">Low</span>
+                    <span class="heatmap-legend-badge legend-med">Med</span>
+                    <span class="heatmap-legend-badge legend-high">High</span>
+                    <span class="heatmap-legend-badge legend-peak">Peak</span>
+                </div>
+                <div>
+                    <span class="text-muted">{% translate "Total 3m Recorded Kills:" %}</span>
+                    <span class="fw-bold text-light font-mono">{{ heatmap_data.total_kills_3m }}</span>
+                </div>
+            </div>
+        {% else %}
+            <div class="text-muted small italic py-3 text-center">
+                <i class="fas fa-chart-area fa-2x mb-2 text-secondary d-block"></i>
+                {% translate "No 3-month rolling zKillboard combat activity data recorded yet. Click 'Sync zKill Stats' to populate." %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Structure Vulnerability & Timer Schedule -->
+<div class="card bg-dark text-white border-secondary hostile-card shadow-sm mb-4">
+    <div class="card-header hostile-card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h6 class="mb-0 fw-bold text-light">
+            <i class="fas fa-clock text-warning me-2"></i>{% translate "Structure Vulnerability & Timer Schedule (24h UTC Profile)" %}
+        </h6>
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge badge-subtle-info">{{ alliance.primary_timezone }} Timezone</span>
+            {% if hourly_schedule %}
+                <span class="small text-muted font-mono d-none d-md-inline">{% translate "Click any hour grouping to expand details" %}</span>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card-body">
+        {% if hourly_schedule %}
+            <div class="row g-2 mb-2">
+                {% for h in hourly_schedule %}
+                    <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+                        <button class="btn btn-outline-secondary w-100 p-2 text-start d-flex justify-content-between align-items-center h-100 hover-border-warning" 
+                                type="button" 
+                                data-bs-toggle="collapse" 
+                                data-bs-target="#hourCollapse-{{ h.hour }}" 
+                                aria-expanded="false" 
+                                aria-controls="hourCollapse-{{ h.hour }}"
+                                title="{% translate 'Click to view' %} {{ h.count }} {% translate 'structures/timers at' %} {{ h.hour_display }}">
+                            <div>
+                                <div class="font-mono text-warning fw-bold small">{{ h.hour_display }}</div>
+                                <div class="text-muted small" style="font-size: 0.75rem;">
+                                    {% if h.structures_count %}{{ h.structures_count }} struct{{ h.structures_count|pluralize }}{% endif %}
+                                    {% if h.structures_count and h.timers_count %}, {% endif %}
+                                    {% if h.timers_count %}{{ h.timers_count }} timer{{ h.timers_count|pluralize }}{% endif %}
+                                </div>
+                            </div>
+                            <span class="badge bg-warning text-dark font-mono">{{ h.count }}</span>
+                        </button>
+                    </div>
+                {% endfor %}
+            </div>
+
+            <!-- Accordion collapse containers for each hour grouping -->
+            <div class="accordion border-0" id="hourlyScheduleAccordion">
+                {% for h in hourly_schedule %}
+                    <div id="hourCollapse-{{ h.hour }}" class="collapse mt-2" data-bs-parent="#hourlyScheduleAccordion">
+                        <div class="card bg-black bg-opacity-50 border border-warning border-opacity-50 shadow-sm">
+                            <div class="card-header hostile-card-header d-flex justify-content-between align-items-center py-2 px-3">
+                                <div class="d-flex align-items-center gap-2">
+                                    <i class="fas fa-folder-open text-warning"></i>
+                                    <span class="fw-bold text-light font-mono">{{ h.hour_display }}</span>
+                                    <span class="badge bg-secondary font-mono">{{ h.count }} Item{{ h.count|pluralize }}</span>
+                                </div>
+                                <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2" data-bs-toggle="collapse" data-bs-target="#hourCollapse-{{ h.hour }}">
+                                    <i class="fas fa-times me-1"></i>{% translate "Close" %}
+                                </button>
+                            </div>
+                            <div class="card-body p-0">
+                                <div class="table-responsive">
+                                    <table class="table table-dark table-sm table-hover mb-0 align-middle font-mono">
+                                        <thead>
+                                            <tr class="text-muted small text-uppercase">
+                                                <th>{% translate "Item Type" %}</th>
+                                                <th>{% translate "Name / Target" %}</th>
+                                                <th>{% translate "Solar System" %}</th>
+                                                <th>{% translate "Structure Type" %}</th>
+                                                <th>{% translate "State / Stage" %}</th>
+                                                <th>{% translate "Core Status" %}</th>
+                                                <th>{% translate "Window / Time" %}</th>
+                                                <th class="text-end">{% translate "Actions" %}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for item in h.items %}
+                                            <tr>
+                                                <td>
+                                                    {% if item.is_timer %}
+                                                        <span class="badge bg-danger"><i class="fas fa-stopwatch me-1"></i>Active Timer</span>
+                                                    {% else %}
+                                                        <span class="badge bg-info text-dark"><i class="fas fa-monument me-1"></i>Structure</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td class="fw-bold text-light">{{ item.name }}</td>
+                                                <td class="text-info">{{ item.system_name }}</td>
+                                                <td><span class="badge badge-subtle-secondary">{{ item.structure_type_name }}</span></td>
+                                                <td>
+                                                    {% if item.state_raw == 'ANCHORING' %}
+                                                        <span class="badge bg-warning text-dark">{{ item.state }}</span>
+                                                    {% elif 'REINFORCED' in item.state_raw %}
+                                                        <span class="badge bg-danger">{{ item.state }}</span>
+                                                    {% else %}
+                                                        <span class="badge badge-subtle-success">{{ item.state }}</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if item.core_status == 'FITTED' %}
+                                                        <span class="badge bg-success small">Core Fitted</span>
+                                                    {% elif item.core_status == 'UNFITTED' %}
+                                                        <span class="badge bg-danger small">No Core</span>
+                                                    {% else %}
+                                                        <span class="text-muted">-</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td class="text-warning">{{ item.details }}</td>
+                                                <td class="text-end">
+                                                    {% if perms.hostile.manage_intel and item.edit_url %}
+                                                        <a href="{{ item.edit_url }}" class="btn btn-outline-secondary btn-xs py-0 px-2" title="{% translate 'Edit' %}">
+                                                            <i class="fas fa-edit"></i>
+                                                        </a>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% elif alliance.sov_timer_distribution %}
+            <div class="row g-2 text-center">
+                {% for hour, count in alliance.sov_timer_distribution.items %}
+                    <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+                        <div class="bg-black bg-opacity-40 p-2 rounded border border-secondary">
+                            <div class="text-muted small font-mono">{{ hour }}:00 UTC</div>
+                            <div class="fs-5 fw-bold text-warning font-mono">{{ count }} <small class="text-muted fs-6">structures</small></div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="text-muted small italic py-2">
+                <i class="fas fa-info-circle me-1 text-secondary"></i>{% translate "No structure vulnerability windows or structure timers registered yet." %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Detailed Intelligence Sections / Tabs -->
+<ul class="nav nav-tabs hostile-nav-tabs mb-4" id="allianceDetailTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="corps-tab" data-bs-toggle="tab" data-bs-target="#corpsTabContent" type="button" role="tab">
+            <i class="fas fa-building me-1"></i>{% translate "Member & Alt Corps" %} <span class="badge bg-secondary ms-1">{{ member_corporations|length|add:affiliated_alt_corps.count }}</span>
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="sov-tab" data-bs-toggle="tab" data-bs-target="#sovTabContent" type="button" role="tab">
+            <i class="fas fa-crown me-1"></i>{% translate "Sovereignty & Systems" %} <span class="badge bg-secondary ms-1">{{ sov_intel.total_systems_count|default:alliance.systems_held_count }}</span>
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="stagings-tab" data-bs-toggle="tab" data-bs-target="#stagingsTabContent" type="button" role="tab">
+            <i class="fas fa-map-marker-alt me-1"></i>{% translate "Staging Hubs" %} <span class="badge bg-secondary ms-1">{{ staging_systems.count }}</span>
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="doctrines-tab" data-bs-toggle="tab" data-bs-target="#doctrinesTabContent" type="button" role="tab">
+            <i class="fas fa-fighter-jet me-1"></i>{% translate "Fleet Doctrines" %} <span class="badge bg-secondary ms-1">{{ doctrines.count }}</span>
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="structures-tab" data-bs-toggle="tab" data-bs-target="#structuresTabContent" type="button" role="tab">
+            <i class="fas fa-monument me-1"></i>{% translate "Structures & Timers" %} <span class="badge bg-secondary ms-1">{{ structures.count|add:timers.count }}</span>
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="pilots-tab" data-bs-toggle="tab" data-bs-target="#pilotsTabContent" type="button" role="tab">
+            <i class="fas fa-user-secret me-1"></i>{% translate "Pilots & Commanders" %} <span class="badge bg-secondary ms-1">{{ pilots.count }}</span>
+        </button>
+    </li>
+    {% if alt_alliances or coalition_alliances %}
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="coalition-tab" data-bs-toggle="tab" data-bs-target="#coalitionTabContent" type="button" role="tab">
+            <i class="fas fa-shield-alt me-1"></i>{% translate "Coalition & Alt Alliances" %} <span class="badge bg-secondary ms-1">{{ alt_alliances.count|add:coalition_alliances.count }}</span>
+        </button>
+    </li>
+    {% endif %}
+</ul>
+
+<div class="tab-content" id="allianceDetailTabContent">
+    <!-- Member Corporations Tab -->
+    <div class="tab-pane fade show active" id="corpsTabContent" role="tabpanel">
+        <div class="card bg-dark text-white border-secondary hostile-card shadow-sm mb-4">
+            <div class="card-header hostile-card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold text-info"><i class="fas fa-building me-2"></i>{% translate "Member Corporations" %}</h6>
+                <a href="{% url 'hostile:corporation_add' %}?alliance_id={{ alliance.id }}" class="btn btn-outline-info btn-xs py-0 px-2">
+                    <i class="fas fa-plus me-1"></i>{% translate "Add Member Corp" %}
+                </a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover mb-0 align-middle">
+                        <thead>
+                            <tr class="text-muted small text-uppercase">
+                                <th>{% translate "Corporation" %}</th>
+                                <th>{% translate "Ticker" %}</th>
+                                <th>{% translate "Members" %}</th>
+                                <th>{% translate "Fleet Capacity" %}</th>
+                                <th>{% translate "Active PvP (7d)" %}</th>
+                                <th>{% translate "7d Kills" %}</th>
+                                <th class="text-end">{% translate "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for corp in member_corporations %}
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <a href="{% url 'hostile:corporation_detail' corp.id %}" class="d-flex align-items-center text-light text-decoration-none hover-primary">
+                                            <img src="https://images.evetech.net/corporations/{{ corp.corporation_id }}/logo?size=32" alt="{{ corp.corporation_name }}" class="rounded me-2 border border-secondary" style="width: 28px; height: 28px;">
+                                            <span class="fw-bold">{{ corp.corporation_name }}</span>
+                                        </a>
+                                        {% if corp.is_executor or alliance.executor_corp_id == corp.corporation_id %}
+                                            <span class="badge bg-warning text-dark ms-2" title="{% translate 'Alliance Executor Corporation' %}">
+                                                <i class="fas fa-crown me-1"></i>{% translate "Executor" %}
+                                            </span>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td>{% if corp.ticker %}<span class="badge badge-subtle-secondary font-mono">[{{ corp.ticker }}]</span>{% else %}-{% endif %}</td>
+                                <td class="font-mono text-light fw-bold">
+                                    {{ corp.member_count|default:"0"|intcomma }}
+                                    {% if corp.member_count_delta_percent %}
+                                        {% if corp.member_count_delta_percent > 0 %}
+                                            <span class="badge badge-subtle-success ms-1" style="font-size: 0.7rem;" title="{% translate 'Member count change since last scan' %}">
+                                                <i class="fas fa-arrow-trend-up me-1"></i>+{{ corp.member_count_delta_percent|floatformat:"-1" }}%
+                                            </span>
+                                        {% elif corp.member_count_delta_percent < 0 %}
+                                            <span class="badge badge-subtle-danger ms-1" style="font-size: 0.7rem;" title="{% translate 'Member count change since last scan' %}">
+                                                <i class="fas fa-arrow-trend-down me-1"></i>{{ corp.member_count_delta_percent|floatformat:"-1" }}%
+                                            </span>
+                                        {% endif %}
+                                    {% endif %}
+                                </td>
+                                <td class="font-mono small">
+                                    <span class="text-light">{{ corp.max_subcap_form }} Sub</span> /
+                                    <span class="text-warning">{{ corp.max_cap_form }} Cap</span> /
+                                    <span class="text-danger">{{ corp.max_super_form }} Super</span>
+                                </td>
+                                <td class="font-mono text-info fw-bold">{{ corp.active_pilots_count|default:"0" }}</td>
+                                <td class="font-mono text-danger">{{ corp.weekly_kills_count|default:"0" }}</td>
+                                <td class="text-end">
+                                    <a href="{% url 'hostile:corporation_detail' corp.id %}" class="btn btn-outline-info btn-xs py-0 px-2">
+                                        <i class="fas fa-folder-open me-1"></i>{% translate "Dossier" %}
+                                    </a>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="7" class="text-center py-4 text-muted">
+                                    {% translate "No direct member corporations registered for this alliance yet." %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        {% if affiliated_alt_corps %}
+        <div class="card bg-dark text-white border-secondary hostile-card shadow-sm">
+            <div class="card-header hostile-card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold text-warning"><i class="fas fa-user-secret me-2"></i>{% translate "Affiliated Alt / Holding / Cyno Corporations" %}</h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover mb-0 align-middle">
+                        <thead>
+                            <tr class="text-muted small text-uppercase">
+                                <th>{% translate "Corporation" %}</th>
+                                <th>{% translate "Ticker" %}</th>
+                                <th>{% translate "Status" %}</th>
+                                <th>{% translate "Fleet Capacity" %}</th>
+                                <th class="text-end">{% translate "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for corp in affiliated_alt_corps %}
+                            <tr>
+                                <td>
+                                    <a href="{% url 'hostile:corporation_detail' corp.id %}" class="d-flex align-items-center text-light text-decoration-none hover-primary">
+                                        <img src="https://images.evetech.net/corporations/{{ corp.corporation_id }}/logo?size=32" alt="{{ corp.corporation_name }}" class="rounded me-2 border border-secondary" style="width: 28px; height: 28px;">
+                                        <span class="fw-bold">{{ corp.corporation_name }}</span>
+                                    </a>
+                                </td>
+                                <td>{% if corp.ticker %}<span class="badge badge-subtle-secondary font-mono">[{{ corp.ticker }}]</span>{% else %}-{% endif %}</td>
+                                <td><span class="badge badge-subtle-warning"><i class="fas fa-user-secret me-1"></i>Alt Corp</span></td>
+                                <td class="font-mono small">{{ corp.max_subcap_form }} Sub / {{ corp.max_cap_form }} Cap</td>
+                                <td class="text-end">
+                                    <a href="{% url 'hostile:corporation_detail' corp.id %}" class="btn btn-outline-info btn-xs py-0 px-2">
+                                        <i class="fas fa-folder-open me-1"></i>{% translate "Dossier" %}
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Sovereignty & Systems Tab -->
+    <div class="tab-pane fade" id="sovTabContent" role="tabpanel">
+        <!-- Sovereignty KPI Summary Cards -->
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-md-3">
+                <div class="bg-dark border border-secondary p-3 rounded shadow-sm text-center">
+                    <div class="text-muted small text-uppercase fw-bold mb-1">{% translate "Systems Held" %}</div>
+                    <div class="fs-4 fw-bold text-light font-mono">
+                        {{ sov_intel.total_systems_count }}
+                        {% if alliance.zkill_deltas.systems_held %}
+                            {% with d=alliance.zkill_deltas.systems_held %}
+                                {% if d.pct > 0 %}
+                                    <span class="badge badge-subtle-success fs-6 ms-1" title="{% translate 'Sovereign systems held change since last sync' %}">+{{ d.pct }}%</span>
+                                {% elif d.pct < 0 %}
+                                    <span class="badge badge-subtle-danger fs-6 ms-1" title="{% translate 'Sovereign systems held change since last sync' %}">{{ d.pct }}%</span>
+                                {% endif %}
+                            {% endwith %}
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="bg-dark border border-secondary p-3 rounded shadow-sm text-center">
+                    <div class="text-muted small text-uppercase fw-bold mb-1">{% translate "Regions Held" %}</div>
+                    <div class="fs-4 fw-bold text-info font-mono">{{ sov_intel.total_regions_count }}</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="bg-dark border border-secondary p-3 rounded shadow-sm text-center">
+                    <div class="text-muted small text-uppercase fw-bold mb-1">{% translate "Average ADM" %}</div>
+                    <div class="fs-4 fw-bold text-warning font-mono">{{ sov_intel.avg_adm_overall }} <small class="text-muted fs-6">/ 6.0</small></div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="bg-dark border border-secondary p-3 rounded shadow-sm text-center">
+                    <div class="text-muted small text-uppercase fw-bold mb-1">{% translate "Active Contests" %}</div>
+                    <div class="fs-4 fw-bold {% if sov_intel.active_contests_total > 0 %}text-danger{% else %}text-success{% endif %} font-mono">
+                        {{ sov_intel.active_contests_total }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% if sov_intel.regions %}
+            {% for region in sov_intel.regions %}
+            <div class="card bg-dark text-white border-secondary hostile-card shadow-sm mb-4">
+                <div class="card-header hostile-card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fas fa-map text-info"></i>
+                        <h6 class="mb-0 fw-bold text-light">{{ region.region_name }}</h6>
+                        <span class="badge badge-subtle-info font-mono">{{ region.systems_count }} {% translate "Systems" %}</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-black border border-secondary font-mono text-warning">
+                            {% translate "Avg ADM:" %} {{ region.avg_adm }}
+                        </span>
+                        {% if region.active_contests_count > 0 %}
+                            <span class="badge bg-danger">
+                                <i class="fas fa-fire me-1"></i>{{ region.active_contests_count }} {% translate "Contests Active" %}
+                            </span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover mb-0 align-middle font-mono">
+                            <thead>
+                                <tr class="text-slate-300 small text-uppercase">
+                                    <th>{% translate "Solar System" %}</th>
+                                    <th>{% translate "Constellation" %}</th>
+                                    <th>{% translate "Security" %}</th>
+                                    <th>{% translate "ADM (Defense Multiplier)" %}</th>
+                                    <th>{% translate "Vulnerability Window" %}</th>
+                                    <th>{% translate "Status" %}</th>
+                                    <th class="text-end">{% translate "Contests / Timers" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for sys in region.systems %}
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <a href="https://evemaps.dotlan.net/system/{{ sys.solar_system_name }}" target="_blank" rel="noopener noreferrer" class="fw-bold text-light text-decoration-none hover-primary">
+                                                {{ sys.solar_system_name }} <i class="fas fa-external-link-alt fa-xs text-muted"></i>
+                                            </a>
+                                            {% if sys.is_capital %}
+                                                <span class="badge badge-capital" title="{% translate 'Alliance Sovereignty Capital' %}">
+                                                    <i class="fas fa-crown me-1"></i>{% translate "Capital" %}
+                                                </span>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                    <td class="text-slate-300">{{ sys.constellation_name }}</td>
+                                    <td>
+                                        <span class="badge {% if sys.security_status <= 0.0 %}badge-sec-null{% elif sys.security_status < 0.5 %}badge-sec-low{% else %}badge-sec-high{% endif %}">
+                                            {{ sys.security_status|floatformat:1 }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center gap-2" style="min-width: 140px;">
+                                            <span class="fw-bold {% if sys.adm >= 4.0 %}text-adm-high{% elif sys.adm >= 2.5 %}text-adm-med{% else %}text-adm-low{% endif %}" style="width: 28px;">{{ sys.adm }}</span>
+                                            <div class="progress flex-grow-1 hostile-adm-track" style="height: 6px;">
+                                                <div class="progress-bar {% if sys.adm >= 4.0 %}bg-adm-high{% elif sys.adm >= 2.5 %}bg-adm-med{% else %}bg-adm-low{% endif %}" 
+                                                     role="progressbar" 
+                                                     style="width: {{ sys.adm_percentage }}%;" 
+                                                     aria-valuenow="{{ sys.adm }}" 
+                                                     aria-valuemin="1" 
+                                                     aria-valuemax="6">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="text-light fw-bold">{{ sys.vulnerability_window_display }}</span>
+                                    </td>
+                                    <td>
+                                        {% if sys.is_reinforced %}
+                                            <span class="badge bg-danger pulse-glow-danger">
+                                                <i class="fas fa-shield-virus me-1"></i>{% translate "Reinforced / In Contest" %}
+                                            </span>
+                                        {% elif sys.is_vulnerable_now %}
+                                            <span class="badge bg-warning text-dark">
+                                                <i class="fas fa-unlock me-1"></i>{% translate "Vulnerable Now" %}
+                                            </span>
+                                        {% else %}
+                                            <span class="badge badge-subtle-success">
+                                                <i class="fas fa-shield-alt me-1"></i>{% translate "Guarded" %}
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end">
+                                        {% if sys.timers %}
+                                            {% for t in sys.timers %}
+                                                <div class="d-inline-flex align-items-center gap-1 mb-1">
+                                                    <span class="badge bg-danger">
+                                                        {{ t.get_timer_type_display }}
+                                                    </span>
+                                                    {% if t.has_started %}
+                                                        <span class="badge bg-dark border border-secondary text-light font-mono">
+                                                            Def: <strong class="text-success">{{ t.defender_score_percent }}%</strong> / Att: <strong class="text-danger">{{ t.attacker_score_percent }}%</strong>
+                                                        </span>
+                                                    {% else %}
+                                                        <span class="badge bg-dark border border-secondary text-warning font-mono">
+                                                            {% translate "Starts in" %} <span class="countdown-timer text-warning" data-expiry="{{ t.timer_datetime|date:'c' }}">{{ t.timer_datetime|naturaltime }}</span>
+                                                        </span>
+                                                    {% endif %}
+                                                    <a href="{% url 'hostile:sov_timers' %}" class="btn btn-outline-warning btn-xs py-0 px-1" title="{% translate 'View on Sov Timers Board' %}">
+                                                        <i class="fas fa-external-link-alt"></i>
+                                                    </a>
+                                                </div>
+                                            {% endfor %}
+                                        {% else %}
+                                            <span class="text-muted small">-</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="card bg-dark text-white border-secondary hostile-card shadow-sm py-5 text-center text-muted">
+                <i class="fas fa-crown fa-3x mb-3 text-secondary"></i>
+                <h5>{% translate "No Sovereignty Claims Found" %}</h5>
+                <p class="small mb-0">
+                    {% translate "This alliance does not currently hold sovereignty over any solar systems, or sovereignty data synchronization has not completed yet." %}
+                </p>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Staging Hubs Tab -->
+    <div class="tab-pane fade" id="stagingsTabContent" role="tabpanel">
+        <div class="card bg-dark text-white border-secondary hostile-card shadow-sm">
+            <div class="card-header hostile-card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold text-danger"><i class="fas fa-map-marker-alt me-2"></i>{% translate "Staging Systems & Forward Operating Hubs" %}</h6>
+                <a href="{% url 'hostile:staging_add' %}?alliance_id={{ alliance.id }}" class="btn btn-outline-danger btn-xs py-0 px-2">
+                    <i class="fas fa-plus me-1"></i>{% translate "Add Staging" %}
+                </a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover mb-0 align-middle">
+                        <thead>
+                            <tr class="text-muted small text-uppercase">
+                                <th>{% translate "Solar System" %}</th>
+                                <th>{% translate "Security / Region" %}</th>
+                                <th>{% translate "Type" %}</th>
+                                <th>{% translate "Staged Capacity" %}</th>
+                                <th>{% translate "Structure Base" %}</th>
+                                <th>{% translate "Notes" %}</th>
+                                <th class="text-end">{% translate "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for st in staging_systems %}
+                            <tr>
+                                <td>
+                                    <span class="fw-bold text-light">{{ st.solar_system.name }}</span>
+                                    {% if st.is_primary %}<span class="badge bg-danger ms-1">{% translate "Primary" %}</span>{% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge {% if st.solar_system.security_status <= 0.0 %}bg-danger{% elif st.solar_system.security_status < 0.5 %}bg-warning text-dark{% else %}bg-info text-dark{% endif %} font-mono">
+                                        {{ st.solar_system.security_status|floatformat:1 }}
+                                    </span>
+                                    <span class="text-muted small ms-1">{{ st.solar_system.constellation.region.name }}</span>
+                                </td>
+                                <td><span class="badge badge-subtle-info">{{ st.get_staging_type_display }}</span></td>
+                                <td class="font-mono small">
+                                    <span class="text-light">{{ st.max_subcap_form }} Sub</span> /
+                                    <span class="text-warning">{{ st.max_cap_form }} Cap</span> /
+                                    <span class="text-danger">{{ st.max_super_form }} Super</span>
+                                </td>
+                                <td>{{ st.structure.name|default:"-" }}</td>
+                                <td class="small text-muted">{{ st.notes|default:"-" }}</td>
+                                <td class="text-end">
+                                    <div class="d-inline-flex gap-1">
+                                        {% if perms.hostile.manage_intel or st.created_by == request.user %}
+                                        <a href="{% url 'hostile:staging_edit' st.id %}" class="btn btn-outline-primary btn-xs py-0 px-2" title="{% translate 'Edit Staging' %}">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        {% endif %}
+                                        {% if perms.hostile.manage_intel %}
+                                        <a href="{% url 'hostile:staging_delete' st.id %}" class="btn btn-outline-danger btn-xs py-0 px-2" title="{% translate 'Delete Staging' %}">
+                                            <i class="fas fa-trash-alt"></i>
+                                        </a>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="7" class="text-center py-4 text-muted">{% translate "No staging systems recorded for this alliance yet." %}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fleet Doctrines Tab -->
+    <div class="tab-pane fade" id="doctrinesTabContent" role="tabpanel">
+        <div class="card bg-dark text-white border-secondary hostile-card shadow-sm">
+            <div class="card-header hostile-card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold text-success"><i class="fas fa-fighter-jet me-2"></i>{% translate "Fleet Doctrines & Ship Compositions" %}</h6>
+                <a href="{% url 'hostile:doctrine_add' %}?alliance_id={{ alliance.id }}" class="btn btn-outline-success btn-xs py-0 px-2">
+                    <i class="fas fa-plus me-1"></i>{% translate "Add Doctrine" %}
+                </a>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    {% for doc in doctrines %}
+                    <div class="col-md-6 col-xl-4">
+                        <div class="bg-black bg-opacity-40 p-3 rounded border border-secondary h-100">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h6 class="fw-bold text-light mb-0">{{ doc.name }}</h6>
+                                <div class="d-flex align-items-center gap-1">
+                                    <span class="badge badge-subtle-info">{{ doc.primary_role|default:"Combat" }}</span>
+                                    {% if perms.hostile.manage_intel or doc.created_by == request.user %}
+                                    <a href="{% url 'hostile:doctrine_edit' doc.id %}" class="btn btn-outline-primary btn-xs py-0 px-1" title="{% translate 'Edit Doctrine' %}">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    {% endif %}
+                                    {% if perms.hostile.manage_intel %}
+                                    <a href="{% url 'hostile:doctrine_delete' doc.id %}" class="btn btn-outline-danger btn-xs py-0 px-1" title="{% translate 'Delete Doctrine' %}">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <p class="text-muted small mb-2">{{ doc.description|default:"No doctrine notes provided." }}</p>
+                            <div class="small text-muted mb-2 font-mono">
+                                <i class="fas fa-shield-alt me-1"></i>Ideal Formup: <strong class="text-light">{{ doc.ideal_formup_count }}</strong> pilots
+                            </div>
+                            {% if doc.example_fits.all %}
+                                <div class="small text-muted fw-bold mb-1">{% translate "Fittings / Ship Types:" %}</div>
+                                <div class="d-flex flex-wrap gap-1">
+                                    {% for fit in doc.example_fits.all %}
+                                        <span class="badge bg-dark border border-secondary">{{ fit.ship_type.name }}</span>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="col-12 text-center py-4 text-muted">{% translate "No doctrines registered for this alliance yet." %}</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Structures & Timers Tab -->
+    <div class="tab-pane fade" id="structuresTabContent" role="tabpanel">
+        <!-- Active Timers Section -->
+        {% if timers %}
+        <div class="card bg-dark text-white border-secondary hostile-card shadow-sm mb-4">
+            <div class="card-header hostile-card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold text-warning"><i class="fas fa-stopwatch me-2"></i>{% translate "Active Structure Timers" %}</h6>
+                <span class="badge bg-warning text-dark">{{ timers.count }} Timers</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover mb-0 align-middle">
+                        <thead>
+                            <tr class="text-muted small text-uppercase">
+                                <th>{% translate "Stage / Type" %}</th>
+                                <th>{% translate "Solar System" %}</th>
+                                <th>{% translate "Structure" %}</th>
+                                <th>{% translate "Exit Time (UTC)" %}</th>
+                                <th>{% translate "Status" %}</th>
+                                <th class="text-end">{% translate "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for timer in timers %}
+                            <tr>
+                                <td>
+                                    <span class="badge {% if timer.timer_type == 'HULL' %}bg-danger{% elif timer.timer_type == 'ARMOR' %}bg-warning text-dark{% else %}bg-info text-dark{% endif %}">
+                                        {{ timer.get_timer_type_display }}
+                                    </span>
+                                </td>
+                                <td>{{ timer.solar_system.name }}</td>
+                                <td>{{ timer.structure.name|default:timer.target_name }}</td>
+                                <td class="font-mono text-warning fw-bold">{{ timer.timer_datetime|date:"Y-m-d H:i" }} UTC</td>
+                                <td>
+                                    {% if timer.is_expired %}
+                                        <span class="badge badge-subtle-secondary">{% translate "Expired" %}</span>
+                                    {% else %}
+                                        <span class="badge badge-subtle-success">{% translate "Active" %}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">
+                                    <div class="d-inline-flex gap-1">
+                                        {% if perms.hostile.manage_intel or timer.created_by == request.user %}
+                                        <a href="{% url 'hostile:timer_edit' timer.id %}" class="btn btn-outline-primary btn-xs py-0 px-2" title="{% translate 'Edit Timer' %}">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        {% endif %}
+                                        {% if perms.hostile.manage_intel %}
+                                        <a href="{% url 'hostile:timer_delete' timer.id %}" class="btn btn-outline-danger btn-xs py-0 px-2" title="{% translate 'Delete Timer' %}">
+                                            <i class="fas fa-trash-alt"></i>
+                                        </a>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Known Structures Section -->
+        <div class="card bg-dark text-white border-secondary hostile-card shadow-sm">
+            <div class="card-header hostile-card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold text-light"><i class="fas fa-monument me-2"></i>{% translate "Known Upwell Structures & Starbases" %}</h6>
+                <a href="{% url 'hostile:structure_add' %}?alliance_id={{ alliance.id }}" class="btn btn-outline-light btn-xs py-0 px-2">
+                    <i class="fas fa-plus me-1"></i>{% translate "Add Structure" %}
+                </a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover mb-0 align-middle">
+                        <thead>
+                            <tr class="text-muted small text-uppercase">
+                                <th>{% translate "Structure Name" %}</th>
+                                <th>{% translate "Type" %}</th>
+                                <th>{% translate "Solar System" %}</th>
+                                <th>{% translate "State" %}</th>
+                                <th>{% translate "Core Status" %}</th>
+                                <th>{% translate "Vuln Window" %}</th>
+                                <th class="text-end">{% translate "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for struct in structures %}
+                            <tr>
+                                <td class="fw-bold text-light">{{ struct.name }}</td>
+                                <td><span class="badge badge-subtle-secondary">{{ struct.structure_type.name|default:"Structure" }}</span></td>
+                                <td>{{ struct.solar_system.name }}</td>
+                                <td>
+                                    {% if struct.state == 'ANCHORING' %}
+                                        <span class="badge bg-warning text-dark">Anchoring</span>
+                                    {% elif struct.state == 'ARMOR_REINFORCED' or struct.state == 'HULL_REINFORCED' or struct.state == 'ARMOR' or struct.state == 'HULL' %}
+                                        <span class="badge bg-danger">Reinforced</span>
+                                    {% else %}
+                                        <span class="badge badge-subtle-success">{{ struct.get_state_display }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if struct.core_status == 'FITTED' %}
+                                        <span class="badge bg-success small">Core Fitted</span>
+                                    {% elif struct.core_status == 'UNFITTED' %}
+                                        <span class="badge bg-danger small">No Core</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary small">Unknown</span>
+                                    {% endif %}
+                                </td>
+                                <td class="font-mono small text-muted">{{ struct.vulnerability_window|default:"-" }}</td>
+                                <td class="text-end">
+                                    <a href="{% url 'hostile:calculator' %}?structure_id={{ struct.id }}" class="btn btn-outline-warning btn-xs py-0 px-2 me-1" title="{% translate 'Calculate Reinforce Exit Window' %}">
+                                        <i class="fas fa-calculator me-1"></i>{% translate "Calc" %}
+                                    </a>
+                                    <button type="button" class="btn btn-outline-info btn-xs py-0 px-2 me-1" onclick="loadFittingModal({{ struct.id }})" title="{% translate 'Inspect Fitting' %}">
+                                        <i class="fas fa-crosshairs me-1"></i>{% translate "Fit" %}
+                                    </button>
+                                    {% if perms.hostile.manage_intel or struct.created_by == request.user %}
+                                    <a href="{% url 'hostile:structure_edit' struct.id %}" class="btn btn-outline-primary btn-xs py-0 px-2 me-1" title="{% translate 'Edit Structure' %}">
+                                        <i class="fas fa-edit me-1"></i>{% translate "Edit" %}
+                                    </a>
+                                    {% endif %}
+                                    {% if perms.hostile.manage_intel %}
+                                    <button type="button" class="btn btn-outline-danger btn-xs py-0 px-2" data-bs-toggle="modal" data-bs-target="#deleteAllianceStructureModal{{ struct.id }}" title="{% translate 'Delete Structure' %}">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                    {% endif %}
+
+                                    <!-- Delete Modal for {{ struct.name }} -->
+                                    <div class="modal fade text-start" id="deleteAllianceStructureModal{{ struct.id }}" tabindex="-1" aria-hidden="true">
+                                        <div class="modal-dialog">
+                                            <div class="modal-content bg-dark text-white border-secondary">
+                                                <div class="modal-header border-secondary">
+                                                    <h5 class="modal-title fw-bold text-danger">
+                                                        <i class="fas fa-exclamation-triangle me-2"></i>{% translate "Delete Structure" %}
+                                                    </h5>
+                                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                </div>
+                                                <div class="modal-body text-light">
+                                                    <p>{% blocktranslate with name=struct.name system=struct.solar_system.name %}Are you sure you want to permanently delete structure <strong>{{ name }}</strong> in <strong>{{ system }}</strong>?{% endblocktranslate %}</p>
+                                                    <div class="alert alert-warning py-2 small mb-0">
+                                                        <i class="fas fa-info-circle me-1"></i>{% translate "This action cannot be undone. Associated fittings and active timers will be removed." %}
+                                                    </div>
+                                                </div>
+                                                <div class="modal-footer border-secondary">
+                                                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">{% translate "Cancel" %}</button>
+                                                    <form action="{% url 'hostile:structure_delete' struct.id %}" method="post" class="d-inline">
+                                                        {% csrf_token %}
+                                                        <button type="submit" class="btn btn-danger btn-sm fw-bold">
+                                                            <i class="fas fa-trash-alt me-1"></i>{% translate "Delete Structure" %}
+                                                        </button>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="7" class="text-center py-4 text-muted">{% translate "No structures recorded for this alliance yet." %}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pilots & Commanders Tab -->
+    <div class="tab-pane fade" id="pilotsTabContent" role="tabpanel">
+        <div class="card bg-dark text-white border-secondary hostile-card shadow-sm">
+            <div class="card-header hostile-card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold text-light"><i class="fas fa-user-secret me-2"></i>{% translate "Hostile Pilot Dossiers & Key Personnel" %}</h6>
+                <a href="{% url 'hostile:pilot_add' %}" class="btn btn-outline-info btn-xs py-0 px-2">
+                    <i class="fas fa-plus me-1"></i>{% translate "Add Pilot Dossier" %}
+                </a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover mb-0 align-middle">
+                        <thead>
+                            <tr class="text-muted small text-uppercase">
+                                <th>{% translate "Pilot" %}</th>
+                                <th>{% translate "Corporation" %}</th>
+                                <th>{% translate "Tactical Roles" %}</th>
+                                <th>{% translate "Last Seen System" %}</th>
+                                <th>{% translate "Notes" %}</th>
+                                <th class="text-end">{% translate "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for pilot in pilots %}
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <img src="https://images.evetech.net/characters/{{ pilot.character_id }}/portrait?size=32" alt="{{ pilot.character_name }}" class="rounded-circle me-2 border border-secondary" style="width: 28px; height: 28px;">
+                                        <span class="fw-bold text-light">{{ pilot.character_name }}</span>
+                                    </div>
+                                </td>
+                                <td>{{ pilot.display_corporation_name|default:"-" }}</td>
+                                <td>
+                                    <div class="d-flex flex-wrap gap-1">
+                                        {% if pilot.is_fc %}
+                                            {% if pilot.fc_level == "HIGH" %}
+                                                <span class="badge bg-danger text-light"><i class="fas fa-crown me-1"></i>FC (High{% if pilot.fc_score %} {{ pilot.fc_score }}{% endif %})</span>
+                                            {% elif pilot.fc_level == "MEDIUM" %}
+                                                <span class="badge bg-danger text-light"><i class="fas fa-crown me-1"></i>FC (Med{% if pilot.fc_score %} {{ pilot.fc_score }}{% endif %})</span>
+                                            {% elif pilot.fc_level == "LOW" %}
+                                                <span class="badge bg-warning text-dark"><i class="fas fa-crown me-1"></i>FC (Low{% if pilot.fc_score %} {{ pilot.fc_score }}{% endif %})</span>
+                                            {% elif pilot.fc_level == "CANDIDATE" %}
+                                                <span class="badge badge-subtle-teal"><i class="fas fa-crown me-1"></i>FC Candidate</span>
+                                            {% else %}
+                                                <span class="badge bg-danger"><i class="fas fa-crown me-1"></i>FC</span>
+                                            {% endif %}
+                                        {% endif %}
+                                        {% if pilot.is_awox %}<span class="badge bg-danger text-light"><i class="fas fa-skull-crossbones me-1"></i>AWOX{% if pilot.awox_count %} ({{ pilot.awox_count }}){% endif %}</span>{% endif %}
+                                        {% if pilot.is_alliance_awox %}<span class="badge bg-danger text-light"><i class="fas fa-skull-crossbones me-1"></i>Alliance AWOX{% if pilot.alliance_awox_count %} ({{ pilot.alliance_awox_count }}){% endif %}</span>{% endif %}
+                                        {% if pilot.is_faction_awox %}<span class="badge bg-danger text-light"><i class="fas fa-skull-crossbones me-1"></i>Faction AWOX{% if pilot.faction_awox_count %} ({{ pilot.faction_awox_count }}){% endif %}</span>{% endif %}
+                                        {% if pilot.is_bait %}<span class="badge bg-warning text-dark"><i class="fas fa-fish me-1"></i>Bait{% if pilot.bait_level %} {{ pilot.bait_level|title }}{% endif %}{% if pilot.bait_count %} ({{ pilot.bait_count }}){% endif %}</span>{% endif %}
+                                        {% if pilot.is_ganker %}<span class="badge bg-danger text-light"><i class="fas fa-bolt me-1"></i>Ganker{% if pilot.ganker_count %} ({{ pilot.ganker_count }}){% endif %}</span>{% endif %}
+                                        {% if pilot.is_titan_pilot %}<span class="badge bg-purple" style="background-color: #6f42c1;">Titan{% if pilot.titan_count %} ({{ pilot.titan_count }}){% endif %}</span>{% endif %}
+                                        {% if pilot.is_super_pilot %}<span class="badge bg-indigo" style="background-color: #6610f2;">Super{% if pilot.super_count %} ({{ pilot.super_count }}){% endif %}</span>{% endif %}
+                                        {% if pilot.is_dread_pilot %}<span class="badge bg-danger">Dread</span>{% endif %}
+                                        {% if pilot.is_fax_pilot %}<span class="badge bg-success">FAX</span>{% endif %}
+                                        {% if pilot.is_capital_pilot and not pilot.is_dread_pilot and not pilot.is_fax_pilot and not pilot.is_super_pilot and not pilot.is_titan_pilot %}<span class="badge bg-warning text-dark">Capital{% if pilot.capital_count %} ({{ pilot.capital_count }}){% endif %}</span>{% endif %}
+                                        {% if pilot.is_cyno_alt %}<span class="badge bg-info text-dark">Cyno{% if pilot.cyno_count %} ({{ pilot.cyno_count }}){% endif %}</span>{% endif %}
+                                        {% if pilot.is_blops_pilot %}<span class="badge bg-dark border border-secondary">Blops{% if pilot.blops_count %} ({{ pilot.blops_count }}){% endif %}</span>{% endif %}
+                                        {% if pilot.is_logi_pilot %}<span class="badge badge-subtle-teal"><i class="fas fa-first-aid me-1"></i>Logi{% if pilot.logi_count %} ({{ pilot.logi_count }}){% endif %}</span>{% endif %}
+                                        {% if pilot.is_rookie %}<span class="badge badge-subtle-secondary"><i class="fas fa-seedling me-1"></i>Rookie</span>{% endif %}
+                                        {% if pilot.is_alt %}
+                                            <span class="badge badge-subtle-warning" title="{{ pilot.alt_inference_reason|default:'Inferred alt' }}"><i class="fas fa-users-cog me-1"></i>Alt{% if pilot.main_character %} of {{ pilot.main_character.character_name }}{% endif %}</span>
+                                        {% elif pilot.is_main %}
+                                            <span class="badge badge-subtle-info"><i class="fas fa-user-friends me-1"></i>Main ({{ pilot.known_alts.count }} Alt{{ pilot.known_alts.count|pluralize }})</span>
+                                        {% elif pilot.is_out_of_corp %}
+                                            <span class="badge badge-subtle-warning"><i class="fas fa-user-secret me-1"></i>Alt</span>
+                                        {% endif %}
+                                        {% if not pilot.is_fc and not pilot.is_titan_pilot and not pilot.is_super_pilot and not pilot.is_dread_pilot and not pilot.is_fax_pilot and not pilot.is_capital_pilot and not pilot.is_cyno_alt and not pilot.is_blops_pilot and not pilot.is_out_of_corp and not pilot.is_alt and not pilot.is_awox and not pilot.is_alliance_awox and not pilot.is_faction_awox and not pilot.is_bait and not pilot.is_ganker and not pilot.is_logi_pilot and not pilot.is_rookie %}
+                                            <span class="badge badge-subtle-info"><i class="fas fa-crosshairs me-1"></i>Combat Pilot</span>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td>{{ pilot.last_seen_system.name|default:"-" }}</td>
+                                <td class="small text-muted">{{ pilot.notes|default:"-" }}</td>
+                                <td class="text-end">
+                                    <div class="d-inline-flex gap-1">
+                                        {% if perms.hostile.manage_intel or pilot.created_by == request.user %}
+                                        <a href="{% url 'hostile:pilot_edit' pilot.id %}" class="btn btn-outline-primary btn-xs py-0 px-2" title="{% translate 'Edit Pilot' %}">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        {% endif %}
+                                        {% if perms.hostile.manage_intel %}
+                                        <a href="{% url 'hostile:pilot_delete' pilot.id %}" class="btn btn-outline-danger btn-xs py-0 px-2" title="{% translate 'Delete Pilot' %}">
+                                            <i class="fas fa-trash-alt"></i>
+                                        </a>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="6" class="text-center py-4 text-muted">{% translate "No pilot dossiers recorded for this alliance yet." %}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Coalition & Alt Alliances Tab -->
+    {% if alt_alliances or coalition_alliances %}
+    <div class="tab-pane fade" id="coalitionTabContent" role="tabpanel">
+        {% if alt_alliances %}
+        <div class="card bg-dark text-white border-secondary hostile-card shadow-sm mb-4">
+            <div class="card-header hostile-card-header">
+                <h6 class="mb-0 fw-bold text-warning"><i class="fas fa-user-secret me-2"></i>{% translate "Alt / Holding Alliances" %}</h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover mb-0 align-middle">
+                        <thead>
+                            <tr class="text-muted small text-uppercase">
+                                <th>{% translate "Alliance" %}</th>
+                                <th>{% translate "Ticker" %}</th>
+                                <th>{% translate "Active PvP (7d)" %}</th>
+                                <th>{% translate "Fleet Capacity" %}</th>
+                                <th class="text-end">{% translate "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for a in alt_alliances %}
+                            <tr>
+                                <td>
+                                    <a href="{% url 'hostile:alliance_detail' a.id %}" class="d-flex align-items-center text-light text-decoration-none hover-primary">
+                                        <img src="https://images.evetech.net/alliances/{{ a.alliance_id }}/logo?size=32" alt="{{ a.alliance_name }}" class="rounded me-2 border border-secondary" style="width: 28px; height: 28px;">
+                                        <span class="fw-bold">{{ a.alliance_name }}</span>
+                                    </a>
+                                </td>
+                                <td>{% if a.ticker %}<span class="badge badge-subtle-secondary">[{{ a.ticker }}]</span>{% else %}-{% endif %}</td>
+                                <td class="font-mono text-info fw-bold">{{ a.active_pilots_count|default:"0" }}</td>
+                                <td class="font-mono small">{{ a.max_subcap_form }} Sub / {{ a.max_cap_form }} Cap</td>
+                                <td class="text-end">
+                                    <a href="{% url 'hostile:alliance_detail' a.id %}" class="btn btn-outline-info btn-xs py-0 px-2">
+                                        <i class="fas fa-folder-open me-1"></i>{% translate "Dossier" %}
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if coalition_alliances %}
+        <div class="card bg-dark text-white border-secondary hostile-card shadow-sm">
+            <div class="card-header hostile-card-header">
+                <h6 class="mb-0 fw-bold text-primary"><i class="fas fa-shield-alt me-2"></i>{% translate "Coalition Member Alliances (" %}{{ alliance.coalition }}{% translate ")" %}</h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover mb-0 align-middle">
+                        <thead>
+                            <tr class="text-muted small text-uppercase">
+                                <th>{% translate "Alliance" %}</th>
+                                <th>{% translate "Ticker" %}</th>
+                                <th>{% translate "Leader Status" %}</th>
+                                <th>{% translate "Active PvP (7d)" %}</th>
+                                <th class="text-end">{% translate "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for a in coalition_alliances %}
+                            <tr>
+                                <td>
+                                    <a href="{% url 'hostile:alliance_detail' a.id %}" class="d-flex align-items-center text-light text-decoration-none hover-primary">
+                                        <img src="https://images.evetech.net/alliances/{{ a.alliance_id }}/logo?size=32" alt="{{ a.alliance_name }}" class="rounded me-2 border border-secondary" style="width: 28px; height: 28px;">
+                                        <span class="fw-bold">{{ a.alliance_name }}</span>
+                                    </a>
+                                </td>
+                                <td>{% if a.ticker %}<span class="badge badge-subtle-secondary">[{{ a.ticker }}]</span>{% else %}-{% endif %}</td>
+                                <td>
+                                    {% if a.is_coalition_leader %}
+                                        <span class="badge bg-warning text-dark"><i class="fas fa-crown me-1"></i>Leader</span>
+                                    {% else %}
+                                        <span class="badge badge-subtle-secondary">Member</span>
+                                    {% endif %}
+                                </td>
+                                <td class="font-mono text-info fw-bold">{{ a.active_pilots_count|default:"0" }}</td>
+                                <td class="text-end">
+                                    <a href="{% url 'hostile:alliance_detail' a.id %}" class="btn btn-outline-info btn-xs py-0 px-2">
+                                        <i class="fas fa-folder-open me-1"></i>{% translate "Dossier" %}
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

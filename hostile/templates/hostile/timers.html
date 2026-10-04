@@ -1,0 +1,558 @@
+{% extends 'hostile/base.html' %}
+{% load i18n humanize %}
+
+{% block details %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-0 fw-bold"><i class="fas fa-stopwatch text-danger me-2"></i>{% translate "Hostile Timers Board" %}</h4>
+        <p class="text-muted small mb-0">{% translate "Vulnerability windows, reinforcement timers, anchoring/unanchoring timers, and sov campaigns." %}</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'hostile:sov_timers' %}" class="btn btn-outline-warning btn-sm fw-bold shadow-sm" data-hostile-loading="{% translate 'Loading Sov Timers' %}" data-hostile-loading-detail="{% translate 'Fetching active sovereignty campaign timers and defender scores...' %}">
+            <i class="fas fa-flag me-1"></i>{% translate "Sov Timers" %}
+        </a>
+        <a href="{% url 'hostile:calculator' %}" class="btn btn-warning btn-sm fw-bold shadow-sm" data-hostile-loading="{% translate 'Loading Timer Calculator' %}" data-hostile-loading-detail="{% translate 'Initializing Upwell reinforcement calculation engine...' %}">
+            <i class="fas fa-calculator me-1"></i>{% translate "Reinforce Calculator" %}
+        </a>
+        <button type="button" class="btn btn-danger btn-sm fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#addTimerModal">
+            <i class="fas fa-plus me-1"></i>{% translate "Add Timer" %}
+        </button>
+    </div>
+</div>
+
+<!-- Upcoming Timers -->
+<div class="card bg-dark text-white border-secondary hostile-card mb-4 shadow-sm">
+    <div class="card-header hostile-card-header">
+        <h6 class="card-title mb-0 fw-bold text-uppercase text-danger">
+            <i class="fas fa-hourglass-half me-2"></i>{% translate "Upcoming Timers" %}
+        </h6>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-dark table-hover mb-0 align-middle">
+                <thead>
+                    <tr class="text-muted small text-uppercase">
+                        <th>{% translate "Target / Structure" %}</th>
+                        <th>{% translate "System" %}</th>
+                        <th>{% translate "Type" %}</th>
+                        <th>{% translate "Expiry (UTC)" %}</th>
+                        <th>{% translate "Time Remaining" %}</th>
+                        <th>{% translate "Verified" %}</th>
+                        <th>{% translate "Notes" %}</th>
+                        <th class="text-end">{% translate "Actions" %}</th>
+                    </tr>
+                </thead>
+                <tbody class="border-secondary">
+                    {% for timer in upcoming_timers %}
+                    <tr>
+                        <td class="fw-bold">{{ timer.target_name }}</td>
+                        <td class="text-info font-mono">{{ timer.solar_system.name|default:"Unknown" }}</td>
+                        <td><span class="badge badge-subtle-secondary">{{ timer.timer_type }}</span></td>
+                        <td class="font-mono small">{{ timer.timer_datetime|date:"Y-m-d H:i:s" }} UTC</td>
+                        <td>
+                            <span class="badge bg-danger p-2 fs-6 countdown-timer font-mono" data-expiry="{{ timer.timer_datetime|date:'c' }}">
+                                {{ timer.timer_datetime|naturaltime }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if timer.is_verified %}
+                                <span class="badge badge-subtle-teal"><i class="fas fa-check"></i> Verified</span>
+                            {% else %}
+                                <span class="badge badge-subtle-warning"><i class="fas fa-clock"></i> Unverified</span>
+                            {% endif %}
+                        </td>
+                        <td class="small text-muted">{{ timer.notes|truncatechars:50 }}</td>
+                        <td class="text-end">
+                            <div class="d-inline-flex gap-1">
+                                {% if perms.hostile.manage_intel and not timer.is_verified %}
+                                    <a href="{% url 'hostile:timer_verify' timer.id %}" class="btn btn-outline-success btn-xs py-0 px-2" title="{% translate 'Verify Timer' %}">
+                                        <i class="fas fa-check"></i>
+                                    </a>
+                                {% endif %}
+                                {% if perms.hostile.manage_intel or timer.created_by == request.user %}
+                                <a href="{% url 'hostile:timer_edit' timer.id %}" class="btn btn-outline-primary btn-xs py-0 px-2" title="{% translate 'Edit Timer' %}">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                {% endif %}
+                                {% if perms.hostile.manage_intel %}
+                                <a href="{% url 'hostile:timer_delete' timer.id %}" class="btn btn-outline-danger btn-xs py-0 px-2" title="{% translate 'Delete Timer' %}">
+                                    <i class="fas fa-trash-alt"></i>
+                                </a>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center py-5 text-muted">
+                            <i class="fas fa-check-circle fa-3x mb-3 text-secondary"></i>
+                            <p>{% translate "No upcoming timers." %}</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Expired Timers -->
+<div class="card bg-dark text-white border-secondary hostile-card shadow-sm">
+    <div class="card-header hostile-card-header">
+        <h6 class="card-title mb-0 fw-bold text-uppercase text-muted">
+            <i class="fas fa-history me-2"></i>{% translate "Past / Expired Timers" %}
+        </h6>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-dark table-hover mb-0 align-middle">
+                <thead>
+                    <tr class="text-muted small text-uppercase">
+                        <th>{% translate "Target / Structure" %}</th>
+                        <th>{% translate "System" %}</th>
+                        <th>{% translate "Type" %}</th>
+                        <th>{% translate "Expired (UTC)" %}</th>
+                        <th>{% translate "Notes" %}</th>
+                        <th class="text-end">{% translate "Actions" %}</th>
+                    </tr>
+                </thead>
+                <tbody class="border-secondary">
+                    {% for timer in expired_timers %}
+                    <tr class="text-muted">
+                        <td>{{ timer.target_name }}</td>
+                        <td class="font-mono">{{ timer.solar_system.name|default:"Unknown" }}</td>
+                        <td><span class="badge badge-subtle-secondary">{{ timer.timer_type }}</span></td>
+                        <td class="font-mono small">{{ timer.timer_datetime|date:"Y-m-d H:i" }} UTC</td>
+                        <td class="small">{{ timer.notes|truncatechars:60 }}</td>
+                        <td class="text-end">
+                            <div class="d-inline-flex gap-1">
+                                {% if perms.hostile.manage_intel or timer.created_by == request.user %}
+                                <a href="{% url 'hostile:timer_edit' timer.id %}" class="btn btn-outline-primary btn-xs py-0 px-2" title="{% translate 'Edit Timer' %}">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                {% endif %}
+                                {% if perms.hostile.manage_intel %}
+                                <a href="{% url 'hostile:timer_delete' timer.id %}" class="btn btn-outline-danger btn-xs py-0 px-2" title="{% translate 'Delete Timer' %}">
+                                    <i class="fas fa-trash-alt"></i>
+                                </a>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center py-3 text-muted">{% translate "No expired timers history." %}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Add Timer Modal -->
+<div class="modal fade" id="addTimerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content bg-dark text-white border-secondary">
+            <form action="{% url 'hostile:timer_add' %}" method="post">
+                {% csrf_token %}
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title"><i class="fas fa-plus-circle text-danger me-2"></i>{% translate "Add Structure / Sov Timer" %}</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Structure Selection & Pre-fill -->
+                    <div class="card bg-black bg-opacity-40 border-secondary p-3 mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label class="form-label text-muted small fw-bold text-uppercase mb-0">
+                                <i class="fas fa-monument text-info me-1"></i>{% translate "Known Structure (Optional / Pre-fill)" %}
+                            </label>
+                            <button type="button" class="btn btn-outline-secondary btn-xs py-0 px-2" id="clearTimerStructureBtn" title="Clear to enter new structure">
+                                <i class="fas fa-eraser me-1"></i>{% translate "Clear / Add New" %}
+                            </button>
+                        </div>
+                        <select name="structure" class="form-select" id="id_timer_structure">
+                            <option value="" selected>--- {% translate "Add New / Unregistered Structure (or Sov Timer)" %} ---</option>
+                            {% for s in timer_form.structure.field.queryset %}
+                            <option value="{{ s.id }}"
+                                data-name="{{ s.name }}"
+                                data-type-id="{{ s.structure_type_id|default:'' }}"
+                                data-system-id="{{ s.solar_system_id|default:'' }}"
+                                data-system-name="{{ s.solar_system.name|default:'' }}"
+                                data-ticker="{{ s.owner_ticker|default:'' }}"
+                                data-alliance-id="{{ s.alliance_id|default:'' }}"
+                                data-corp-id="{{ s.corporation_id|default:'' }}"
+                                data-state="{{ s.state }}"
+                                data-core="{{ s.core_status }}"
+                                data-vuln-hour="{{ s.vulnerability_hour|default:'' }}"
+                                data-vuln-window="{{ s.vulnerability_window|default:'' }}"
+                                data-location="{{ s.location_details|default:'' }}">
+                                {{ s.name }} ({{ s.solar_system.name|default:'Unknown' }}){% if s.owner_ticker %} [{{ s.owner_ticker }}]{% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text text-muted small">
+                            {% translate "Selecting an existing structure auto-fills its details below. Leaving blank adds a new structure to known structures (or records a system/sov timer)." %}
+                        </div>
+                    </div>
+
+                    <!-- Structure Details -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Structure Name" %}</label>
+                            {{ timer_form.name }}
+                            <div class="form-text text-muted small">{% translate "e.g. 1DQ1-A - Keepstar Prime (optional for Sov I-Hub/TCU)" %}</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Structure Type" %}</label>
+                            {{ timer_form.structure_type }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">
+                                <i class="fas fa-map-marker-alt text-danger me-1"></i>{% translate "Solar System" %} *
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-black text-muted border-secondary"><i class="fas fa-map-marker-alt"></i></span>
+                                <input type="text" id="timerSystemSearchInput" class="form-control text-light bg-black border-secondary" placeholder="{% translate 'Search solar system (e.g. Jita, 1DQ1-A)...' %}" list="timerSystemsDatalist" autocomplete="off">
+                                <button class="btn btn-outline-secondary" type="button" id="clearTimerSystemBtn" title="Clear"><i class="fas fa-times"></i></button>
+                            </div>
+                            <div class="d-none">
+                                {{ timer_form.solar_system }}
+                            </div>
+                            <datalist id="timerSystemsDatalist"></datalist>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Owner Ticker" %}</label>
+                            {{ timer_form.owner_ticker }}
+                            <div class="form-text text-muted small">{% translate "Auto-prefilled from alliance or corporation selection" %}</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Alliance" %}</label>
+                            {{ timer_form.alliance }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Corporation" %}</label>
+                            {{ timer_form.corporation }}
+                        </div>
+
+                        <!-- Collapsible Untracked Entity Entry -->
+                        <div class="col-12">
+                            <a class="btn btn-outline-secondary btn-sm" data-bs-toggle="collapse" href="#untrackedTimerEntityCollapse" role="button" aria-expanded="false" aria-controls="untrackedTimerEntityCollapse">
+                                <i class="fas fa-plus me-1"></i>{% translate "Add Untracked Alliance or Corporation" %}
+                            </a>
+                        </div>
+                        <div class="collapse col-12" id="untrackedTimerEntityCollapse">
+                            <div class="card card-body bg-black bg-opacity-50 border-secondary">
+                                <div class="row g-2">
+                                    <div class="col-md-6">
+                                        <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Untracked Alliance Name / Ticker / ID" %}</label>
+                                        {{ timer_form.untracked_alliance }}
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Untracked Corporation Name / Ticker / ID" %}</label>
+                                        {{ timer_form.untracked_corporation }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">{% translate "State / Status" %}</label>
+                            {{ timer_form.state }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Quantum Core Status" %}</label>
+                            {{ timer_form.core_status }}
+                        </div>
+
+                        <!-- Vulnerability Section -->
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">
+                                <i class="fas fa-clock text-warning me-1"></i>{% translate "Vulnerability Hour (UTC 0-23)" %}
+                            </label>
+                            {{ timer_form.vulnerability_hour }}
+                            <div class="form-text text-muted small">{% translate "Enter base hour set (e.g. 18). Window will auto-compute ±3 hours." %}</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Vulnerability Window (Auto-filled ±3h)" %}</label>
+                            {{ timer_form.vulnerability_window }}
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Location Details" %}</label>
+                            {{ timer_form.location_details }}
+                        </div>
+                    </div>
+
+                    <!-- Timer Details Box -->
+                    <div class="card bg-danger bg-opacity-10 border-danger border-opacity-50 p-3 mb-2">
+                        <h6 class="text-danger fw-bold mb-3">
+                            <i class="fas fa-stopwatch me-1"></i>{% translate "Timer Specification" %}
+                        </h6>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Timer Type / Stage" %} *</label>
+                                {{ timer_form.timer_type }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Timer Expiry Datetime (UTC)" %} *</label>
+                                {{ timer_form.timer_datetime }}
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Notes & Intelligence" %}</label>
+                                {{ timer_form.notes }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% translate "Cancel" %}</button>
+                    <button type="submit" class="btn btn-danger fw-bold"><i class="fas fa-save me-1"></i>{% translate "Save Timer" %}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% block extra_javascript %}
+{{ block.super }}
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    attachSolarSystemAutocomplete("timerSystemSearchInput", "id_solar_system", "timerSystemsDatalist", "clearTimerSystemBtn");
+
+    const structSelect = document.getElementById("id_timer_structure");
+    const structNameInput = document.getElementById("id_structure_name");
+    const structTypeSelect = document.getElementById("id_structure_type");
+    const systemSelect = document.getElementById("id_solar_system");
+    const systemInput = document.getElementById("timerSystemSearchInput");
+    const tickerInput = document.getElementById("id_owner_ticker");
+    const allianceSelect = document.getElementById("id_alliance");
+    const corpSelect = document.getElementById("id_corporation");
+    const stateSelect = document.getElementById("id_state");
+    const coreSelect = document.getElementById("id_core_status");
+    const vulnHourInput = document.getElementById("id_vulnerability_hour");
+    const vulnWindowInput = document.getElementById("id_vulnerability_window");
+    const locationInput = document.getElementById("id_location_details");
+    const timerTypeSelect = document.getElementById("id_timer_type");
+    const clearStructBtn = document.getElementById("clearTimerStructureBtn");
+
+    // Dynamic timer stage filtering based on structure type
+    function updateTimerTypes() {
+        if (!structTypeSelect || !timerTypeSelect) return;
+        const selectedType = structTypeSelect.options[structTypeSelect.selectedIndex]?.text || '';
+        const currentVal = timerTypeSelect.value;
+        const mediumPocoKeywords = ["Astrahus", "Raitaru", "Athanor", "Customs Office", "POCO"];
+        const flexKeywords = ["Ansiblex", "Pharolux", "Tenebrex", "Metenox"];
+
+        const isMedPoco = mediumPocoKeywords.some(k => selectedType.includes(k));
+        const isFlex = flexKeywords.some(k => selectedType.includes(k));
+
+        Array.from(timerTypeSelect.options).forEach(opt => {
+            if (isMedPoco && opt.value === "HULL") {
+                opt.disabled = true;
+                opt.style.display = "none";
+                if (currentVal === "HULL") timerTypeSelect.value = "ARMOR";
+            } else if (isFlex && opt.value === "ARMOR") {
+                opt.disabled = true;
+                opt.style.display = "none";
+                if (currentVal === "ARMOR") timerTypeSelect.value = "HULL";
+            } else {
+                opt.disabled = false;
+                opt.style.display = "";
+            }
+        });
+
+        if (timerTypeSelect.syncSearchableSelect) {
+            timerTypeSelect.syncSearchableSelect();
+        }
+    }
+
+    if (structTypeSelect) {
+        structTypeSelect.addEventListener("change", updateTimerTypes);
+    }
+
+    // Prefill on known structure selection
+    if (structSelect) {
+        structSelect.addEventListener("change", function() {
+            const opt = structSelect.options[structSelect.selectedIndex];
+            if (opt && opt.value) {
+                if (structNameInput) structNameInput.value = opt.dataset.name || '';
+                if (structTypeSelect && opt.dataset.typeId) {
+                    structTypeSelect.value = opt.dataset.typeId;
+                    structTypeSelect.dispatchEvent(new Event("change", { bubbles: true }));
+                }
+                if (systemSelect && opt.dataset.systemId) {
+                    systemSelect.value = opt.dataset.systemId;
+                    systemSelect.dispatchEvent(new Event("change", { bubbles: true }));
+                }
+                if (systemInput && opt.dataset.systemName) {
+                    systemInput.value = opt.dataset.systemName;
+                }
+                if (tickerInput) tickerInput.value = opt.dataset.ticker || '';
+                if (allianceSelect && opt.dataset.allianceId) {
+                    allianceSelect.value = opt.dataset.allianceId;
+                    allianceSelect.dispatchEvent(new Event("change", { bubbles: true }));
+                }
+                if (corpSelect && opt.dataset.corpId) {
+                    corpSelect.value = opt.dataset.corpId;
+                    corpSelect.dispatchEvent(new Event("change", { bubbles: true }));
+                }
+                if (stateSelect && opt.dataset.state) {
+                    stateSelect.value = opt.dataset.state;
+                    stateSelect.dispatchEvent(new Event("change", { bubbles: true }));
+                }
+                if (coreSelect && opt.dataset.core) {
+                    coreSelect.value = opt.dataset.core;
+                    coreSelect.dispatchEvent(new Event("change", { bubbles: true }));
+                }
+                if (vulnHourInput && opt.dataset.vulnHour) {
+                    vulnHourInput.value = opt.dataset.vulnHour;
+                    vulnHourInput.dispatchEvent(new Event("input", { bubbles: true }));
+                }
+                if (vulnWindowInput && opt.dataset.vulnWindow) {
+                    vulnWindowInput.value = opt.dataset.vulnWindow;
+                }
+                if (locationInput && opt.dataset.location) {
+                    locationInput.value = opt.dataset.location;
+                }
+                if (timerTypeSelect && opt.dataset.state) {
+                    if (opt.dataset.state === "ANCHORING") {
+                        timerTypeSelect.value = "ANCHORING";
+                    } else if (["ARMOR", "HULL", "UNANCHORING"].includes(opt.dataset.state)) {
+                        timerTypeSelect.value = opt.dataset.state;
+                    } else if (opt.dataset.state === "REINFORCED") {
+                        timerTypeSelect.value = "ARMOR";
+                    }
+                    timerTypeSelect.dispatchEvent(new Event("change", { bubbles: true }));
+                }
+            }
+        });
+    }
+
+    if (clearStructBtn) {
+        clearBtnClick();
+    }
+
+    function clearBtnClick() {
+        if (!clearStructBtn) return;
+        clearStructBtn.addEventListener("click", function() {
+            if (structSelect) {
+                structSelect.value = "";
+                structSelect.dispatchEvent(new Event("change", { bubbles: true }));
+            }
+            if (structNameInput) structNameInput.value = "";
+            if (structTypeSelect) {
+                structTypeSelect.selectedIndex = 0;
+                structTypeSelect.dispatchEvent(new Event("change", { bubbles: true }));
+            }
+            if (systemSelect) {
+                systemSelect.selectedIndex = 0;
+                systemSelect.dispatchEvent(new Event("change", { bubbles: true }));
+            }
+            if (systemInput) systemInput.value = "";
+            if (tickerInput) tickerInput.value = "";
+            if (allianceSelect) {
+                allianceSelect.selectedIndex = 0;
+                allianceSelect.dispatchEvent(new Event("change", { bubbles: true }));
+            }
+            if (corpSelect) {
+                corpSelect.selectedIndex = 0;
+                corpSelect.dispatchEvent(new Event("change", { bubbles: true }));
+            }
+            if (stateSelect) {
+                stateSelect.value = "ONLINE";
+                stateSelect.dispatchEvent(new Event("change", { bubbles: true }));
+            }
+            if (coreSelect) {
+                coreSelect.value = "UNKNOWN";
+                coreSelect.dispatchEvent(new Event("change", { bubbles: true }));
+            }
+            if (vulnHourInput) vulnHourInput.value = "";
+            if (vulnWindowInput) vulnWindowInput.value = "";
+            if (locationInput) locationInput.value = "";
+        });
+    }
+
+    // Auto-fill ticker on alliance selection
+    if (allianceSelect) {
+        allianceSelect.addEventListener("change", function() {
+            const selectedText = allianceSelect.options[allianceSelect.selectedIndex]?.text || '';
+            const match = selectedText.match(/\[(.*?)\]/);
+            if (match && match[1] && tickerInput) {
+                tickerInput.value = match[1];
+            } else if (allianceSelect.value && tickerInput) {
+                fetch(`/hostile/api/alliance-resolve/?query=${encodeURIComponent(allianceSelect.value)}`)
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success && data.alliance && data.alliance.ticker) {
+                            tickerInput.value = data.alliance.ticker;
+                        }
+                    }).catch(() => {});
+            }
+        });
+    }
+
+    // Auto-fill ticker on corporation selection
+    if (corpSelect) {
+        corpSelect.addEventListener("change", function() {
+            const selectedText = corpSelect.options[corpSelect.selectedIndex]?.text || '';
+            const match = selectedText.match(/\[(.*?)\]/);
+            if (match && match[1] && tickerInput && (!tickerInput.value || !allianceSelect?.value)) {
+                tickerInput.value = match[1];
+            } else if (corpSelect.value && tickerInput && (!tickerInput.value || !allianceSelect?.value)) {
+                fetch(`/hostile/api/corporation-resolve/?query=${encodeURIComponent(corpSelect.value)}`)
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success && data.corporation && data.corporation.ticker) {
+                            tickerInput.value = data.corporation.ticker;
+                        }
+                    }).catch(() => {});
+            }
+        });
+    }
+
+    // Vulnerability hour -> +-3 hour window auto computation
+    function updateVulnerabilityWindow() {
+        if (!vulnHourInput || !vulnWindowInput) return;
+        const val = parseInt(vulnHourInput.value, 10);
+        if (!isNaN(val) && val >= 0 && val <= 23) {
+            const startHour = (val - 3 + 24) % 24;
+            const endHour = (val + 3) % 24;
+            const pad = n => String(n).padStart(2, '0');
+            vulnWindowInput.value = `${pad(startHour)}:00 - ${pad(endHour)}:00 UTC`;
+        }
+    }
+
+    if (vulnHourInput) {
+        vulnHourInput.addEventListener("input", updateVulnerabilityWindow);
+        vulnHourInput.addEventListener("change", updateVulnerabilityWindow);
+    }
+
+    // Status / Anchoring state handling
+    if (stateSelect) {
+        stateSelect.addEventListener("change", function() {
+            if (stateSelect.value === "ANCHORING") {
+                if (coreSelect) {
+                    coreSelect.value = "UNFITTED";
+                    coreSelect.dispatchEvent(new Event("change", { bubbles: true }));
+                }
+                if (timerTypeSelect) {
+                    timerTypeSelect.value = "ANCHORING";
+                    timerTypeSelect.dispatchEvent(new Event("change", { bubbles: true }));
+                }
+            } else if (["ARMOR", "HULL", "UNANCHORING"].includes(stateSelect.value)) {
+                if (timerTypeSelect) {
+                    timerTypeSelect.value = stateSelect.value;
+                    timerTypeSelect.dispatchEvent(new Event("change", { bubbles: true }));
+                }
+            } else if (stateSelect.value === "REINFORCED") {
+                if (timerTypeSelect) {
+                    timerTypeSelect.value = "ARMOR";
+                    timerTypeSelect.dispatchEvent(new Event("change", { bubbles: true }));
+                }
+            }
+        });
+    }
+});
+</script>
+{% endblock %}
+{% endblock %}

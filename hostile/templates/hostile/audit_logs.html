@@ -1,0 +1,57 @@
+{% extends 'hostile/base.html' %}
+{% load i18n humanize %}
+
+{% block details %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-0 fw-bold"><i class="fas fa-history text-secondary me-2"></i>{% translate "Intel Audit Logs" %}</h4>
+        <p class="text-muted small mb-0">{% translate "Immutable activity record of intel entries, verifications, pins, and approvals." %}</p>
+    </div>
+</div>
+
+<div class="card bg-dark text-white border-secondary shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-dark table-hover mb-0 align-middle">
+                <thead>
+                    <tr class="text-muted small">
+                        <th>{% translate "Timestamp (UTC)" %}</th>
+                        <th>{% translate "Officer / User" %}</th>
+                        <th>{% translate "Action" %}</th>
+                        <th>{% translate "Target Entity" %}</th>
+                        <th>{% translate "Details" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in logs %}
+                    <tr>
+                        <td class="small text-muted">{{ log.timestamp|date:"Y-m-d H:i:s" }} UTC</td>
+                        <td class="fw-bold">{{ log.user.username|default:"System" }}</td>
+                        <td>
+                            {% if log.action == "VERIFY" %}
+                                <span class="badge bg-success">VERIFY</span>
+                            {% elif log.action == "PIN" or log.action == "UNPIN" %}
+                                <span class="badge bg-warning text-dark">{{ log.action }}</span>
+                            {% elif log.action == "CREATE" or log.action == "INGEST" %}
+                                <span class="badge bg-info text-dark">{{ log.action }}</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{{ log.action }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <strong class="text-info">{{ log.target_model }}</strong>:
+                            {{ log.target_repr|default:log.target_id }}
+                        </td>
+                        <td class="small">{{ log.details }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center py-5 text-muted">{% translate "No audit logs recorded yet." %}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

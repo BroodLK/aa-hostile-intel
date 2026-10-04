@@ -1,0 +1,64 @@
+name: Auto Release on Version Bump
+
+on:
+  push:
+    branches:
+      - master
+      - main
+    paths:
+      - 'hostile/__init__.py'
+
+permissions:
+  contents: write
+
+jobs:
+  check-and-release:
+    name: Check Version and Create Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Extract Version
+        id: get_version
+        run: |
+          VERSION=$(python -c "import re; content=open('hostile/__init__.py').read(); print(re.search(r'__version__\s*=\s*[\"\']([^\"\']+)[\"\']', content).group(1))")
+          echo "PACKAGE_VERSION=$VERSION" >> $GITHUB_ENV
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Current package version is $VERSION"
+
+      - name: Check if Release Exists
+        id: check_tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_NAME="v${{ steps.get_version.outputs.version }}"
+          if gh release view "$TAG_NAME" > /dev/null 2>&1; then
+            echo "Release $TAG_NAME already exists. Skipping release."
+            echo "exists=true" >> $GITHUB_OUTPUT
+          elif gh release view "${{ steps.get_version.outputs.version }}" > /dev/null 2>&1; then
+            echo "Release ${{ steps.get_version.outputs.version }} already exists. Skipping release."
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "Release does not exist. Proceeding with release creation."
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create GitHub Release
+        if: steps.check_tag.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_NAME="v${{ steps.get_version.outputs.version }}"
+          echo "Creating GitHub Release $TAG_NAME"
+          gh release create "$TAG_NAME" \
+            --title "$TAG_NAME" \
+            --generate-notes

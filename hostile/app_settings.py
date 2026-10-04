@@ -1,0 +1,39 @@
+"""
+Hostile Intelligence App Settings
+"""
+
+# Django
+from django.conf import settings
+
+# Periodic Celery Task Schedule
+HOSTILE_SOV_SYNC_MINUTES = getattr(settings, "HOSTILE_SOV_SYNC_MINUTES", 60)
+HOSTILE_CAMPAIGN_SYNC_MINUTES = getattr(settings, "HOSTILE_CAMPAIGN_SYNC_MINUTES", 15)
+
+# Moderation Settings
+HOSTILE_AUTO_VERIFY_OFFICER_POSTS = getattr(
+    settings, "HOSTILE_AUTO_VERIFY_OFFICER_POSTS", True
+)
+HOSTILE_MAX_ACTIVE_OBSERVATION_DAYS = getattr(
+    settings, "HOSTILE_MAX_ACTIVE_OBSERVATION_DAYS", 7
+)
+
+# zKillboard Settings
+HOSTILE_ZKILL_ENABLED = getattr(settings, "HOSTILE_ZKILL_ENABLED", True)
+HOSTILE_ZKILL_SYNC_HOURS = getattr(settings, "HOSTILE_ZKILL_SYNC_HOURS", 6)
+HOSTILE_ZKILL_MIN_REQUEST_INTERVAL = getattr(
+    settings, "HOSTILE_ZKILL_MIN_REQUEST_INTERVAL", 0.5
+)
+HOSTILE_ZKILL_USER_AGENT = getattr(settings, "HOSTILE_ZKILL_USER_AGENT", None)
+HOSTILE_MAIN_ALLIANCE_ID = getattr(
+    settings, "HOSTILE_MAIN_ALLIANCE_ID", getattr(settings, "ALLIANCE_ID", None)
+)
+HOSTILE_MAIN_ALLIANCE_NAME = getattr(
+    settings, "HOSTILE_MAIN_ALLIANCE_NAME", getattr(settings, "ALLIANCE_NAME", None)
+)
+HOSTILE_IGNORED_ALLIANCE_IDS = getattr(settings, "HOSTILE_IGNORED_ALLIANCE_IDS", [])
+HOSTILE_IGNORED_ALLIANCE_NAMES = getattr(settings, "HOSTILE_IGNORED_ALLIANCE_NAMES", [])
+HOSTILE_IGNORED_ALLIANCE_TICKERS = getattr(
+    settings, "HOSTILE_IGNORED_ALLIANCE_TICKERS", []
+)
+HOSTILE_IGNORED_CORP_IDS = getattr(settings, "HOSTILE_IGNORED_CORP_IDS", [])
+HOSTILE_IGNORED_CORP_NAMES = getattr(settings, "HOSTILE_IGNORED_CORP_NAMES", [])
