@@ -363,10 +363,102 @@ class LocalThreatParser:
                 "notes": (dossier.notes if dossier else pilot.get("notes", "")),
                 "in_database": bool(dossier),
                 "dossier_id": dossier.id if dossier else pilot.get("dossier_id"),
+                "activity": combat_intel.get("activity") or pilot.get("activity") or {},
                 "zkill_synced": True,
             }
         )
         return pilot
+
+    @classmethod
+    def calculate_activity_profile(
+        cls,
+        pilots: List[Dict[str, Any]],
+        timestamps_found: Optional[List[str]] = None,
+        initial_hourly: Optional[Dict[int, int]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Calculates aggregate 24-hour UTC activity distribution, timezone breakdown (EUTZ/USTZ/AUTZ),
+        and dominant operational timezone across chat timestamps and pilot combat histories.
+        """
+        hourly_distribution: Dict[int, int] = {h: 0 for h in range(24)}
+        if initial_hourly:
+            for h, count in initial_hourly.items():
+                try:
+                    h_int = int(h) % 24
+                    hourly_distribution[h_int] += int(count)
+                except (ValueError, TypeError):
+                    pass
+
+        # Aggregate pilot zKill activities / timestamps
+        for p in pilots:
+            # 1. Pilot direct timestamps from chat
+            p_timestamps = p.get("timestamps") or []
+            for ts in p_timestamps:
+                parts = ts.split()
+                time_token = parts[-1] if parts else ts
+                t_parts = time_token.split(":")
+                if t_parts and t_parts[0].isdigit():
+                    h_int = int(t_parts[0]) % 24
+                    hourly_distribution[h_int] += 1
+
+            # 2. Pilot zKill hourly activity
+            p_act = p.get("activity") or {}
+            if isinstance(p_act, dict):
+                if "matrix" in p_act and isinstance(p_act["matrix"], (list, tuple)):
+                    for row in p_act["matrix"]:
+                        if isinstance(row, (list, tuple)):
+                            for h_int, val in enumerate(row):
+                                if 0 <= h_int < 24 and isinstance(val, (int, float)):
+                                    hourly_distribution[h_int] += int(val)
+                else:
+                    for k, v in p_act.items():
+                        if isinstance(v, (int, float)):
+                            try:
+                                h_int = int(k) % 24
+                                hourly_distribution[h_int] += int(v)
+                            except (ValueError, TypeError):
+                                pass
+                        elif isinstance(v, dict):
+                            for sub_k, sub_v in v.items():
+                                try:
+                                    h_int = int(sub_k) % 24
+                                    hourly_distribution[h_int] += int(sub_v)
+                                except (ValueError, TypeError):
+                                    pass
+
+        # Standard EVE Online operational timezones:
+        # EUTZ: 14:00 - 22:00 UTC (hours 14..21)
+        # AUTZ: 08:00 - 14:00 UTC (hours 8..13)
+        # USTZ: 22:00 - 08:00 UTC (hours 22..23 and 0..7)
+        tz_counts = {"EUTZ": 0, "USTZ": 0, "AUTZ": 0}
+        for h, count in hourly_distribution.items():
+            if 14 <= h < 22:
+                tz_counts["EUTZ"] += count
+            elif 8 <= h < 14:
+                tz_counts["AUTZ"] += count
+            else:
+                tz_counts["USTZ"] += count
+
+        total_timestamped_events = sum(hourly_distribution.values())
+
+        primary_tz = "UNKNOWN"
+        if total_timestamped_events > 0:
+            primary_tz = max(tz_counts, key=tz_counts.get)
+
+        first_seen = None
+        last_seen = None
+        if timestamps_found:
+            first_seen = timestamps_found[0]
+            last_seen = timestamps_found[-1]
+
+        return {
+            "total_events": total_timestamped_events,
+            "hourly_distribution": hourly_distribution,
+            "primary_timezone": primary_tz,
+            "tz_breakdown": tz_counts,
+            "first_seen": first_seen,
+            "last_seen": last_seen,
+        }
 
     @classmethod
     def enrich_scan(
@@ -423,12 +515,16 @@ class LocalThreatParser:
         )
         capitals_count = sum(1 for p in pilots if p.get("is_capital_pilot"))
 
+        # Recalculate activity profile
+        activity_profile = cls.calculate_activity_profile(pilots=pilots)
+
         scan.pilots_data = pilots
         scan.blops_drop_chance = threat_results["blops_drop_chance"]
         scan.cap_drop_chance = threat_results["cap_drop_chance"]
         scan.threat_level = threat_results["threat_level"]
         scan.threat_factors = threat_results["threat_factors"]
         scan.ship_profile = threat_results["ship_profile"]
+        scan.activity_profile = activity_profile
         scan.save()
 
         total_pilots = len(pilots)
@@ -443,6 +539,7 @@ class LocalThreatParser:
             "threat_level": scan.threat_level,
             "threat_factors": scan.threat_factors,
             "ship_profile": scan.ship_profile,
+            "activity_profile": scan.activity_profile,
             "cynos_count": cynos_count,
             "blops_count": blops_count,
             "supers_count": supers_count,
@@ -727,28 +824,11 @@ class LocalThreatParser:
                             p1["main_character_name"] = p2.get("character_name")
 
         # Activity Profile Analysis
-        total_timestamped_events = sum(hourly_distribution.values())
-        tz_counts = {"USTZ": 0, "AUTZ": 0, "EUTZ": 0}
-        for h, count in hourly_distribution.items():
-            if 0 <= h < 8:
-                tz_counts["USTZ"] += count
-            elif 8 <= h < 14:
-                tz_counts["AUTZ"] += count
-            else:
-                tz_counts["EUTZ"] += count
-
-        primary_tz = "UNKNOWN"
-        if total_timestamped_events > 0:
-            primary_tz = max(tz_counts, key=tz_counts.get)
-
-        activity_profile = {
-            "total_events": total_timestamped_events,
-            "hourly_distribution": hourly_distribution,
-            "primary_timezone": primary_tz,
-            "tz_breakdown": tz_counts,
-            "first_seen": timestamps_found[0] if timestamps_found else None,
-            "last_seen": timestamps_found[-1] if timestamps_found else None,
-        }
+        activity_profile = cls.calculate_activity_profile(
+            pilots=pilots_list,
+            timestamps_found=timestamps_found,
+            initial_hourly=hourly_distribution,
+        )
 
         # Couple with D-Scan
         dscan_data = None

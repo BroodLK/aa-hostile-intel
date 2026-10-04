@@ -564,6 +564,7 @@ class TestParsers(TestCase):
                     "is_fc": True,
                     "fc_level": "HIGH",
                     "fc_score": 105,
+                    "activity": {"18": 150, "19": 200, "20": 180},
                 }
             return {
                 "danger_ratio": 15,
@@ -572,6 +573,7 @@ class TestParsers(TestCase):
                 "top_ships": ["Arazu"],
                 "is_cyno_alt": True,
                 "cyno_count": 10,
+                "activity": {"19": 40, "20": 60},
             }
 
         with patch("hostile.services.entity_resolver.EntityResolver.resolve_character", side_effect=lambda q: mock_resolved.get(str(q).lower() if not isinstance(q, int) else ("april springtime" if q == 91001 else "cynodropper"))):
@@ -581,6 +583,7 @@ class TestParsers(TestCase):
                 self.assertEqual(pilot_enriched["danger_ratio"], 92)
                 self.assertTrue(pilot_enriched["is_blops_pilot"])
                 self.assertIn("Redeemer", pilot_enriched["top_ships"])
+                self.assertEqual(pilot_enriched["activity"]["18"], 150)
 
                 # 3. Enrich scan
                 scan = LocalThreatScan.objects.create(
@@ -599,8 +602,31 @@ class TestParsers(TestCase):
                 self.assertEqual(enrich_result["synced_count"], 2)
                 self.assertTrue(enrich_result["is_finished"])
                 self.assertGreater(enrich_result["blops_drop_chance"], 0)
+                self.assertEqual(enrich_result["activity_profile"]["primary_timezone"], "EUTZ")
+                self.assertEqual(enrich_result["activity_profile"]["tz_breakdown"]["EUTZ"], 630)
+                self.assertEqual(enrich_result["activity_profile"]["total_events"], 630)
 
                 scan.refresh_from_db()
                 self.assertGreater(scan.blops_drop_chance, 0)
                 self.assertEqual(enrich_result["cynos_count"], 1)
                 self.assertEqual(enrich_result["blops_count"], 1)
+                self.assertEqual(scan.activity_profile["primary_timezone"], "EUTZ")
+
+    def test_local_threat_activity_profile_aggregation(self):
+        """Tests activity profile calculation across combat activity and timezones"""
+        pilots = [
+            {
+                "character_name": "Pilot USTZ",
+                "activity": {"1": 10, "2": 25, "3": 15},  # USTZ
+            },
+            {
+                "character_name": "Pilot EUTZ",
+                "activity": {"18": 100, "19": 150},  # EUTZ
+            },
+        ]
+        profile = LocalThreatParser.calculate_activity_profile(pilots)
+        self.assertEqual(profile["primary_timezone"], "EUTZ")
+        self.assertEqual(profile["tz_breakdown"]["EUTZ"], 250)
+        self.assertEqual(profile["tz_breakdown"]["USTZ"], 50)
+        self.assertEqual(profile["tz_breakdown"]["AUTZ"], 0)
+        self.assertEqual(profile["total_events"], 300)

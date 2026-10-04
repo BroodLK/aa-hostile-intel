@@ -868,6 +868,8 @@ class ZKillClient:
                 if v:
                     parsed[k] = True
 
+        activity = stats.get("activity") or stats.get("hourly") or {}
+
         res = {
             **default_res,
             **parsed,
@@ -880,6 +882,7 @@ class ZKillClient:
             "isk_lost": stats.get("iskLost", 0) or 0,
             "top_ships": top_ships[:5],
             "likely_ship": likely_ship,
+            "activity": activity,
         }
         return res
 

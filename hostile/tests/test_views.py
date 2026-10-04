@@ -549,6 +549,7 @@ class TestHostileViews(TestCase):
                     "is_fc": True,
                     "fc_level": "HIGH",
                     "fc_score": 105,
+                    "activity": {"18": 100, "19": 150},
                 }
             return {
                 "danger_ratio": 20,
@@ -557,6 +558,7 @@ class TestHostileViews(TestCase):
                 "top_ships": ["Arazu"],
                 "is_cyno_alt": True,
                 "cyno_count": 8,
+                "activity": {"19": 50, "20": 50},
             }
 
         api_url = reverse("hostile:api_threat_scan_pilot_intel", args=[scan.id])
@@ -591,10 +593,14 @@ class TestHostileViews(TestCase):
                 self.assertEqual(data2["remaining_count"], 0)
                 self.assertTrue(data2["is_finished"])
                 self.assertGreater(data2["blops_drop_chance"], 0)
+                self.assertEqual(data2["activity_profile"]["primary_timezone"], "EUTZ")
+                self.assertEqual(data2["activity_profile"]["tz_breakdown"]["EUTZ"], 350)
+                self.assertEqual(data2["activity_profile"]["total_events"], 350)
 
         # Confirm scan model in database was updated
         scan.refresh_from_db()
         self.assertGreater(scan.blops_drop_chance, 0)
+        self.assertEqual(scan.activity_profile["primary_timezone"], "EUTZ")
         self.assertEqual(len(scan.pilots_data), 2)
         self.assertTrue(all(p.get("zkill_synced") for p in scan.pilots_data))
 

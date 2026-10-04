@@ -144,28 +144,28 @@
                 <h6 class="mb-0 text-light fw-bold">
                     <i class="fas fa-chart-line me-2 text-info"></i>{% translate "Local Activity Profile" %}
                 </h6>
-                <span class="badge bg-info text-dark">{{ activity_profile.primary_timezone|default:"UNKNOWN" }}</span>
+                <span id="activity-primary-tz-badge" class="badge bg-info text-dark">{{ activity_profile.primary_timezone|default:"UNKNOWN" }}</span>
             </div>
             <div class="card-body">
                 <div class="d-flex justify-content-between mb-3 text-center">
                     <div class="p-2 border border-secondary rounded flex-fill me-2 bg-dark">
                         <div class="small text-muted">EUTZ (14-22 UTC)</div>
-                        <div class="fw-bold text-info fs-5">{{ activity_profile.tz_breakdown.EUTZ|default:0 }}</div>
+                        <div id="activity-eutz-count" class="fw-bold text-info fs-5">{{ activity_profile.tz_breakdown.EUTZ|default:0 }}</div>
                     </div>
                     <div class="p-2 border border-secondary rounded flex-fill me-2 bg-dark">
                         <div class="small text-muted">USTZ (00-08 UTC)</div>
-                        <div class="fw-bold text-warning fs-5">{{ activity_profile.tz_breakdown.USTZ|default:0 }}</div>
+                        <div id="activity-ustz-count" class="fw-bold text-warning fs-5">{{ activity_profile.tz_breakdown.USTZ|default:0 }}</div>
                     </div>
                     <div class="p-2 border border-secondary rounded flex-fill bg-dark">
                         <div class="small text-muted">AUTZ (08-14 UTC)</div>
-                        <div class="fw-bold text-success fs-5">{{ activity_profile.tz_breakdown.AUTZ|default:0 }}</div>
+                        <div id="activity-autz-count" class="fw-bold text-success fs-5">{{ activity_profile.tz_breakdown.AUTZ|default:0 }}</div>
                     </div>
                 </div>
                 <div class="small text-muted d-flex justify-content-between">
-                    <span>{% translate "Total Timestamped Events:" %} <strong class="text-light">{{ activity_profile.total_events|default:0 }}</strong></span>
-                    {% if activity_profile.first_seen %}
-                    <span>{% translate "First Seen:" %} <strong class="text-light">{{ activity_profile.first_seen }}</strong></span>
-                    {% endif %}
+                    <span>{% translate "Total Timestamped Events:" %} <strong id="activity-total-events" class="text-light">{{ activity_profile.total_events|default:0 }}</strong></span>
+                    <span id="activity-first-seen-container" class="{% if not activity_profile.first_seen %}d-none{% endif %}">
+                        {% translate "First Seen:" %} <strong id="activity-first-seen-text" class="text-light">{{ activity_profile.first_seen|default:"" }}</strong>
+                    </span>
                 </div>
             </div>
         </div>
@@ -645,6 +645,39 @@ document.addEventListener("DOMContentLoaded", function () {
                         {% translate "No critical tactical risk indicators detected for this scan." %}
                     </li>
                 `;
+            }
+        }
+
+        // Local Activity Profile & Timezone breakdown
+        if (data.activity_profile) {
+            const ap = data.activity_profile;
+            const tzBadge = document.getElementById("activity-primary-tz-badge");
+            if (tzBadge) {
+                tzBadge.textContent = ap.primary_timezone || "UNKNOWN";
+            }
+            const eutzEl = document.getElementById("activity-eutz-count");
+            if (eutzEl) {
+                eutzEl.textContent = (ap.tz_breakdown && ap.tz_breakdown.EUTZ != null) ? ap.tz_breakdown.EUTZ : 0;
+            }
+            const ustzEl = document.getElementById("activity-ustz-count");
+            if (ustzEl) {
+                ustzEl.textContent = (ap.tz_breakdown && ap.tz_breakdown.USTZ != null) ? ap.tz_breakdown.USTZ : 0;
+            }
+            const autzEl = document.getElementById("activity-autz-count");
+            if (autzEl) {
+                autzEl.textContent = (ap.tz_breakdown && ap.tz_breakdown.AUTZ != null) ? ap.tz_breakdown.AUTZ : 0;
+            }
+            const totalEventsEl = document.getElementById("activity-total-events");
+            if (totalEventsEl) {
+                totalEventsEl.textContent = ap.total_events || 0;
+            }
+            const firstSeenContainer = document.getElementById("activity-first-seen-container");
+            const firstSeenText = document.getElementById("activity-first-seen-text");
+            if (firstSeenContainer && firstSeenText) {
+                if (ap.first_seen) {
+                    firstSeenText.textContent = ap.first_seen;
+                    firstSeenContainer.classList.remove("d-none");
+                }
             }
         }
     }
