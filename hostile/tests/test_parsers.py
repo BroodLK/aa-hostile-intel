@@ -15,6 +15,7 @@ from hostile.parsers.dscan import DScanParser
 from hostile.parsers.eft import EFTParser, StructureFittingParser
 from hostile.parsers.local import LocalThreatParser
 from hostile.parsers.showinfo import StructureHackParser, StructureShowInfoParser
+from hostile.services.threat_engine import ThreatEngine
 
 
 class TestParsers(TestCase):
@@ -225,6 +226,20 @@ class TestParsers(TestCase):
         super_entry = next((p for p in res["pilots"] if p["character_name"] == "HostileSuperPilot"), None)
         self.assertIsNotNone(super_entry)
         self.assertIn("Hel", super_entry["likely_ship"])
+
+    def test_helios_and_onyx_not_classified_as_supers(self):
+        """Verifies Helios (covert ops frigate) and Onyx (HIC) are not misclassified as supercapitals (Hel/Nyx)"""
+        dscan_sample = (
+            "11188\tScout Helios\tHelios\t100 km\n"
+            "12017\tTackle Onyx\tOnyx\t50 km\n"
+        )
+        parsed_dscan = DScanParser.parse(dscan_sample)
+        profile = ThreatEngine.categorize_dscan_ships(parsed_dscan)
+        self.assertEqual(len(profile["supers"]), 0)
+        self.assertEqual(len(profile["recons"]), 1)
+        self.assertEqual(profile["recons"][0]["type_name"], "Helios")
+        self.assertEqual(len(profile["bubbles"]), 1)
+        self.assertEqual(profile["bubbles"][0]["type_name"], "Onyx")
 
     def test_ignored_friendly_alliance_in_local_parser(self):
         with self.settings(HOSTILE_IGNORED_ALLIANCE_NAMES=["Friendly Alliance"]):

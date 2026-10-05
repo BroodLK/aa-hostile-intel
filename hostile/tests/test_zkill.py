@@ -719,6 +719,23 @@ class ZKillViewsTestCase(TestCase):
         self.assertEqual(parsed["titan_count"], 2)
         self.assertTrue(parsed["is_rookie"])
 
+    def test_classify_ship_word_boundary_distinction(self):
+        """Verifies Helios/Onyx are not classified as supercapitals, while Hel/Nyx are"""
+        helios_flags = ZKillClient._classify_ship("Helios")
+        self.assertFalse(helios_flags["is_super_pilot"])
+        self.assertFalse(helios_flags["is_capital_pilot"])
+
+        hel_flags = ZKillClient._classify_ship("Hel")
+        self.assertTrue(hel_flags["is_super_pilot"])
+        self.assertTrue(hel_flags["is_capital_pilot"])
+
+        onyx_flags = ZKillClient._classify_ship("Onyx")
+        self.assertFalse(onyx_flags["is_super_pilot"])
+
+        nyx_flags = ZKillClient._classify_ship("Nyx")
+        self.assertTrue(nyx_flags["is_super_pilot"])
+        self.assertTrue(nyx_flags["is_capital_pilot"])
+
     def test_pilot_dossier_display_properties(self):
         """Test formatting and display helper properties on HostilePilotDossier"""
         dossier = HostilePilotDossier.objects.create(

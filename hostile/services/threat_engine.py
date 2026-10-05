@@ -3,6 +3,7 @@ Threat Engine for calculating Black Ops & Capital drop probabilities and analyzi
 """
 
 # Standard Library
+import re
 from typing import Any, Dict, List, Optional
 
 # Third Party
@@ -138,20 +139,20 @@ class ThreatEngine:
 
             profile["total_ships"] += 1
 
-            if any(h in type_name for h in SUPER_TITAN_HULLS):
+            if any(re.search(rf"\b{re.escape(h)}\b", type_name) for h in SUPER_TITAN_HULLS):
                 profile["supers"].append(entry)
-            elif any(h in type_name for h in CAPITAL_HULLS):
+            elif any(re.search(rf"\b{re.escape(h)}\b", type_name) for h in CAPITAL_HULLS):
                 profile["capitals"].append(entry)
-            elif any(h in type_name for h in BLOPS_HULLS):
+            elif any(re.search(rf"\b{re.escape(h)}\b", type_name) for h in BLOPS_HULLS):
                 profile["blops"].append(entry)
-            elif any(h in type_name for h in COVERT_RECON_HULLS):
+            elif any(re.search(rf"\b{re.escape(h)}\b", type_name) for h in COVERT_RECON_HULLS):
                 profile["recons"].append(entry)
-            elif any(h in type_name for h in HIC_DIC_HULLS) or "warp disruption" in name or "interdiction" in name:
+            elif any(re.search(rf"\b{re.escape(h)}\b", type_name) for h in HIC_DIC_HULLS) or "warp disruption" in name or "interdiction" in name:
                 profile["bubbles"].append(entry)
-            elif any(h in type_name for h in CYNO_HULLS) or "cyno" in name:
+            elif any(re.search(rf"\b{re.escape(h)}\b", type_name) for h in CYNO_HULLS) or "cyno" in name:
                 profile["cynos"].append(entry)
             elif "battleship" in type_name or any(
-                bs in type_name
+                re.search(rf"\b{re.escape(bs)}\b", type_name)
                 for bs in [
                     "tempest",
                     "megathron",

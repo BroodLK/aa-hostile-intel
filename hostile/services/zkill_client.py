@@ -3,6 +3,7 @@ zKillboard statistics and intelligence client for hostile entities
 """
 
 # Standard Library
+import re
 import time
 from typing import Any, Dict, Iterable, List, Optional, Set
 
@@ -521,22 +522,22 @@ class ZKillClient:
         carrier_names = ["archon", "chimera", "thanatos", "nidhoggur", "carrier"]
         blops_names = ["redeemer", "widow", "sin", "panther", "marshal", "black ops", "blops"]
 
-        if any(n in s for n in titan_names):
+        if any(re.search(rf"\b{re.escape(n)}\b", s) for n in titan_names):
             flags["is_titan_pilot"] = True
             flags["is_super_pilot"] = True
             flags["is_capital_pilot"] = True
-        elif any(n in s for n in super_names):
+        elif any(re.search(rf"\b{re.escape(n)}\b", s) for n in super_names):
             flags["is_super_pilot"] = True
             flags["is_capital_pilot"] = True
-        elif any(n in s for n in dread_names):
+        elif any(re.search(rf"\b{re.escape(n)}\b", s) for n in dread_names):
             flags["is_dread_pilot"] = True
             flags["is_capital_pilot"] = True
-        elif any(n in s for n in fax_names):
+        elif any(re.search(rf"\b{re.escape(n)}\b", s) for n in fax_names):
             flags["is_fax_pilot"] = True
             flags["is_capital_pilot"] = True
-        elif any(n in s for n in carrier_names):
+        elif any(re.search(rf"\b{re.escape(n)}\b", s) for n in carrier_names):
             flags["is_capital_pilot"] = True
-        elif any(n in s for n in blops_names):
+        elif any(re.search(rf"\b{re.escape(n)}\b", s) for n in blops_names):
             flags["is_blops_pilot"] = True
 
         return flags
