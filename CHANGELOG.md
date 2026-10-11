@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [0.0.6] - 2026-10-11
+
+### Added
+- **Ansiblex & FLEX Structure Timers**: Added full support for Ansiblex Jump Gates, Pharolux Cyno Beacons, Tenebrex Cyno Jammers, and Metenox Moon Drills across structure type selectors, structure registrations, and Structure Timers board.
+- **Two-Way aa-structuretimers & Timerboard Synchronization**: Real-time invisible bidirectional synchronization between Hostile Intel Structure Timers, `aa-structuretimers` (v3.2.0+), and Alliance Auth built-in Structure Timers / Timerboard (`allianceauth.timerboard`).
+- **Deterministic State Marker & Untracked Change Detection**: Implemented SHA-256 state hashing marker (`last_sync_hash`) on `StructureTimer` for instant change detection, distinguishing backend-initiated modifications from external untracked changes across Discord bots and external apps without recursion loops.
+- **Self-Correcting Database Reconciliation**: Added automated periodic database sync scan and manual on-demand officer synchronization action (`hostile:timerboard_sync`) ensuring 100% parity across all boards with cross-app drift correction.
+- **Consolidated Database Migrations**: Merged all external synchronization fields (`timerboard_timer_id`, `structuretimers_timer_id`, `last_sync_hash`) into migration `0003_structuretimer_timerboard_timer_id`.
+
 ## [0.0.1] - 2026-10-03
 
 ### Initial Release

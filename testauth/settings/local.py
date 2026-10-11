@@ -65,6 +65,9 @@ INSTALLED_APPS = [app for app in INSTALLED_APPS if app != "allianceauth.admin_st
 # Add any additional apps to this list.
 INSTALLED_APPS += [
     "eve_sde",
+    "allianceauth.timerboard",
+    "eveuniverse",
+    "structuretimers",
     PACKAGE,
 ]
 
@@ -123,27 +126,45 @@ DEFAULT_FROM_EMAIL = ""
 # Add any custom settings below here. #
 #######################################
 
+from django.core.cache.backends.base import DEFAULT_TIMEOUT
+from django.core.cache.backends.locmem import LocMemCache
+
+
+class EsiLocMemCache(LocMemCache):
+    def set(self, key, value, timeout=DEFAULT_TIMEOUT, version=None, **kwargs):
+        if kwargs.get("nx", False):
+            return self.add(key, value, timeout=timeout, version=version)
+        return super().set(key, value, timeout=timeout, version=version)
+
+
 CACHES = {
     "default": {
-        "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": "redis://127.0.0.1:6379/1",
+        "BACKEND": "testauth.settings.local.EsiLocMemCache",
+        "LOCATION": "test-cache",
     }
 }
+
+CELERY_TASK_ALWAYS_EAGER = True
+CELERY_ALWAYS_EAGER = True
+STRUCTURETIMERS_NOTIFICATIONS_ENABLED = False
+
 try:
-    import socket
-    s = socket.socket()
-    s.settimeout(0.5)
-    s.connect(("127.0.0.1", 6379))
-    s.close()
-except Exception:
+    import allianceauth.utils.cache
+    from unittest.mock import MagicMock
     try:
-        s = socket.socket()
-        s.settimeout(0.5)
-        s.connect(("172.20.67.235", 6379))
-        s.close()
-        CACHES["default"]["LOCATION"] = "redis://172.20.67.235:6379/1"
+        allianceauth.utils.cache.get_redis_client().ping()
     except Exception:
-        pass
+        mock_redis = MagicMock()
+        mock_redis.info.return_value = {"redis_version": "7.4.0"}
+        mock_redis.ping.return_value = True
+        allianceauth.utils.cache.get_redis_client = lambda: mock_redis
+        try:
+            import app_utils.allianceauth
+            app_utils.allianceauth.get_redis_client = lambda: mock_redis
+        except Exception:
+            pass
+except Exception:
+    pass
 
 STORAGES = {
     "default": {

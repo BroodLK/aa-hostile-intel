@@ -8,6 +8,11 @@
         <p class="text-muted small mb-0">{% translate "Vulnerability windows, reinforcement timers, anchoring/unanchoring timers, and sov campaigns." %}</p>
     </div>
     <div class="d-flex gap-2">
+        {% if perms.hostile.manage_intel %}
+        <a href="{% url 'hostile:timerboard_sync' %}" class="btn btn-outline-info btn-sm fw-bold shadow-sm" title="{% translate 'Synchronize timers with Alliance Auth Timerboard' %}">
+            <i class="fas fa-sync-alt me-1"></i>{% translate "Sync Timerboard" %}
+        </a>
+        {% endif %}
         <a href="{% url 'hostile:sov_timers' %}" class="btn btn-outline-warning btn-sm fw-bold shadow-sm" data-hostile-loading="{% translate 'Loading Sov Timers' %}" data-hostile-loading-detail="{% translate 'Fetching active sovereignty campaign timers and defender scores...' %}">
             <i class="fas fa-flag me-1"></i>{% translate "Sov Timers" %}
         </a>
@@ -45,7 +50,12 @@
                 <tbody class="border-secondary">
                     {% for timer in upcoming_timers %}
                     <tr>
-                        <td class="fw-bold">{{ timer.target_name }}</td>
+                        <td class="fw-bold">
+                            {{ timer.target_name }}
+                            {% if timer.structure and timer.structure.structure_type and timer.structure.structure_type.name not in timer.target_name %}
+                                <span class="badge badge-subtle-secondary ms-1 small">{{ timer.structure.structure_type.name }}</span>
+                            {% endif %}
+                        </td>
                         <td class="text-info font-mono">{{ timer.solar_system.name|default:"Unknown" }}</td>
                         <td><span class="badge badge-subtle-secondary">{{ timer.timer_type }}</span></td>
                         <td class="font-mono small">{{ timer.timer_datetime|date:"Y-m-d H:i:s" }} UTC</td>
@@ -119,7 +129,12 @@
                 <tbody class="border-secondary">
                     {% for timer in expired_timers %}
                     <tr class="text-muted">
-                        <td>{{ timer.target_name }}</td>
+                        <td>
+                            {{ timer.target_name }}
+                            {% if timer.structure and timer.structure.structure_type and timer.structure.structure_type.name not in timer.target_name %}
+                                <span class="badge badge-subtle-secondary ms-1 small">{{ timer.structure.structure_type.name }}</span>
+                            {% endif %}
+                        </td>
                         <td class="font-mono">{{ timer.solar_system.name|default:"Unknown" }}</td>
                         <td><span class="badge badge-subtle-secondary">{{ timer.timer_type }}</span></td>
                         <td class="font-mono small">{{ timer.timer_datetime|date:"Y-m-d H:i" }} UTC</td>

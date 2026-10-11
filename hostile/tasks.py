@@ -136,3 +136,30 @@ def sync_alliance_zkill_stats(alliance_id: int) -> bool:
             alliance_id,
         )
         return False
+
+
+@shared_task
+def sync_timerboard_timers() -> str:
+    """
+    Synchronizes Hostile Structure Timers with external timerboards (aa-structuretimers & Timerboard) in both directions.
+    """
+    logger.info(
+        "Starting background bidirectional synchronization with external structure timerboards..."
+    )
+    from hostile.services.timer_sync import TimerSyncService
+
+    if not TimerSyncService.is_sync_enabled():
+        logger.info(
+            "External timer sync is disabled or neither structuretimers nor timerboard is installed."
+        )
+        return "Timer sync skipped (disabled or uninstalled)."
+
+    stats = TimerSyncService.sync_all_timers()
+    msg = (
+        f"Timer sync complete: "
+        f"structuretimers (pushed={stats.get('synced_to_structuretimers', 0)}, pulled={stats.get('synced_from_structuretimers', 0)}), "
+        f"timerboard (pushed={stats.get('synced_to_timerboard', 0)}, pulled={stats.get('synced_from_timerboard', 0)}), "
+        f"reconciled={stats.get('corrected', 0)}."
+    )
+    logger.info(msg)
+    return msg

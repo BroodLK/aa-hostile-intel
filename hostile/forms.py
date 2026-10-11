@@ -414,6 +414,7 @@ class StructureTypeChoiceField(forms.ModelChoiceField):
             # 1657: Citadel
             # 1404: Engineering Complex
             # 1406: Refinery
+            # 1408: Navigation Structure (Ansiblex Jump Gate, Pharolux Cyno Beacon, Tenebrex Cyno Jammer)
             # 2016: Upwell Jump Gate
             # 2017: Structure Cynosural Jammer / Cynosural Jammer
             # 2014: Structure Cynosural Beacon / Cynosural Navigation Beacon
@@ -421,12 +422,31 @@ class StructureTypeChoiceField(forms.ModelChoiceField):
             # 365:  Control Tower
             # 1003: Infrastructure Hub
             # 322:  Territorial Claim Unit
-            # 4807: Moon Drill
-            structure_group_ids = [1657, 1404, 1406, 2016, 2017, 2014, 511, 365, 1003, 322, 4807]
+            # 4807: Moon Drill (Metenox Moon Drill)
+            # 4812: Mercenary Den
+            # 4810: Orbital Skyhook
+            structure_group_ids = [
+                1657,
+                1404,
+                1406,
+                1408,
+                2016,
+                2017,
+                2014,
+                511,
+                365,
+                1003,
+                322,
+                4807,
+                4812,
+                4810,
+            ]
             structure_group_names = [
                 "Citadel",
                 "Engineering Complex",
                 "Refinery",
+                "Navigation Structure",
+                "FLEX Structure",
                 "Upwell Jump Gate",
                 "Structure Cynosural Jammer",
                 "Cynosural Jammer",
@@ -438,6 +458,8 @@ class StructureTypeChoiceField(forms.ModelChoiceField):
                 "Infrastructure Hub",
                 "Territorial Claim Unit",
                 "Moon Drill",
+                "Mercenary Den",
+                "Orbital Skyhook",
             ]
             known_structures = [
                 # Citadels & Faction Citadels
@@ -463,6 +485,8 @@ class StructureTypeChoiceField(forms.ModelChoiceField):
                 "Pharolux Cyno Beacon",
                 "Tenebrex Cyno Jammer",
                 "Metenox Moon Drill",
+                "Mercenary Den",
+                "Orbital Skyhook",
                 # Orbitals & Sov
                 "Customs Office",
                 "Player Owned Customs Office",
@@ -476,7 +500,10 @@ class StructureTypeChoiceField(forms.ModelChoiceField):
                 models.Q(group_id__in=structure_group_ids)
                 | models.Q(group__name__in=structure_group_names)
                 | models.Q(name__in=known_structures)
-                | (models.Q(name__endswith="Control Tower") & ~models.Q(name__icontains="Blueprint"))
+                | (
+                    models.Q(name__endswith="Control Tower")
+                    & ~models.Q(name__icontains="Blueprint")
+                )
             )
 
             # Exclude wrecks, blueprints, plates/modules, assembly arrays, test items, tutorial AIR items, and NPC diamond structures
@@ -510,7 +537,7 @@ class StructureTypeChoiceField(forms.ModelChoiceField):
                         "Armor Reinforcement",
                     ]
                 )
-                | models.Q(group__category_id__in=[7, 8, 9, 16, 17, 18, 20, 22, 24])
+                | models.Q(group__category_id__in=[7, 8, 9, 16, 17, 18, 20, 24])
             )
 
             queryset = qs.distinct().order_by("name")
@@ -1223,6 +1250,13 @@ class StructureTimerForm(forms.ModelForm):
     )
     timer_datetime = forms.DateTimeField(
         required=True,
+        input_formats=[
+            "%Y-%m-%dT%H:%M",
+            "%Y-%m-%d %H:%M:%S",
+            "%Y-%m-%d %H:%M",
+            "%Y-%m-%dT%H:%M:%S",
+            "%Y-%m-%d",
+        ],
         widget=forms.DateTimeInput(
             attrs={"class": "form-control", "type": "datetime-local", "id": "id_timer_datetime"}
         ),

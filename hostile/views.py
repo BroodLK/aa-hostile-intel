@@ -1035,6 +1035,32 @@ def timer_verify(request: WSGIRequest, timer_id: int) -> HttpResponse:
 
 
 @login_required
+@permission_required("hostile.manage_intel")
+def timerboard_sync(request: WSGIRequest) -> HttpResponse:
+    """Manual on-demand bidirectional synchronization with external timerboards (aa-structuretimers & Timerboard)"""
+    from hostile.services.timer_sync import TimerSyncService
+
+    if not TimerSyncService.is_sync_enabled():
+        messages.warning(
+            request,
+            "Timerboard synchronization is disabled or no external timerboard app is installed.",
+        )
+    else:
+        stats = TimerSyncService.sync_all_timers()
+        total_pushed = stats.get("synced_to_structuretimers", 0) + stats.get(
+            "synced_to_timerboard", 0
+        )
+        total_pulled = stats.get("synced_from_structuretimers", 0) + stats.get(
+            "synced_from_timerboard", 0
+        )
+        messages.success(
+            request,
+            f"Timers synchronized successfully ({total_pushed} pushed to external boards, {total_pulled} pulled from external boards).",
+        )
+    return redirect(request.headers.get("referer", "hostile:timers"))
+
+
+@login_required
 @permission_required("hostile.basic_access")
 def timer_edit(request: WSGIRequest, timer_id: int) -> HttpResponse:
     """Edits an existing structure or sovereignty timer"""

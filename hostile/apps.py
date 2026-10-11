@@ -13,3 +13,11 @@ class ExampleConfig(AppConfig):
     name = "hostile"
     label = "hostile"
     verbose_name = f"Hostile Intel v{__version__}"
+
+    def ready(self) -> None:
+        try:
+            # Register signals and connect external timerboard bidirectional synchronization
+            from hostile import signals
+            signals.connect_all_timer_signals()
+        except Exception:
+            pass

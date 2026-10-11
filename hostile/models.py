@@ -748,6 +748,24 @@ class StructureTimer(models.Model):
         help_text="True if this sovereignty campaign has concluded/ended",
     )
     notes = models.TextField(blank=True)
+    timerboard_timer_id = models.IntegerField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Linked Alliance Auth Timerboard Timer ID",
+    )
+    structuretimers_timer_id = models.IntegerField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Linked aa-structuretimers Timer ID",
+    )
+    last_sync_hash = models.CharField(
+        max_length=64,
+        blank=True,
+        default="",
+        help_text="Hash marker of last synchronized state for change detection",
+    )
     created_by = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
@@ -778,10 +796,39 @@ class StructureTimer(models.Model):
     def target_name(self) -> str:
         """Return structure name or solar system name with timer type fallback"""
         if self.structure:
+            if (
+                self.structure.structure_type
+                and self.structure.structure_type.name
+                and self.structure.structure_type.name.lower()
+                not in self.structure.name.lower()
+            ):
+                return f"{self.structure.name} ({self.structure.structure_type.name})"
             return self.structure.name
         if self.solar_system:
             return f"{self.solar_system.name} ({self.get_timer_type_display()})"
         return self.get_timer_type_display()
+
+    @property
+    def timerboard_timer(self):
+        """Return linked Alliance Auth Timer instance if installed and available"""
+        if not self.timerboard_timer_id:
+            return None
+        from hostile.services.timer_sync import TimerboardSyncService
+
+        return TimerboardSyncService.get_timerboard_timer_by_id(
+            self.timerboard_timer_id
+        )
+
+    @property
+    def structuretimers_timer(self):
+        """Return linked aa-structuretimers Timer instance if installed and available"""
+        if not self.structuretimers_timer_id:
+            return None
+        from hostile.services.timer_sync import TimerboardSyncService
+
+        return TimerboardSyncService.get_structuretimers_timer_by_id(
+            self.structuretimers_timer_id
+        )
 
     @property
     def defender_display(self) -> str:

@@ -60,6 +60,11 @@ urlpatterns = [
         name="timer_delete",
     ),
     path("timers/<int:timer_id>/verify/", views.timer_verify, name="timer_verify"),
+    path(
+        "timers/sync-timerboard/",
+        views.timerboard_sync,
+        name="timerboard_sync",
+    ),
     path("calculator/", views.timer_calculator, name="calculator"),
     path("api/calculate-timer/", views.api_timer_calculate, name="api_timer_calculate"),
     path("api/routes/", views.api_routes_batch, name="api_routes_batch"),
