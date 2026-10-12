@@ -268,3 +268,42 @@ class TestTimerboardSynchronization(TestCase):
         """Officers can manually trigger Timerboard sync via hostile:timerboard_sync view"""
         response = self.client.get(reverse("hostile:timerboard_sync"))
         self.assertRedirects(response, reverse("hostile:timers"))
+
+    def test_sync_timerboard_hostile_timer_does_not_assign_eve_corp_as_owner(self):
+        """Hostile timer in Timerboard created by user does not set user's eve_corp as the owner"""
+        expiry = timezone.now() + timedelta(days=2)
+        tb_timer = Timer.objects.create(
+            details="Hostile Astrahus Anchor",
+            system="1DQ1-A",
+            structure=Timer.Structure.ASTRAHUS,
+            timer_type=Timer.TimerType.ARMOR,
+            objective=Timer.Objective.HOSTILE,
+            eve_time=expiry,
+            user=self.user_officer,
+            eve_corp=self.corp,
+        )
+
+        st = StructureTimer.objects.filter(timerboard_timer_id=tb_timer.id).first()
+        self.assertIsNotNone(st)
+        self.assertIsNone(st.structure.corporation)
+        self.assertIsNone(st.structure.alliance)
+        self.assertNotEqual(st.structure.owner_name, self.corp.corporation_name)
+
+    def test_sync_timerboard_friendly_timer_sets_friendly_info(self):
+        """Friendly timer in Timerboard correctly resolves friendly corporation owner"""
+        expiry = timezone.now() + timedelta(days=1)
+        tb_timer = Timer.objects.create(
+            details="Friendly Astrahus Citadel",
+            system="Jita",
+            structure=Timer.Structure.ASTRAHUS,
+            timer_type=Timer.TimerType.ARMOR,
+            objective=Timer.Objective.FRIENDLY,
+            eve_time=expiry,
+            user=self.user_officer,
+            eve_corp=self.corp,
+        )
+
+        st = StructureTimer.objects.filter(timerboard_timer_id=tb_timer.id).first()
+        self.assertIsNotNone(st)
+        self.assertEqual(st.structure.corporation.corporation_id, self.corp.corporation_id)
+        self.assertTrue(st.structure.corporation.is_friendly)

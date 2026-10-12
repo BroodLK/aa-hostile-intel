@@ -364,3 +364,110 @@ class TestStructureTimersSynchronization(TestCase):
         self.assertIsNotNone(linked_timer)
         self.assertEqual(linked_timer.timer_datetime, new_date)
         self.assertEqual(linked_timer.notes, "Drifted out of band notes")
+
+    def test_sync_structuretimers_hostile_timer_does_not_assign_creators_alliance(self):
+        """Hostile structure timer created by main user does not attribute hostile citadel to main alliance"""
+        main_alliance = HostileAlliance.objects.create(
+            alliance_id=99001122,
+            alliance_name="Main Friendly Alliance",
+            ticker="MAIN",
+            is_friendly=True,
+        )
+        main_eve_alliance = EveAllianceInfo.objects.create(
+            alliance_id=99001122,
+            alliance_name="Main Friendly Alliance",
+            alliance_ticker="MAIN",
+        )
+
+        red_alliance = HostileAlliance.objects.create(
+            alliance_id=99008877,
+            alliance_name="Red Enemy Coalition",
+            ticker="RED",
+            is_friendly=False,
+        )
+
+        expiry = timezone.now() + timedelta(days=2)
+        st_timer = StructureTimersTimer.objects.create(
+            eve_solar_system=self.eve_system_1dq,
+            structure_type=self.eve_type_astrahus,
+            structure_name="1DQ1-A Hostile Fortizar",
+            location_details="Planet III",
+            owner_name="Red Enemy Coalition",
+            timer_type=StructureTimersTimer.Type.ARMOR,
+            objective=StructureTimersTimer.Objective.HOSTILE,
+            date=expiry,
+            user=self.user_officer,
+            eve_alliance=main_eve_alliance,
+        )
+
+        linked_timer = StructureTimer.objects.filter(
+            structuretimers_timer_id=st_timer.id
+        ).first()
+        self.assertIsNotNone(linked_timer)
+        self.assertEqual(linked_timer.structure.name, "1DQ1-A Hostile Fortizar")
+        self.assertEqual(linked_timer.structure.alliance, red_alliance)
+        self.assertNotEqual(linked_timer.structure.alliance, main_alliance)
+        self.assertFalse(TimerSyncService.is_structure_timer_friendly(linked_timer))
+
+    def test_sync_structuretimers_friendly_timer_sets_friendly_info(self):
+        """Friendly structure timer created in structuretimers marks structure and timer as friendly"""
+        blue_alliance = HostileAlliance.objects.create(
+            alliance_id=99005544,
+            alliance_name="Blue Friendly Alliance",
+            ticker="BLUE",
+            is_friendly=True,
+        )
+        expiry = timezone.now() + timedelta(days=1)
+        st_timer = StructureTimersTimer.objects.create(
+            eve_solar_system=self.eve_system_jita,
+            structure_type=self.eve_type_astrahus,
+            structure_name="Jita Friendly Citadel",
+            owner_name="Blue Friendly Alliance",
+            timer_type=StructureTimersTimer.Type.ARMOR,
+            objective=StructureTimersTimer.Objective.FRIENDLY,
+            date=expiry,
+            user=self.user_officer,
+        )
+
+        linked_timer = StructureTimer.objects.filter(
+            structuretimers_timer_id=st_timer.id
+        ).first()
+        self.assertIsNotNone(linked_timer)
+        self.assertEqual(linked_timer.structure.alliance, blue_alliance)
+        self.assertTrue(linked_timer.structure.alliance.is_friendly)
+        self.assertTrue(TimerSyncService.is_structure_timer_friendly(linked_timer))
+
+    def test_sync_structuretimers_hostile_timer_clears_erroneously_attached_friendly_alliance(self):
+        """Syncing hostile timer on a structure clears any erroneously attached friendly main alliance"""
+        friendly_alliance = HostileAlliance.objects.create(
+            alliance_id=99003344,
+            alliance_name="Friendly Main Alliance",
+            ticker="FRND",
+            is_friendly=True,
+        )
+        struct = HostileStructure.objects.create(
+            name="Contested Keepstar",
+            structure_type=self.astrahus_type,
+            solar_system=self.system_1dq,
+            alliance=friendly_alliance,
+            created_by=self.user_officer,
+        )
+        expiry = timezone.now() + timedelta(hours=12)
+        st_timer = StructureTimersTimer.objects.create(
+            eve_solar_system=self.eve_system_1dq,
+            structure_type=self.eve_type_astrahus,
+            structure_name="Contested Keepstar",
+            owner_name="",
+            timer_type=StructureTimersTimer.Type.HULL,
+            objective=StructureTimersTimer.Objective.HOSTILE,
+            date=expiry,
+            user=self.user_officer,
+        )
+
+        linked_timer = StructureTimer.objects.filter(
+            structuretimers_timer_id=st_timer.id
+        ).first()
+        self.assertIsNotNone(linked_timer)
+        linked_timer.structure.refresh_from_db()
+        self.assertIsNone(linked_timer.structure.alliance)
+        self.assertFalse(TimerSyncService.is_structure_timer_friendly(linked_timer))

@@ -596,11 +596,15 @@ class TimerSyncService:
         mapped_timer_type = cls.map_timerboard_type_to_structure_timer(
             tb_timer.timer_type
         )
-        owner_name = ""
-        if hasattr(tb_timer, "eve_corp") and tb_timer.eve_corp:
+        owner_name = getattr(tb_timer, "owner_name", "") or ""
+        objective = getattr(tb_timer, "objective", "")
+        if (
+            not owner_name
+            and str(objective).lower() == "friendly"
+            and hasattr(tb_timer, "eve_corp")
+            and tb_timer.eve_corp
+        ):
             owner_name = tb_timer.eve_corp.corporation_name or ""
-        elif hasattr(tb_timer, "owner_name"):
-            owner_name = tb_timer.owner_name or ""
 
         location_details = getattr(tb_timer, "planet_moon", "") or getattr(
             tb_timer, "location_details", ""
@@ -617,6 +621,129 @@ class TimerSyncService:
             notes=notes,
             location_details=location_details,
         )
+
+    @classmethod
+    def is_entity_friendly(
+        cls,
+        alliance_id: Optional[int] = None,
+        alliance_name: Optional[str] = None,
+        corp_id: Optional[int] = None,
+        corp_name: Optional[str] = None,
+        ticker: Optional[str] = None,
+    ) -> bool:
+        """
+        Determines whether an alliance or corporation entity is friendly based on
+        settings and database friendly flags.
+        """
+        from django.conf import settings
+        from hostile.models import HostileAlliance, HostileCorporation
+
+        main_alliance_id = getattr(
+            settings, "HOSTILE_MAIN_ALLIANCE_ID", getattr(settings, "ALLIANCE_ID", None)
+        )
+        main_alliance_name = getattr(
+            settings, "HOSTILE_MAIN_ALLIANCE_NAME", getattr(settings, "ALLIANCE_NAME", None)
+        )
+
+        if alliance_id and main_alliance_id and int(alliance_id) == int(main_alliance_id):
+            return True
+        if (
+            alliance_name
+            and main_alliance_name
+            and alliance_name.strip().lower() == main_alliance_name.strip().lower()
+        ):
+            return True
+
+        ignored_alliance_ids = [
+            int(i)
+            for i in getattr(settings, "HOSTILE_IGNORED_ALLIANCE_IDS", [])
+            if str(i).isdigit()
+        ]
+        if alliance_id and int(alliance_id) in ignored_alliance_ids:
+            return True
+
+        ignored_corp_ids = [
+            int(i)
+            for i in getattr(settings, "HOSTILE_IGNORED_CORP_IDS", [])
+            if str(i).isdigit()
+        ]
+        if corp_id and int(corp_id) in ignored_corp_ids:
+            return True
+
+        ignored_names = [
+            str(n).strip().lower()
+            for n in getattr(settings, "HOSTILE_IGNORED_ALLIANCE_NAMES", [])
+            if n
+        ]
+        if alliance_name and alliance_name.strip().lower() in ignored_names:
+            return True
+        if corp_name and corp_name.strip().lower() in ignored_names:
+            return True
+
+        ignored_tickers = [
+            str(t).strip().lower()
+            for t in getattr(settings, "HOSTILE_IGNORED_ALLIANCE_TICKERS", [])
+            if t
+        ]
+        if ticker and ticker.strip().lower() in ignored_tickers:
+            return True
+
+        # Check database is_friendly flags
+        if alliance_id and HostileAlliance.objects.filter(alliance_id=alliance_id, is_friendly=True).exists():
+            return True
+        if alliance_name and HostileAlliance.objects.filter(alliance_name__iexact=alliance_name.strip(),
+                                                            is_friendly=True).exists():
+            return True
+        if corp_id and HostileCorporation.objects.filter(corporation_id=corp_id, is_friendly=True).exists():
+            return True
+        if corp_name and HostileCorporation.objects.filter(corporation_name__iexact=corp_name.strip(),
+                                                           is_friendly=True).exists():
+            return True
+        if ticker and (
+            HostileAlliance.objects.filter(ticker__iexact=ticker.strip(), is_friendly=True).exists()
+            or HostileCorporation.objects.filter(ticker__iexact=ticker.strip(), is_friendly=True).exists()
+        ):
+            return True
+
+        return False
+
+    @classmethod
+    def is_structure_timer_friendly(cls, structure_timer: Any) -> bool:
+        """Determines if a Hostile StructureTimer represents a friendly objective/structure."""
+        if structure_timer.structure:
+            if structure_timer.structure.alliance:
+                if cls.is_entity_friendly(
+                    alliance_id=structure_timer.structure.alliance.alliance_id,
+                    alliance_name=structure_timer.structure.alliance.alliance_name,
+                    ticker=structure_timer.structure.alliance.ticker,
+                ) or getattr(structure_timer.structure.alliance, "is_friendly", False):
+                    return True
+            if structure_timer.structure.corporation:
+                if cls.is_entity_friendly(
+                    corp_id=structure_timer.structure.corporation.corporation_id,
+                    corp_name=structure_timer.structure.corporation.corporation_name,
+                    ticker=structure_timer.structure.corporation.ticker,
+                ) or getattr(structure_timer.structure.corporation, "is_friendly", False):
+                    return True
+            if structure_timer.structure.owner_ticker and cls.is_entity_friendly(
+                ticker=structure_timer.structure.owner_ticker
+            ):
+                return True
+
+        if structure_timer.defender_id and cls.is_entity_friendly(
+            alliance_id=structure_timer.defender_id, corp_id=structure_timer.defender_id
+        ):
+            return True
+        if structure_timer.defender_name and cls.is_entity_friendly(
+            alliance_name=structure_timer.defender_name, corp_name=structure_timer.defender_name
+        ):
+            return True
+        if structure_timer.defender_ticker and cls.is_entity_friendly(
+            ticker=structure_timer.defender_ticker
+        ):
+            return True
+
+        return False
 
     # -------------------------------------------------------------------------
     # Bidirectional Sync: Hostile -> External Boards
@@ -756,15 +883,33 @@ class TimerSyncService:
             structure_timer.timer_type
         )
 
-        objective = getattr(timer_model.Objective, "HOSTILE", "HO")
-        if (
-            structure_timer.structure
-            and structure_timer.structure.alliance
-            and getattr(structure_timer.structure.alliance, "is_friendly", False)
-        ):
-            objective = getattr(timer_model.Objective, "FRIENDLY", "FR")
+        objective = (
+            getattr(timer_model.Objective, "FRIENDLY", "FR")
+            if cls.is_structure_timer_friendly(structure_timer)
+            else getattr(timer_model.Objective, "HOSTILE", "HO")
+        )
 
         user = structure_timer.created_by or User.objects.filter(is_superuser=True).first()
+
+        eve_character = None
+        eve_corporation = None
+        eve_alliance = None
+        if user and hasattr(user, "profile"):
+            try:
+                from allianceauth.eveonline.models import EveAllianceInfo, EveCorporationInfo
+                main_char = getattr(user.profile, "main_character", None)
+                if main_char:
+                    eve_character = main_char
+                    if getattr(main_char, "corporation_id", None):
+                        eve_corporation = EveCorporationInfo.objects.filter(
+                            corporation_id=main_char.corporation_id
+                        ).first()
+                    if getattr(main_char, "alliance_id", None):
+                        eve_alliance = EveAllianceInfo.objects.filter(
+                            alliance_id=main_char.alliance_id
+                        ).first()
+            except Exception:
+                pass
 
         defaults = {
             "eve_solar_system": eve_system,
@@ -781,6 +926,12 @@ class TimerSyncService:
             "is_important": False,
             "is_opsec": False,
         }
+        if eve_character and hasattr(timer_model, "eve_character"):
+            defaults["eve_character"] = eve_character
+        if eve_corporation and hasattr(timer_model, "eve_corporation"):
+            defaults["eve_corporation"] = eve_corporation
+        if eve_alliance and hasattr(timer_model, "eve_alliance"):
+            defaults["eve_alliance"] = eve_alliance
 
         if target_timer:
             for field, val in defaults.items():
@@ -862,13 +1013,7 @@ class TimerSyncService:
             except Exception as c_exc:
                 logger.debug("Failed resolving EveCorporationInfo for timerboard: %s", c_exc)
 
-        objective = "Hostile"
-        if (
-            structure_timer.structure
-            and structure_timer.structure.alliance
-            and getattr(structure_timer.structure.alliance, "is_friendly", False)
-        ):
-            objective = "Friendly"
+        objective = "Friendly" if cls.is_structure_timer_friendly(structure_timer) else "Hostile"
 
         defaults = {
             "system": solar_system_name,
@@ -899,7 +1044,8 @@ class TimerSyncService:
             return target_timer
         else:
             create_kwargs = {
-                k: v for k, v in defaults.items() if hasattr(timer_model, k) or any(f.name == k for f in timer_model._meta.fields)
+                k: v for k, v in defaults.items() if
+                hasattr(timer_model, k) or any(f.name == k for f in timer_model._meta.fields)
             }
             new_timer = timer_model.objects.create(**create_kwargs)
             return new_timer
@@ -958,18 +1104,61 @@ class TimerSyncService:
                     name__iexact=structure_name,
                 ).first()
 
-            if not hostile_structure:
-                # Resolve owner alliance/corp if present
-                alliance = None
-                corp = None
+            st_objective = getattr(st_timer, "objective", None)
+            is_friendly = (
+                st_objective
+                in [
+                    "FR",
+                    getattr(getattr(st_timer, "Objective", None), "FRIENDLY", "FR"),
+                    "Friendly",
+                    "friendly",
+                ]
+            )
+
+            owner_raw = (st_timer.owner_name or "").strip()
+            alliance = None
+            corp = None
+            owner_ticker = owner_raw
+
+            from hostile.services.entity_resolver import EntityResolver
+
+            if owner_raw and owner_raw.lower() not in ["unknown", "none", ""]:
+                resolved_alliance = EntityResolver.get_or_create_alliance(owner_raw)
+                if resolved_alliance:
+                    alliance = resolved_alliance
+                    if is_friendly and not alliance.is_friendly:
+                        alliance.is_friendly = True
+                        alliance.save(update_fields=["is_friendly"])
+                    owner_ticker = resolved_alliance.ticker or resolved_alliance.alliance_name
+                else:
+                    resolved_corp = EntityResolver.get_or_create_corporation(owner_raw)
+                    if resolved_corp:
+                        corp = resolved_corp
+                        if resolved_corp.alliance:
+                            alliance = resolved_corp.alliance
+                        if is_friendly:
+                            if not corp.is_friendly:
+                                corp.is_friendly = True
+                                corp.save(update_fields=["is_friendly"])
+                            if alliance and not alliance.is_friendly:
+                                alliance.is_friendly = True
+                                alliance.save(update_fields=["is_friendly"])
+                        owner_ticker = resolved_corp.ticker or resolved_corp.corporation_name
+            elif is_friendly:
                 if getattr(st_timer, "eve_alliance", None):
                     alliance, _ = HostileAlliance.objects.get_or_create(
                         alliance_id=st_timer.eve_alliance.alliance_id,
                         defaults={
                             "alliance_name": st_timer.eve_alliance.alliance_name,
                             "ticker": getattr(st_timer.eve_alliance, "alliance_ticker", "ALLY"),
+                            "is_friendly": True,
                         },
                     )
+                    if not alliance.is_friendly:
+                        alliance.is_friendly = True
+                        alliance.save(update_fields=["is_friendly"])
+                    owner_ticker = getattr(st_timer.eve_alliance, "alliance_ticker",
+                                           "") or st_timer.eve_alliance.alliance_name
                 if getattr(st_timer, "eve_corporation", None):
                     corp, _ = HostileCorporation.objects.get_or_create(
                         corporation_id=st_timer.eve_corporation.corporation_id,
@@ -977,16 +1166,24 @@ class TimerSyncService:
                             "corporation_name": st_timer.eve_corporation.corporation_name,
                             "ticker": getattr(st_timer.eve_corporation, "corporation_ticker", "CORP"),
                             "alliance": alliance,
+                            "is_friendly": True,
                         },
                     )
+                    if not corp.is_friendly:
+                        corp.is_friendly = True
+                        corp.save(update_fields=["is_friendly"])
+                    if not owner_ticker:
+                        owner_ticker = getattr(st_timer.eve_corporation, "corporation_ticker",
+                                               "") or st_timer.eve_corporation.corporation_name
 
+            if not hostile_structure:
                 hostile_structure = HostileStructure.objects.create(
                     name=structure_name,
                     structure_type=item_type,
                     solar_system=solar_system,
                     alliance=alliance,
                     corporation=corp,
-                    owner_ticker=(st_timer.owner_name or "")[:32],
+                    owner_ticker=(owner_ticker or "")[:32],
                     location_details=st_timer.location_details or "",
                     created_by=st_timer.user,
                 )
@@ -996,10 +1193,30 @@ class TimerSyncService:
                     hostile_structure.structure_type = item_type
                     updated_struct = True
                 if (
-                    st_timer.owner_name
-                    and hostile_structure.owner_ticker != st_timer.owner_name[:32]
+                    owner_ticker
+                    and hostile_structure.owner_ticker != owner_ticker[:32]
                 ):
-                    hostile_structure.owner_ticker = st_timer.owner_name[:32]
+                    hostile_structure.owner_ticker = owner_ticker[:32]
+                    updated_struct = True
+                if alliance is not None and hostile_structure.alliance != alliance:
+                    hostile_structure.alliance = alliance
+                    updated_struct = True
+                elif (
+                    not is_friendly
+                    and hostile_structure.alliance
+                    and cls.is_entity_friendly(alliance_id=hostile_structure.alliance.alliance_id)
+                ):
+                    hostile_structure.alliance = None
+                    updated_struct = True
+                if corp is not None and hostile_structure.corporation != corp:
+                    hostile_structure.corporation = corp
+                    updated_struct = True
+                elif (
+                    not is_friendly
+                    and hostile_structure.corporation
+                    and cls.is_entity_friendly(corp_id=hostile_structure.corporation.corporation_id)
+                ):
+                    hostile_structure.corporation = None
                     updated_struct = True
                 if (
                     st_timer.location_details
@@ -1066,7 +1283,12 @@ class TimerSyncService:
         Synchronizes a change from Alliance Auth Timerboard to Hostile Intel StructureTimer.
         Uses marker hashing to detect untracked external modifications.
         """
-        from hostile.models import HostileStructure, StructureTimer
+        from hostile.models import (
+            HostileAlliance,
+            HostileCorporation,
+            HostileStructure,
+            StructureTimer,
+        )
 
         with sync_operation("timerboard_timer", tb_timer.id) as acquired:
             if not acquired:
@@ -1093,9 +1315,52 @@ class TimerSyncService:
                 name__icontains=tb_timer.structure
             ).first()
 
-            owner_name = getattr(tb_timer, "owner_name", "") or ""
-            if not owner_name and getattr(tb_timer, "eve_corp", None):
-                owner_name = tb_timer.eve_corp.corporation_name or ""
+            tb_objective = getattr(tb_timer, "objective", "")
+            is_friendly = (str(tb_objective).lower() == "friendly")
+
+            owner_raw = getattr(tb_timer, "owner_name", "") or ""
+            alliance = None
+            corp = None
+            owner_ticker = owner_raw
+
+            from hostile.services.entity_resolver import EntityResolver
+
+            if owner_raw and owner_raw.lower() not in ["unknown", "none", ""]:
+                resolved_alliance = EntityResolver.get_or_create_alliance(owner_raw)
+                if resolved_alliance:
+                    alliance = resolved_alliance
+                    if is_friendly and not alliance.is_friendly:
+                        alliance.is_friendly = True
+                        alliance.save(update_fields=["is_friendly"])
+                    owner_ticker = resolved_alliance.ticker or resolved_alliance.alliance_name
+                else:
+                    resolved_corp = EntityResolver.get_or_create_corporation(owner_raw)
+                    if resolved_corp:
+                        corp = resolved_corp
+                        if resolved_corp.alliance:
+                            alliance = resolved_corp.alliance
+                        if is_friendly:
+                            if not corp.is_friendly:
+                                corp.is_friendly = True
+                                corp.save(update_fields=["is_friendly"])
+                            if alliance and not alliance.is_friendly:
+                                alliance.is_friendly = True
+                                alliance.save(update_fields=["is_friendly"])
+                        owner_ticker = resolved_corp.ticker or resolved_corp.corporation_name
+            elif is_friendly and getattr(tb_timer, "eve_corp", None):
+                corp, _ = HostileCorporation.objects.get_or_create(
+                    corporation_id=tb_timer.eve_corp.corporation_id,
+                    defaults={
+                        "corporation_name": tb_timer.eve_corp.corporation_name,
+                        "ticker": getattr(tb_timer.eve_corp, "corporation_ticker", "CORP"),
+                        "is_friendly": True,
+                    },
+                )
+                if not corp.is_friendly:
+                    corp.is_friendly = True
+                    corp.save(update_fields=["is_friendly"])
+                owner_ticker = getattr(tb_timer.eve_corp, "corporation_ticker",
+                                       "") or tb_timer.eve_corp.corporation_name
 
             location_details = getattr(tb_timer, "planet_moon", "") or getattr(
                 tb_timer, "location_details", ""
@@ -1117,10 +1382,51 @@ class TimerSyncService:
                     name=struct_name,
                     structure_type=item_type,
                     solar_system=solar_system,
-                    owner_ticker=(owner_name or "")[:32],
+                    alliance=alliance,
+                    corporation=corp,
+                    owner_ticker=(owner_ticker or "")[:32],
                     location_details=location_details,
                     created_by=tb_timer.user,
                 )
+            else:
+                updated_struct = False
+                if item_type and hostile_structure.structure_type != item_type:
+                    hostile_structure.structure_type = item_type
+                    updated_struct = True
+                if (
+                    owner_ticker
+                    and hostile_structure.owner_ticker != owner_ticker[:32]
+                ):
+                    hostile_structure.owner_ticker = owner_ticker[:32]
+                    updated_struct = True
+                if alliance is not None and hostile_structure.alliance != alliance:
+                    hostile_structure.alliance = alliance
+                    updated_struct = True
+                elif (
+                    not is_friendly
+                    and hostile_structure.alliance
+                    and cls.is_entity_friendly(alliance_id=hostile_structure.alliance.alliance_id)
+                ):
+                    hostile_structure.alliance = None
+                    updated_struct = True
+                if corp is not None and hostile_structure.corporation != corp:
+                    hostile_structure.corporation = corp
+                    updated_struct = True
+                elif (
+                    not is_friendly
+                    and hostile_structure.corporation
+                    and cls.is_entity_friendly(corp_id=hostile_structure.corporation.corporation_id)
+                ):
+                    hostile_structure.corporation = None
+                    updated_struct = True
+                if (
+                    location_details
+                    and hostile_structure.location_details != location_details
+                ):
+                    hostile_structure.location_details = location_details
+                    updated_struct = True
+                if updated_struct:
+                    hostile_structure.save()
 
             mapped_timer_type = cls.map_timerboard_type_to_structure_timer(
                 tb_timer.timer_type
