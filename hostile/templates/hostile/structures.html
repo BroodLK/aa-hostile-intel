@@ -22,32 +22,123 @@
     </div>
 </div>
 
+<!-- Search, Filter & Quick Triage Controls -->
+<div class="card bg-dark text-white border-secondary hostile-card mb-3 shadow-sm">
+    <div class="card-body p-3">
+        <div class="row g-2 align-items-center">
+            <div class="col-12 col-md-4">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-dark text-muted border-secondary"><i class="fas fa-search"></i></span>
+                    <input type="text" id="structureSearchInput" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="{% translate 'Search by name, system, owner, type, state...' %}" autofocus>
+                    <button class="btn btn-outline-secondary btn-sm d-none" type="button" id="clearStructureSearchBtn" title="{% translate 'Clear search' %}">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="col-6 col-md-2">
+                <select id="structureStateFilter" class="form-select form-select-sm bg-dark text-white border-secondary">
+                    <option value="">{% translate "All States" %}</option>
+                    <option value="ONLINE">{% translate "Online" %}</option>
+                    <option value="LOW_POWER">{% translate "Low Power" %}</option>
+                    <option value="OFFLINE">{% translate "Offline" %}</option>
+                    <option value="ABANDONED">{% translate "Abandoned" %}</option>
+                    <option value="ANCHORING">{% translate "Anchoring" %}</option>
+                    <option value="UNANCHORING">{% translate "Unanchoring" %}</option>
+                    <option value="ARMOR">{% translate "Armor Reinforced" %}</option>
+                    <option value="HULL">{% translate "Hull Reinforced" %}</option>
+                    <option value="REINFORCED">{% translate "Reinforced" %}</option>
+                    <option value="DESTROYED">{% translate "Destroyed" %}</option>
+                </select>
+            </div>
+            <div class="col-6 col-md-2">
+                <select id="structureCoreFilter" class="form-select form-select-sm bg-dark text-white border-secondary">
+                    <option value="">{% translate "All Quantum Cores" %}</option>
+                    <option value="FITTED">{% translate "Fitted (Installed)" %}</option>
+                    <option value="UNFITTED">{% translate "No Core (Unfitted)" %}</option>
+                    <option value="UNKNOWN">{% translate "Unknown" %}</option>
+                </select>
+            </div>
+            <div class="col-6 col-md-2">
+                <select id="structureVerifiedFilter" class="form-select form-select-sm bg-dark text-white border-secondary">
+                    <option value="">{% translate "All Verification" %}</option>
+                    <option value="1">{% translate "Verified Only" %}</option>
+                    <option value="0">{% translate "Unverified Only" %}</option>
+                </select>
+            </div>
+            <div class="col-6 col-md-2 d-flex justify-content-between align-items-center">
+                <span class="badge bg-secondary small" id="structureCountBadge" title="{% translate 'Filtered / Total structures' %}">
+                    <span id="structureVisibleCount">{{ structures|length }}</span> / {{ structures|length }}
+                </span>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="resetStructureFiltersBtn" title="{% translate 'Reset all search & filters' %}">
+                    <i class="fas fa-undo me-1"></i>{% translate "Reset" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="card bg-dark text-white border-secondary hostile-card shadow-sm">
     <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-dark table-hover mb-0 align-middle">
+            <table class="table table-dark table-hover mb-0 align-middle" id="structuresTable">
                 <thead>
                     <tr class="text-muted small text-uppercase">
-                        <th>{% translate "Name" %}</th>
-                        <th>{% translate "Type" %}</th>
-                        <th>{% translate "Solar System" %}</th>
-                        <th>{% translate "Owner" %}</th>
-                        <th>{% translate "Vulnerability" %}</th>
-                        <th>{% translate "Quantum Core" %}</th>
-                        <th>{% translate "State" %}</th>
-                        <th>{% translate "Verified" %}</th>
-                        <th>{% translate "Last Updated" %}</th>
+                        <th class="sortable-th cursor-pointer user-select-none" data-sort="name" title="{% translate 'Click to sort by Name' %}">
+                            {% translate "Name" %} <i class="fas fa-sort sort-icon text-muted ms-1"></i>
+                        </th>
+                        <th class="sortable-th cursor-pointer user-select-none" data-sort="type" title="{% translate 'Click to sort by Type' %}">
+                            {% translate "Type" %} <i class="fas fa-sort sort-icon text-muted ms-1"></i>
+                        </th>
+                        <th class="sortable-th cursor-pointer user-select-none" data-sort="system" title="{% translate 'Click to sort by Solar System' %}">
+                            {% translate "Solar System" %} <i class="fas fa-sort sort-icon text-muted ms-1"></i>
+                        </th>
+                        <th class="sortable-th cursor-pointer user-select-none" data-sort="owner" title="{% translate 'Click to sort by Owner' %}">
+                            {% translate "Owner" %} <i class="fas fa-sort sort-icon text-muted ms-1"></i>
+                        </th>
+                        <th class="sortable-th cursor-pointer user-select-none" data-sort="vulnerability" title="{% translate 'Click to sort by Vulnerability' %}">
+                            {% translate "Vulnerability" %} <i class="fas fa-sort sort-icon text-muted ms-1"></i>
+                        </th>
+                        <th class="sortable-th cursor-pointer user-select-none" data-sort="core" title="{% translate 'Click to sort by Quantum Core' %}">
+                            {% translate "Quantum Core" %} <i class="fas fa-sort sort-icon text-muted ms-1"></i>
+                        </th>
+                        <th class="sortable-th cursor-pointer user-select-none" data-sort="state" title="{% translate 'Click to sort by State' %}">
+                            {% translate "State" %} <i class="fas fa-sort sort-icon text-muted ms-1"></i>
+                        </th>
+                        <th class="sortable-th cursor-pointer user-select-none" data-sort="verified" title="{% translate 'Click to sort by Verification' %}">
+                            {% translate "Verified" %} <i class="fas fa-sort sort-icon text-muted ms-1"></i>
+                        </th>
+                        <th class="sortable-th cursor-pointer user-select-none" data-sort="updated" title="{% translate 'Click to sort by Last Updated' %}">
+                            {% translate "Last Updated" %} <i class="fas fa-sort sort-icon text-muted ms-1"></i>
+                        </th>
                         <th class="text-end">{% translate "Actions" %}</th>
                     </tr>
                 </thead>
-                <tbody class="border-secondary">
+                <tbody id="structuresTableBody" class="border-secondary">
                     {% for struct in structures %}
-                    <tr>
-                        <td class="fw-bold">
-                            {{ struct.name }}
-                            {% if struct.location_details %}
-                                <div class="small text-muted">{{ struct.location_details }}</div>
-                            {% endif %}
+                    <tr class="structure-row"
+                        data-id="{{ struct.id }}"
+                        data-name="{{ struct.name|lower }}"
+                        data-type="{{ struct.structure_type.name|default:'structure'|lower }}"
+                        data-system="{{ struct.solar_system.name|default:'unknown'|lower }}"
+                        data-owner="{{ struct.owner_name|lower }} {{ struct.owner_ticker|default:''|lower }}"
+                        data-vuln-hour="{{ struct.vulnerability_hour|default:-1 }}"
+                        data-vuln="{{ struct.vulnerability_window|default:''|lower }}"
+                        data-core="{{ struct.core_status }}"
+                        data-state="{{ struct.state }}"
+                        data-verified="{{ struct.is_verified|yesno:'1,0' }}"
+                        data-updated="{{ struct.updated_at|date:'U' }}"
+                        data-search-text="{{ struct.name }} {{ struct.location_details|default:'' }} {{ struct.structure_type.name|default:'' }} {{ struct.solar_system.name|default:'' }} {{ struct.owner_name }} {{ struct.owner_ticker|default:'' }} {{ struct.vulnerability_window|default:'' }} {{ struct.state }} {{ struct.core_status }} {{ struct.updated_at|naturaltime }} {% if struct.is_verified %}verified{% else %}unverified{% endif %}">
+                        <td class="fw-bold {% if perms.hostile.manage_intel or struct.created_by == request.user %}editable-cell{% endif %}"
+                            data-field="name"
+                            data-structure-id="{{ struct.id }}"
+                            data-raw-value="{{ struct.name }}"
+                            title="{% if perms.hostile.manage_intel or struct.created_by == request.user %}{% translate 'Click to edit structure name' %}{% endif %}">
+                            <div class="cell-display-content">
+                                <span class="structure-name-text">{{ struct.name }}</span>
+                                {% if struct.location_details %}
+                                    <div class="small text-muted location-details-text">{{ struct.location_details }}</div>
+                                {% endif %}
+                            </div>
                         </td>
                         <td>
                             {% if struct.structure_type %}
@@ -58,56 +149,80 @@
                             {% endif %}
                         </td>
                         <td class="text-info fw-bold font-mono">{{ struct.solar_system.name|default:"Unknown" }}</td>
-                        <td>
-                            {% if struct.alliance %}
-                                <a href="{% url 'hostile:alliance_detail' struct.alliance.id %}" class="text-light fw-bold text-decoration-none hover-primary">{{ struct.alliance.alliance_name }}</a>
-                            {% elif struct.corporation %}
-                                <a href="{% url 'hostile:corporation_detail' struct.corporation.id %}" class="text-light fw-bold text-decoration-none hover-primary">{{ struct.corporation.corporation_name }}</a>
-                            {% else %}
-                                <div>{{ struct.owner_name }}</div>
-                            {% endif %}
-                            {% if struct.owner_ticker %}
-                                <span class="badge badge-subtle-secondary small">[{{ struct.owner_ticker }}]</span>
-                            {% endif %}
+                        <td class="{% if perms.hostile.manage_intel or struct.created_by == request.user %}editable-cell{% endif %}"
+                            data-field="owner"
+                            data-structure-id="{{ struct.id }}"
+                            data-raw-value="{% if struct.owner_ticker %}{{ struct.owner_ticker }}{% elif struct.alliance %}{{ struct.alliance.alliance_name }}{% elif struct.corporation %}{{ struct.corporation.corporation_name }}{% else %}{{ struct.owner_name }}{% endif %}"
+                            title="{% if perms.hostile.manage_intel or struct.created_by == request.user %}{% translate 'Click to edit owner / ticker' %}{% endif %}">
+                            <div class="cell-display-content">
+                                {% if struct.alliance %}
+                                    <a href="{% url 'hostile:alliance_detail' struct.alliance.id %}" class="text-light fw-bold text-decoration-none hover-primary owner-link">{{ struct.alliance.alliance_name }}</a>
+                                {% elif struct.corporation %}
+                                    <a href="{% url 'hostile:corporation_detail' struct.corporation.id %}" class="text-light fw-bold text-decoration-none hover-primary owner-link">{{ struct.corporation.corporation_name }}</a>
+                                {% else %}
+                                    <div class="owner-name-text">{{ struct.owner_name }}</div>
+                                {% endif %}
+                                {% if struct.owner_ticker %}
+                                    <span class="badge badge-subtle-secondary small owner-ticker-badge">[{{ struct.owner_ticker }}]</span>
+                                {% endif %}
+                            </div>
                         </td>
-                        <td>
-                            {% if struct.vulnerability_window %}
-                                <span class="badge badge-subtle-warning"><i class="fas fa-shield-alt me-1"></i>{{ struct.vulnerability_window }}</span>
-                            {% elif struct.vulnerability_hour is not None %}
-                                <span class="badge badge-subtle-warning"><i class="fas fa-shield-alt me-1"></i>{{ struct.vulnerability_hour }}:00 UTC</span>
-                            {% else %}
-                                <span class="text-muted small">{% translate "Unknown" %}</span>
-                            {% endif %}
+                        <td class="{% if perms.hostile.manage_intel or struct.created_by == request.user %}editable-cell{% endif %}"
+                            data-field="vulnerability"
+                            data-structure-id="{{ struct.id }}"
+                            data-raw-value="{% if struct.vulnerability_window %}{{ struct.vulnerability_window }}{% elif struct.vulnerability_hour is not None %}{{ struct.vulnerability_hour }}{% endif %}"
+                            title="{% if perms.hostile.manage_intel or struct.created_by == request.user %}{% translate 'Click to edit vulnerability' %}{% endif %}">
+                            <div class="cell-display-content">
+                                {% if struct.vulnerability_window %}
+                                    <span class="badge badge-subtle-warning"><i class="fas fa-shield-alt me-1"></i>{{ struct.vulnerability_window }}</span>
+                                {% elif struct.vulnerability_hour is not None %}
+                                    <span class="badge badge-subtle-warning"><i class="fas fa-shield-alt me-1"></i>{{ struct.vulnerability_hour }}:00 UTC</span>
+                                {% else %}
+                                    <span class="text-muted small">{% translate "Unknown" %}</span>
+                                {% endif %}
+                            </div>
                         </td>
-                        <td>
-                            {% if struct.core_status == "FITTED" %}
-                                <span class="badge badge-subtle-teal"><i class="fas fa-check-circle me-1"></i>Fitted</span>
-                            {% elif struct.core_status == "UNFITTED" %}
-                                <span class="badge badge-subtle-danger"><i class="fas fa-times-circle me-1"></i>No Core</span>
-                            {% else %}
-                                <span class="badge badge-subtle-secondary">Unknown</span>
-                            {% endif %}
+                        <td class="{% if perms.hostile.manage_intel or struct.created_by == request.user %}editable-cell{% endif %}"
+                            data-field="core_status"
+                            data-structure-id="{{ struct.id }}"
+                            data-raw-value="{{ struct.core_status }}"
+                            title="{% if perms.hostile.manage_intel or struct.created_by == request.user %}{% translate 'Click to edit quantum core' %}{% endif %}">
+                            <div class="cell-display-content">
+                                {% if struct.core_status == "FITTED" %}
+                                    <span class="badge badge-subtle-teal"><i class="fas fa-check-circle me-1"></i>Fitted</span>
+                                {% elif struct.core_status == "UNFITTED" %}
+                                    <span class="badge badge-subtle-danger"><i class="fas fa-times-circle me-1"></i>No Core</span>
+                                {% else %}
+                                    <span class="badge badge-subtle-secondary">Unknown</span>
+                                {% endif %}
+                            </div>
                         </td>
-                        <td>
-                            {% if struct.state == "ONLINE" %}
-                                <span class="badge badge-subtle-success"><i class="fas fa-check-circle me-1"></i>Online</span>
-                            {% elif struct.state == "LOW_POWER" %}
-                                <span class="badge badge-subtle-warning"><i class="fas fa-bolt me-1"></i>Low Power</span>
-                            {% elif struct.state == "OFFLINE" %}
-                                <span class="badge badge-subtle-secondary"><i class="fas fa-power-off me-1"></i>Offline</span>
-                            {% elif struct.state == "ABANDONED" %}
-                                <span class="badge badge-subtle-danger"><i class="fas fa-exclamation-triangle me-1"></i>Abandoned</span>
-                            {% elif struct.state == "ANCHORING" %}
-                                <span class="badge badge-subtle-warning"><i class="fas fa-anchor me-1"></i>Anchoring</span>
-                            {% elif struct.state == "UNANCHORING" %}
-                                <span class="badge badge-subtle-secondary"><i class="fas fa-box-open me-1"></i>Unanchoring</span>
-                            {% elif struct.state == "ARMOR" or struct.state == "HULL" or struct.state == "REINFORCED" %}
-                                <span class="badge badge-subtle-danger"><i class="fas fa-stopwatch me-1"></i>{{ struct.get_state_display }}</span>
-                            {% elif struct.state == "DESTROYED" %}
-                                <span class="badge bg-danger text-light"><i class="fas fa-skull me-1"></i>Destroyed</span>
-                            {% else %}
-                                <span class="badge badge-subtle-secondary">{{ struct.state }}</span>
-                            {% endif %}
+                        <td class="{% if perms.hostile.manage_intel or struct.created_by == request.user %}editable-cell{% endif %}"
+                            data-field="state"
+                            data-structure-id="{{ struct.id }}"
+                            data-raw-value="{{ struct.state }}"
+                            title="{% if perms.hostile.manage_intel or struct.created_by == request.user %}{% translate 'Click to edit state' %}{% endif %}">
+                            <div class="cell-display-content">
+                                {% if struct.state == "ONLINE" %}
+                                    <span class="badge badge-subtle-success"><i class="fas fa-check-circle me-1"></i>Online</span>
+                                {% elif struct.state == "LOW_POWER" %}
+                                    <span class="badge badge-subtle-warning"><i class="fas fa-bolt me-1"></i>Low Power</span>
+                                {% elif struct.state == "OFFLINE" %}
+                                    <span class="badge badge-subtle-secondary"><i class="fas fa-power-off me-1"></i>Offline</span>
+                                {% elif struct.state == "ABANDONED" %}
+                                    <span class="badge badge-subtle-danger"><i class="fas fa-exclamation-triangle me-1"></i>Abandoned</span>
+                                {% elif struct.state == "ANCHORING" %}
+                                    <span class="badge badge-subtle-warning"><i class="fas fa-anchor me-1"></i>Anchoring</span>
+                                {% elif struct.state == "UNANCHORING" %}
+                                    <span class="badge badge-subtle-secondary"><i class="fas fa-box-open me-1"></i>Unanchoring</span>
+                                {% elif struct.state == "ARMOR" or struct.state == "HULL" or struct.state == "REINFORCED" %}
+                                    <span class="badge badge-subtle-danger"><i class="fas fa-stopwatch me-1"></i>{{ struct.get_state_display }}</span>
+                                {% elif struct.state == "DESTROYED" %}
+                                    <span class="badge bg-danger text-light"><i class="fas fa-skull me-1"></i>Destroyed</span>
+                                {% else %}
+                                    <span class="badge badge-subtle-secondary">{{ struct.state }}</span>
+                                {% endif %}
+                            </div>
                         </td>
                         <td>
                             {% if struct.is_verified %}
@@ -116,7 +231,7 @@
                                 <span class="badge badge-subtle-warning"><i class="fas fa-clock"></i> Unverified</span>
                             {% endif %}
                         </td>
-                        <td class="small text-muted">{{ struct.updated_at|naturaltime }}</td>
+                        <td class="small text-muted structure-updated-cell">{{ struct.updated_at|naturaltime }}</td>
                         <td class="text-end">
                             <div class="dropdown d-inline-block me-1">
                                 <button class="btn btn-outline-secondary btn-xs py-0 px-2 dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" title="{% translate 'Change Structure State' %}">
@@ -236,6 +351,12 @@
                         </td>
                     </tr>
                     {% endfor %}
+                    <tr id="noStructureMatchRow" class="d-none">
+                        <td colspan="10" class="text-center py-4 text-muted">
+                            <i class="fas fa-search fa-2x mb-2 text-secondary d-block"></i>
+                            <span>{% translate "No structures match the current search & filter criteria." %}</span>
+                        </td>
+                    </tr>
                 </tbody>
             </table>
         </div>
@@ -577,6 +698,507 @@ document.addEventListener("DOMContentLoaded", function() {
     }
 
     updateAvailableTimerStages();
+
+    // ==========================================
+    // 1. Client-Side Search & Multi-Facet Filter
+    // ==========================================
+    const searchInput = document.getElementById("structureSearchInput");
+    const clearSearchBtn = document.getElementById("clearStructureSearchBtn");
+    const stateFilter = document.getElementById("structureStateFilter");
+    const coreFilter = document.getElementById("structureCoreFilter");
+    const verifiedFilter = document.getElementById("structureVerifiedFilter");
+    const resetFiltersBtn = document.getElementById("resetStructureFiltersBtn");
+    const visibleCountEl = document.getElementById("structureVisibleCount");
+    const noMatchRow = document.getElementById("noStructureMatchRow");
+
+    function filterStructures() {
+        const query = (searchInput ? searchInput.value : "").toLowerCase().trim();
+        const selectedState = stateFilter ? stateFilter.value.toUpperCase().trim() : "";
+        const selectedCore = coreFilter ? coreFilter.value.toUpperCase().trim() : "";
+        const selectedVerified = verifiedFilter ? verifiedFilter.value.trim() : "";
+
+        if (clearSearchBtn) {
+            clearSearchBtn.classList.toggle("d-none", query.length === 0);
+        }
+
+        const terms = query ? query.split(/\s+/).filter(t => t.length > 0) : [];
+        let visibleCount = 0;
+        const rows = document.querySelectorAll("tr.structure-row");
+
+        rows.forEach(row => {
+            const rowText = (row.dataset.searchText || "").toLowerCase();
+            const rowState = (row.dataset.state || "").toUpperCase();
+            const rowCore = (row.dataset.core || "").toUpperCase();
+            const rowVerified = row.dataset.verified || "";
+
+            let matchesSearch = true;
+            if (terms.length > 0) {
+                matchesSearch = terms.every(term => rowText.includes(term));
+            }
+
+            let matchesState = true;
+            if (selectedState) {
+                matchesState = (rowState === selectedState);
+            }
+
+            let matchesCore = true;
+            if (selectedCore) {
+                matchesCore = (rowCore === selectedCore);
+            }
+
+            let matchesVerified = true;
+            if (selectedVerified) {
+                matchesVerified = (rowVerified === selectedVerified);
+            }
+
+            if (matchesSearch && matchesState && matchesCore && matchesVerified) {
+                row.classList.remove("d-none");
+                visibleCount++;
+            } else {
+                row.classList.add("d-none");
+            }
+        });
+
+        if (visibleCountEl) {
+            visibleCountEl.textContent = visibleCount;
+        }
+
+        if (noMatchRow) {
+            noMatchRow.classList.toggle("d-none", visibleCount > 0 || rows.length === 0);
+        }
+    }
+
+    if (searchInput) {
+        searchInput.addEventListener("input", filterStructures);
+    }
+    if (clearSearchBtn) {
+        clearSearchBtn.addEventListener("click", function() {
+            if (searchInput) {
+                searchInput.value = "";
+                searchInput.focus();
+            }
+            filterStructures();
+        });
+    }
+    if (stateFilter) stateFilter.addEventListener("change", filterStructures);
+    if (coreFilter) coreFilter.addEventListener("change", filterStructures);
+    if (verifiedFilter) verifiedFilter.addEventListener("change", filterStructures);
+    if (resetFiltersBtn) {
+        resetFiltersBtn.addEventListener("click", function() {
+            if (searchInput) searchInput.value = "";
+            if (stateFilter) stateFilter.value = "";
+            if (coreFilter) coreFilter.value = "";
+            if (verifiedFilter) verifiedFilter.value = "";
+            filterStructures();
+        });
+    }
+
+    // ==========================================
+    // 2. Table Column Sorting
+    // ==========================================
+    let currentSortColumn = null;
+    let currentSortDir = "asc";
+
+    const sortHeaders = document.querySelectorAll(".sortable-th");
+    const tbody = document.getElementById("structuresTableBody");
+
+    sortHeaders.forEach(th => {
+        th.addEventListener("click", function() {
+            const sortKey = this.dataset.sort;
+            if (!sortKey || !tbody) return;
+
+            if (currentSortColumn === sortKey) {
+                currentSortDir = (currentSortDir === "asc") ? "desc" : "asc";
+            } else {
+                currentSortColumn = sortKey;
+                currentSortDir = "asc";
+            }
+
+            sortHeaders.forEach(header => {
+                header.classList.remove("active-sort");
+                const icon = header.querySelector(".sort-icon");
+                if (icon) {
+                    icon.className = "fas fa-sort sort-icon text-muted ms-1";
+                }
+            });
+
+            this.classList.add("active-sort");
+            const icon = this.querySelector(".sort-icon");
+            if (icon) {
+                icon.className = `fas fa-sort-${currentSortDir === 'asc' ? 'up' : 'down'} sort-icon ms-1`;
+            }
+
+            const rows = Array.from(tbody.querySelectorAll("tr.structure-row"));
+            rows.sort((a, b) => {
+                let valA, valB;
+                switch(sortKey) {
+                    case "name":
+                        valA = (a.dataset.name || "").toLowerCase();
+                        valB = (b.dataset.name || "").toLowerCase();
+                        return currentSortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                    case "type":
+                        valA = (a.dataset.type || "").toLowerCase();
+                        valB = (b.dataset.type || "").toLowerCase();
+                        return currentSortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                    case "system":
+                        valA = (a.dataset.system || "").toLowerCase();
+                        valB = (b.dataset.system || "").toLowerCase();
+                        return currentSortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                    case "owner":
+                        valA = (a.dataset.owner || "").toLowerCase();
+                        valB = (b.dataset.owner || "").toLowerCase();
+                        return currentSortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                    case "vulnerability":
+                        valA = parseInt(a.dataset.vulnHour || "-1", 10);
+                        valB = parseInt(b.dataset.vulnHour || "-1", 10);
+                        if (valA === valB) {
+                            valA = (a.dataset.vuln || "").toLowerCase();
+                            valB = (b.dataset.vuln || "").toLowerCase();
+                            return currentSortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                        }
+                        return currentSortDir === "asc" ? valA - valB : valB - valA;
+                    case "core":
+                        valA = (a.dataset.core || "").toLowerCase();
+                        valB = (b.dataset.core || "").toLowerCase();
+                        return currentSortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                    case "state":
+                        valA = (a.dataset.state || "").toLowerCase();
+                        valB = (b.dataset.state || "").toLowerCase();
+                        return currentSortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                    case "verified":
+                        valA = parseInt(a.dataset.verified || "0", 10);
+                        valB = parseInt(b.dataset.verified || "0", 10);
+                        return currentSortDir === "asc" ? valA - valB : valB - valA;
+                    case "updated":
+                        valA = parseInt(a.dataset.updated || "0", 10);
+                        valB = parseInt(b.dataset.updated || "0", 10);
+                        return currentSortDir === "asc" ? valA - valB : valB - valA;
+                    default:
+                        return 0;
+                }
+            });
+
+            rows.forEach(row => tbody.appendChild(row));
+            if (noMatchRow) tbody.appendChild(noMatchRow);
+        });
+    });
+
+    // ==========================================
+    // 3. Click-to-Edit Inline Cell Editing
+    // ==========================================
+    let activeEditingCell = null;
+
+    function getCsrfToken() {
+        const input = document.querySelector('[name=csrfmiddlewaretoken]');
+        if (input && input.value) return input.value;
+        const cookie = document.cookie.split(';').find(c => c.trim().startsWith('csrftoken='));
+        if (cookie) return cookie.split('=')[1].trim();
+        return '';
+    }
+
+    function escapeHtml(str) {
+        if (!str) return "";
+        return String(str)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    function cancelActiveEdit() {
+        if (!activeEditingCell) return;
+        const originalHtml = activeEditingCell.dataset.originalHtml;
+        if (originalHtml !== undefined) {
+            activeEditingCell.innerHTML = originalHtml;
+        }
+        activeEditingCell.classList.remove("is-editing");
+        activeEditingCell = null;
+    }
+
+    document.addEventListener("click", function(e) {
+        if (activeEditingCell && !activeEditingCell.contains(e.target)) {
+            cancelActiveEdit();
+        }
+    });
+
+    function renderStateBadge(state, stateDisplay) {
+        if (state === "ONLINE") {
+            return `<span class="badge badge-subtle-success"><i class="fas fa-check-circle me-1"></i>Online</span>`;
+        } else if (state === "LOW_POWER") {
+            return `<span class="badge badge-subtle-warning"><i class="fas fa-bolt me-1"></i>Low Power</span>`;
+        } else if (state === "OFFLINE") {
+            return `<span class="badge badge-subtle-secondary"><i class="fas fa-power-off me-1"></i>Offline</span>`;
+        } else if (state === "ABANDONED") {
+            return `<span class="badge badge-subtle-danger"><i class="fas fa-exclamation-triangle me-1"></i>Abandoned</span>`;
+        } else if (state === "ANCHORING") {
+            return `<span class="badge badge-subtle-warning"><i class="fas fa-anchor me-1"></i>Anchoring</span>`;
+        } else if (state === "UNANCHORING") {
+            return `<span class="badge badge-subtle-secondary"><i class="fas fa-box-open me-1"></i>Unanchoring</span>`;
+        } else if (["ARMOR", "HULL", "REINFORCED"].includes(state)) {
+            return `<span class="badge badge-subtle-danger"><i class="fas fa-stopwatch me-1"></i>${escapeHtml(stateDisplay || state)}</span>`;
+        } else if (state === "DESTROYED") {
+            return `<span class="badge bg-danger text-light"><i class="fas fa-skull me-1"></i>Destroyed</span>`;
+        } else {
+            return `<span class="badge badge-subtle-secondary">${escapeHtml(stateDisplay || state)}</span>`;
+        }
+    }
+
+    function renderCoreBadge(coreStatus) {
+        if (coreStatus === "FITTED") {
+            return `<span class="badge badge-subtle-teal"><i class="fas fa-check-circle me-1"></i>Fitted</span>`;
+        } else if (coreStatus === "UNFITTED") {
+            return `<span class="badge badge-subtle-danger"><i class="fas fa-times-circle me-1"></i>No Core</span>`;
+        } else {
+            return `<span class="badge badge-subtle-secondary">Unknown</span>`;
+        }
+    }
+
+    function renderVulnBadge(vulnDisplay) {
+        if (vulnDisplay && vulnDisplay !== "Unknown") {
+            return `<span class="badge badge-subtle-warning"><i class="fas fa-shield-alt me-1"></i>${escapeHtml(vulnDisplay)}</span>`;
+        } else {
+            return `<span class="text-muted small">Unknown</span>`;
+        }
+    }
+
+    function renderOwnerContent(data) {
+        let html = '';
+        if (data.alliance_name) {
+            html += `<a href="/hostile/alliances/${data.alliance_id}/" class="text-light fw-bold text-decoration-none hover-primary owner-link">${escapeHtml(data.alliance_name)}</a>`;
+        } else if (data.corporation_name) {
+            html += `<a href="/hostile/corporations/${data.corporation_id}/" class="text-light fw-bold text-decoration-none hover-primary owner-link">${escapeHtml(data.corporation_name)}</a>`;
+        } else {
+            html += `<div class="owner-name-text">${escapeHtml(data.owner_name || 'Unknown')}</div>`;
+        }
+        if (data.owner_ticker) {
+            html += ` <span class="badge badge-subtle-secondary small owner-ticker-badge">[${escapeHtml(data.owner_ticker)}]</span>`;
+        }
+        return html;
+    }
+
+    function renderNameContent(data) {
+        let html = `<span class="structure-name-text">${escapeHtml(data.name)}</span>`;
+        if (data.location_details) {
+            html += `<div class="small text-muted location-details-text">${escapeHtml(data.location_details)}</div>`;
+        }
+        return html;
+    }
+
+    function updateRowSearchText(row) {
+        if (!row) return;
+        const name = row.dataset.name || "";
+        const type = row.dataset.type || "";
+        const system = row.dataset.system || "";
+        const owner = row.dataset.owner || "";
+        const vuln = row.dataset.vuln || "";
+        const state = row.dataset.state || "";
+        const core = row.dataset.core || "";
+        row.dataset.searchText = `${name} ${type} ${system} ${owner} ${vuln} ${state} ${core}`;
+    }
+
+    function initEditableCells() {
+        document.querySelectorAll(".editable-cell").forEach(cell => {
+            cell.addEventListener("click", function(e) {
+                if (this.classList.contains("is-editing")) return;
+                if (e.target.tagName === "A") return;
+
+                e.stopPropagation();
+
+                if (activeEditingCell && activeEditingCell !== this) {
+                    cancelActiveEdit();
+                }
+
+                activeEditingCell = this;
+                this.classList.add("is-editing");
+                this.dataset.originalHtml = this.innerHTML;
+
+                const field = this.dataset.field;
+                const structureId = this.dataset.structureId;
+                const rawValue = this.dataset.rawValue || "";
+
+                let controlHtml = "";
+                if (field === "name") {
+                    controlHtml = `
+                        <div class="input-group input-group-sm">
+                            <input type="text" class="form-control form-control-sm bg-dark text-white border-info inline-edit-input" value="${escapeHtml(rawValue)}" placeholder="Structure Name">
+                            <button class="btn btn-sm btn-success btn-inline-save" type="button" title="Save (Enter)"><i class="fas fa-check"></i></button>
+                            <button class="btn btn-sm btn-outline-secondary btn-inline-cancel" type="button" title="Cancel (Esc)"><i class="fas fa-times"></i></button>
+                        </div>`;
+                } else if (field === "owner") {
+                    controlHtml = `
+                        <div class="input-group input-group-sm">
+                            <input type="text" class="form-control form-control-sm bg-dark text-white border-info inline-edit-input" value="${escapeHtml(rawValue)}" placeholder="Ticker or Name">
+                            <button class="btn btn-sm btn-success btn-inline-save" type="button" title="Save (Enter)"><i class="fas fa-check"></i></button>
+                            <button class="btn btn-sm btn-outline-secondary btn-inline-cancel" type="button" title="Cancel (Esc)"><i class="fas fa-times"></i></button>
+                        </div>`;
+                } else if (field === "vulnerability") {
+                    controlHtml = `
+                        <div class="input-group input-group-sm">
+                            <input type="text" class="form-control form-control-sm bg-dark text-white border-info inline-edit-input" value="${escapeHtml(rawValue)}" placeholder="Hour (0-23) or Window">
+                            <button class="btn btn-sm btn-success btn-inline-save" type="button" title="Save (Enter)"><i class="fas fa-check"></i></button>
+                            <button class="btn btn-sm btn-outline-secondary btn-inline-cancel" type="button" title="Cancel (Esc)"><i class="fas fa-times"></i></button>
+                        </div>`;
+                } else if (field === "state") {
+                    const cur = (rawValue || "").toUpperCase();
+                    controlHtml = `
+                        <div class="input-group input-group-sm">
+                            <select class="form-select form-select-sm bg-dark text-white border-info inline-edit-input">
+                                <option value="ONLINE" ${cur === 'ONLINE' ? 'selected' : ''}>Online</option>
+                                <option value="LOW_POWER" ${cur === 'LOW_POWER' ? 'selected' : ''}>Low Power</option>
+                                <option value="OFFLINE" ${cur === 'OFFLINE' ? 'selected' : ''}>Offline</option>
+                                <option value="ABANDONED" ${cur === 'ABANDONED' ? 'selected' : ''}>Abandoned</option>
+                                <option value="ANCHORING" ${cur === 'ANCHORING' ? 'selected' : ''}>Anchoring</option>
+                                <option value="UNANCHORING" ${cur === 'UNANCHORING' ? 'selected' : ''}>Unanchoring</option>
+                                <option value="ARMOR" ${cur === 'ARMOR' ? 'selected' : ''}>Armor Reinforced</option>
+                                <option value="HULL" ${cur === 'HULL' ? 'selected' : ''}>Hull Reinforced</option>
+                                <option value="REINFORCED" ${cur === 'REINFORCED' ? 'selected' : ''}>Reinforced</option>
+                                <option value="DESTROYED" ${cur === 'DESTROYED' ? 'selected' : ''}>Destroyed</option>
+                            </select>
+                            <button class="btn btn-sm btn-success btn-inline-save" type="button" title="Save"><i class="fas fa-check"></i></button>
+                            <button class="btn btn-sm btn-outline-secondary btn-inline-cancel" type="button" title="Cancel"><i class="fas fa-times"></i></button>
+                        </div>`;
+                } else if (field === "core_status") {
+                    const cur = (rawValue || "").toUpperCase();
+                    controlHtml = `
+                        <div class="input-group input-group-sm">
+                            <select class="form-select form-select-sm bg-dark text-white border-info inline-edit-input">
+                                <option value="FITTED" ${cur === 'FITTED' ? 'selected' : ''}>Fitted (Installed)</option>
+                                <option value="UNFITTED" ${cur === 'UNFITTED' ? 'selected' : ''}>No Core (Unfitted)</option>
+                                <option value="UNKNOWN" ${cur === 'UNKNOWN' ? 'selected' : ''}>Unknown</option>
+                            </select>
+                            <button class="btn btn-sm btn-success btn-inline-save" type="button" title="Save"><i class="fas fa-check"></i></button>
+                            <button class="btn btn-sm btn-outline-secondary btn-inline-cancel" type="button" title="Cancel"><i class="fas fa-times"></i></button>
+                        </div>`;
+                }
+
+                this.innerHTML = controlHtml;
+                const inputEl = this.querySelector(".inline-edit-input");
+                const saveBtn = this.querySelector(".btn-inline-save");
+                const cancelBtn = this.querySelector(".btn-inline-cancel");
+
+                if (inputEl) {
+                    inputEl.focus();
+                    if (inputEl.select && inputEl.tagName === "INPUT") inputEl.select();
+
+                    inputEl.addEventListener("keydown", (evt) => {
+                        if (evt.key === "Enter") {
+                            evt.preventDefault();
+                            doSave(this, field, structureId, inputEl.value);
+                        } else if (evt.key === "Escape") {
+                            evt.preventDefault();
+                            cancelActiveEdit();
+                        }
+                    });
+                }
+
+                if (saveBtn) {
+                    saveBtn.addEventListener("click", (evt) => {
+                        evt.stopPropagation();
+                        doSave(this, field, structureId, inputEl ? inputEl.value : "");
+                    });
+                }
+
+                if (cancelBtn) {
+                    cancelBtn.addEventListener("click", (evt) => {
+                        evt.stopPropagation();
+                        cancelActiveEdit();
+                    });
+                }
+            });
+        });
+    }
+
+    function doSave(cell, field, structureId, newValue) {
+        const row = cell.closest("tr.structure-row");
+        const csrfToken = getCsrfToken();
+
+        cell.innerHTML = `<span class="text-info small"><i class="fas fa-spinner fa-spin me-1"></i>Saving...</span>`;
+
+        fetch(`/hostile/structures/${structureId}/inline-update/`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": csrfToken
+            },
+            body: JSON.stringify({
+                field: field,
+                value: newValue
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                cell.classList.remove("is-editing");
+                activeEditingCell = null;
+
+                if (field === "name") {
+                    cell.dataset.rawValue = data.name;
+                    cell.innerHTML = `<div class="cell-display-content">${renderNameContent(data)}</div>`;
+                    if (row) {
+                        row.dataset.name = data.name.toLowerCase();
+                        updateRowSearchText(row);
+                    }
+                } else if (field === "owner") {
+                    cell.dataset.rawValue = data.owner_ticker || data.alliance_name || data.corporation_name || data.owner_name;
+                    cell.innerHTML = `<div class="cell-display-content">${renderOwnerContent(data)}</div>`;
+                    if (row) {
+                        row.dataset.owner = `${data.owner_name || ''} ${data.owner_ticker || ''}`.toLowerCase();
+                        updateRowSearchText(row);
+                    }
+                } else if (field === "vulnerability") {
+                    cell.dataset.rawValue = data.vulnerability_window || (data.vulnerability_hour !== null ? String(data.vulnerability_hour) : '');
+                    cell.innerHTML = `<div class="cell-display-content">${renderVulnBadge(data.vulnerability_display)}</div>`;
+                    if (row) {
+                        row.dataset.vulnHour = data.vulnerability_hour !== null ? String(data.vulnerability_hour) : "-1";
+                        row.dataset.vuln = (data.vulnerability_window || "").toLowerCase();
+                        updateRowSearchText(row);
+                    }
+                } else if (field === "state") {
+                    cell.dataset.rawValue = data.state;
+                    cell.innerHTML = `<div class="cell-display-content">${renderStateBadge(data.state, data.state_display)}</div>`;
+                    if (row) {
+                        row.dataset.state = data.state;
+                        updateRowSearchText(row);
+                        if (data.state === "ANCHORING") {
+                            const coreCell = row.querySelector('[data-field="core_status"]');
+                            if (coreCell) {
+                                coreCell.dataset.rawValue = "UNFITTED";
+                                coreCell.innerHTML = `<div class="cell-display-content">${renderCoreBadge("UNFITTED")}</div>`;
+                                row.dataset.core = "UNFITTED";
+                            }
+                        }
+                    }
+                } else if (field === "core_status") {
+                    cell.dataset.rawValue = data.core_status;
+                    cell.innerHTML = `<div class="cell-display-content">${renderCoreBadge(data.core_status)}</div>`;
+                    if (row) {
+                        row.dataset.core = data.core_status;
+                        updateRowSearchText(row);
+                    }
+                }
+
+                cell.classList.add("editable-cell-flash");
+                setTimeout(() => cell.classList.remove("editable-cell-flash"), 1200);
+
+                if (row && data.updated_at_display) {
+                    const updatedCell = row.querySelector(".structure-updated-cell");
+                    if (updatedCell) {
+                        updatedCell.textContent = data.updated_at_display;
+                    }
+                }
+            } else {
+                alert(data.error || "Failed to update structure.");
+                cancelActiveEdit();
+            }
+        })
+        .catch(err => {
+            alert("A network error occurred while updating.");
+            cancelActiveEdit();
+        });
+    }
+
+    initEditableCells();
 });
 </script>
 {% endblock %}

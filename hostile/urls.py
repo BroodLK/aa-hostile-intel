@@ -26,6 +26,11 @@ urlpatterns = [
         name="structure_merge",
     ),
     path(
+        "structures/<int:structure_id>/inline-update/",
+        views.structure_inline_update,
+        name="structure_inline_update",
+    ),
+    path(
         "structures/<int:structure_id>/edit/",
         views.structure_edit,
         name="structure_edit",

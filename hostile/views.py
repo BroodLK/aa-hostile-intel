@@ -6,6 +6,7 @@ Hostile Intelligence views, endpoints, and modals
 from datetime import timedelta
 import hashlib
 import json
+import re
 from typing import Any, Dict, List, Optional
 
 # Alliance Auth
@@ -14,6 +15,7 @@ from allianceauth.services.hooks import get_extension_logger
 # Django
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, permission_required
+from django.contrib.humanize.templatetags.humanize import naturaltime
 from django.core.cache import cache
 from django.core.handlers.wsgi import WSGIRequest
 from django.db.models import Q
@@ -55,6 +57,7 @@ from hostile.models import (
     StructureTimer,
     SystemObservation,
     SystemTag,
+    normalize_structure_name,
 )
 from hostile.parsers.classifier import IntelFormat, parse_intel_paste
 from hostile.parsers.dscan import DScanParser
@@ -813,6 +816,201 @@ def structure_set_state(request: WSGIRequest, structure_id: int) -> HttpResponse
         else:
             messages.error(request, f"Invalid structure state: '{new_state}'")
     return redirect(request.headers.get("referer", "hostile:structures"))
+
+
+@login_required
+@permission_required("hostile.basic_access")
+def structure_inline_update(request: WSGIRequest, structure_id: int) -> JsonResponse:
+    """AJAX endpoint for inline cell editing of hostile structure properties (name, owner, vulnerability, state, quantum core)"""
+    if request.method != "POST":
+        return JsonResponse({"success": False, "error": "Invalid HTTP method."}, status=405)
+
+    structure = get_object_or_404(
+        HostileStructure.objects.select_related("alliance", "corporation", "solar_system", "structure_type"),
+        id=structure_id,
+    )
+
+    if not user_can_edit_object(request.user, structure):
+        return JsonResponse(
+            {"success": False, "error": "You do not have permission to edit this structure."},
+            status=403,
+        )
+
+    # Parse payload (supports JSON or form-encoded POST data)
+    field = request.POST.get("field", "")
+    raw_value = request.POST.get("value", "")
+    if not field and request.body:
+        try:
+            body_data = json.loads(request.body.decode("utf-8"))
+            field = body_data.get("field", "")
+            raw_value = body_data.get("value", "")
+        except Exception:
+            pass
+
+    field = (field or "").strip().lower()
+    value = str(raw_value).strip() if raw_value is not None else ""
+
+    old_alliance = structure.alliance
+
+    if field == "name":
+        if not value:
+            return JsonResponse({"success": False, "error": "Structure name cannot be empty."}, status=400)
+        norm_name = normalize_structure_name(value)
+        if not norm_name:
+            return JsonResponse({"success": False, "error": "Structure name cannot be empty."}, status=400)
+        old_name = structure.name
+        structure.name = norm_name
+        structure.save(update_fields=["name", "updated_at"])
+        IntelManager.record_audit(
+            request.user,
+            "EDIT",
+            structure,
+            f"Inline updated name from '{old_name}' to '{structure.name}'.",
+        )
+
+    elif field in ("owner", "owner_ticker"):
+        old_owner = structure.owner_name
+        cleaned_ticker = value.strip("[] ").strip()
+        matched_alliance = None
+        matched_corp = None
+
+        if cleaned_ticker:
+            matched_alliance = HostileAlliance.objects.filter(
+                Q(ticker__iexact=cleaned_ticker) | Q(alliance_name__iexact=value)
+            ).first()
+            if not matched_alliance:
+                matched_corp = HostileCorporation.objects.filter(
+                    Q(ticker__iexact=cleaned_ticker) | Q(corporation_name__iexact=value)
+                ).first()
+
+        structure.alliance = matched_alliance
+        structure.corporation = matched_corp
+        if matched_alliance:
+            structure.owner_ticker = matched_alliance.ticker or cleaned_ticker[:32]
+        elif matched_corp:
+            structure.owner_ticker = matched_corp.ticker or cleaned_ticker[:32]
+        else:
+            structure.owner_ticker = cleaned_ticker[:32]
+
+        structure.save(update_fields=["alliance", "corporation", "owner_ticker", "updated_at"])
+
+        if structure.alliance:
+            SovAnalysisEngine.aggregate_alliance_vulnerability_windows(structure.alliance)
+        if old_alliance and old_alliance != structure.alliance:
+            SovAnalysisEngine.aggregate_alliance_vulnerability_windows(old_alliance)
+
+        IntelManager.record_audit(
+            request.user,
+            "EDIT",
+            structure,
+            f"Inline updated owner from '{old_owner}' to '{structure.owner_name}' [{structure.owner_ticker}].",
+        )
+
+    elif field in ("vulnerability", "vulnerability_window", "vulnerability_hour"):
+        if not value or value.lower() in ("unknown", "none", "clear", "-"):
+            structure.vulnerability_hour = None
+            structure.vulnerability_window = ""
+        else:
+            hour_match = re.match(r"^(\d{1,2})(?::00)?$", value)
+            range_match = re.search(r"(\d{1,2})(?::\d{2})?\s*-\s*(\d{1,2})(?::\d{2})?", value)
+            if hour_match:
+                h = int(hour_match.group(1))
+                if 0 <= h <= 23:
+                    structure.vulnerability_hour = h
+                    start_h = (h - 3 + 24) % 24
+                    end_h = (h + 3) % 24
+                    structure.vulnerability_window = f"{start_h:02d}:00 - {end_h:02d}:00 UTC"
+                else:
+                    return JsonResponse({"success": False, "error": "Vulnerability hour must be between 0 and 23."}, status=400)
+            elif range_match:
+                start_h = int(range_match.group(1)) % 24
+                end_h = int(range_match.group(2)) % 24
+                mid_h = (start_h + 3) % 24
+                structure.vulnerability_hour = mid_h
+                structure.vulnerability_window = f"{start_h:02d}:00 - {end_h:02d}:00 UTC"
+            else:
+                structure.vulnerability_window = value[:64]
+
+        structure.save(update_fields=["vulnerability_hour", "vulnerability_window", "updated_at"])
+
+        if structure.alliance:
+            SovAnalysisEngine.aggregate_alliance_vulnerability_windows(structure.alliance)
+
+        IntelManager.record_audit(
+            request.user,
+            "EDIT",
+            structure,
+            f"Inline updated vulnerability window to '{structure.vulnerability_window or 'Unknown'}'.",
+        )
+
+    elif field in ("state", "structure_state"):
+        new_state = value.upper().replace(" ", "_")
+        if new_state == "LOWPOWER":
+            new_state = "LOW_POWER"
+        valid_states = dict(HostileStructure.STATE_CHOICES)
+        if new_state not in valid_states:
+            return JsonResponse({"success": False, "error": f"Invalid state '{value}'."}, status=400)
+
+        old_state_display = structure.get_state_display()
+        structure.state = new_state
+        fields_to_update = ["state", "updated_at"]
+        if new_state == "ANCHORING":
+            structure.core_status = "UNFITTED"
+            fields_to_update.append("core_status")
+
+        structure.save(update_fields=fields_to_update)
+        IntelManager.record_audit(
+            request.user,
+            "EDIT",
+            structure,
+            f"Inline updated state from {old_state_display} to {structure.get_state_display()}.",
+        )
+
+    elif field in ("core", "core_status", "quantum_core"):
+        new_core = value.upper()
+        valid_cores = dict(HostileStructure.CORE_CHOICES)
+        if new_core not in valid_cores:
+            return JsonResponse({"success": False, "error": f"Invalid core status '{value}'."}, status=400)
+
+        old_core_display = structure.get_core_status_display()
+        structure.core_status = new_core
+        structure.save(update_fields=["core_status", "updated_at"])
+        IntelManager.record_audit(
+            request.user,
+            "EDIT",
+            structure,
+            f"Inline updated quantum core from {old_core_display} to {structure.get_core_status_display()}.",
+        )
+
+    else:
+        return JsonResponse({"success": False, "error": f"Unsupported field '{field}'."}, status=400)
+
+    vuln_display = structure.vulnerability_window or (
+        f"{structure.vulnerability_hour}:00 UTC" if structure.vulnerability_hour is not None else "Unknown"
+    )
+
+    return JsonResponse({
+        "success": True,
+        "structure_id": structure.id,
+        "field": field,
+        "name": structure.name,
+        "location_details": structure.location_details or "",
+        "owner_name": structure.owner_name,
+        "owner_ticker": structure.owner_ticker or "",
+        "alliance_id": structure.alliance_id,
+        "alliance_name": structure.alliance.alliance_name if structure.alliance else "",
+        "corporation_id": structure.corporation_id,
+        "corporation_name": structure.corporation.corporation_name if structure.corporation else "",
+        "vulnerability_hour": structure.vulnerability_hour,
+        "vulnerability_window": structure.vulnerability_window or "",
+        "vulnerability_display": vuln_display,
+        "state": structure.state,
+        "state_display": structure.get_state_display(),
+        "core_status": structure.core_status,
+        "core_status_display": structure.get_core_status_display(),
+        "updated_at": structure.updated_at.isoformat(),
+        "updated_at_display": naturaltime(structure.updated_at),
+    })
 
 
 @login_required

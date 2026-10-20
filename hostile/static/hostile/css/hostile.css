@@ -907,3 +907,56 @@ a:hover .hostile-stat-card,
 .table-dark.table-hover > tbody > tr:hover > * {
     color: #ffffff !important;
 }
+
+/* Inline Table Cell Editing & Sort Headers */
+.editable-cell {
+    cursor: pointer;
+    position: relative;
+    transition: background-color 0.15s ease-in-out, outline 0.15s ease-in-out;
+}
+
+.editable-cell:hover {
+    background-color: rgba(34, 147, 136, 0.18) !important;
+    outline: 1px dashed rgba(45, 179, 166, 0.75);
+    outline-offset: -2px;
+    border-radius: 4px;
+}
+
+.editable-cell.is-editing {
+    background-color: rgba(30, 35, 50, 0.98) !important;
+    outline: 1px solid var(--hostile-teal-strong, #2db3a6) !important;
+    border-radius: 4px;
+}
+
+.editable-cell-flash {
+    animation: hostileCellFlash 1.2s ease-out;
+}
+
+@keyframes hostileCellFlash {
+    0% { background-color: rgba(34, 197, 94, 0.45); }
+    100% { background-color: transparent; }
+}
+
+.sortable-th {
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.15s ease;
+}
+
+.sortable-th:hover {
+    color: #38bdf8 !important;
+}
+
+.sortable-th .sort-icon {
+    font-size: 0.8rem;
+    opacity: 0.6;
+}
+
+.sortable-th.active-sort {
+    color: #38bdf8 !important;
+}
+
+.sortable-th.active-sort .sort-icon {
+    opacity: 1;
+    color: #38bdf8 !important;
+}
