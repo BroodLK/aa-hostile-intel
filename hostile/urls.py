@@ -16,6 +16,16 @@ urlpatterns = [
     path("structures/", views.structures_list, name="structures"),
     path("structures/add/", views.structure_add, name="structure_add"),
     path(
+        "structures/auto-deduplicate/",
+        views.structure_auto_deduplicate,
+        name="structure_auto_deduplicate",
+    ),
+    path(
+        "structures/merge/",
+        views.structure_merge,
+        name="structure_merge",
+    ),
+    path(
         "structures/<int:structure_id>/edit/",
         views.structure_edit,
         name="structure_edit",

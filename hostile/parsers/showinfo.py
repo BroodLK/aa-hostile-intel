@@ -10,6 +10,7 @@ from typing import Any, Dict, Optional
 from eve_sde.models import ItemType, SolarSystem
 
 # AA Hostile Intel
+from hostile.models import normalize_structure_name
 from hostile.parsers.dscan import DScanParser
 from hostile.parsers.eft import EFTParser, StructureFittingParser
 
@@ -281,8 +282,9 @@ class StructureShowInfoParser:
                 fitting_data["hull_item_type"] = structure_type
                 fitting_data["hull_type_name"] = type_name
 
+        raw_struct_name = structure_name or (f"{type_name} in {system_name}" if type_name else "Hostile Structure")
         return {
-            "name": structure_name or (f"{type_name} in {system_name}" if type_name else "Hostile Structure"),
+            "name": normalize_structure_name(raw_struct_name),
             "structure_type_name": type_name,
             "structure_type": structure_type,
             "solar_system": solar_system,

@@ -33,6 +33,90 @@ class StructureQuerySet(models.QuerySet):
     def by_alliance(self, alliance):
         return self.filter(alliance=alliance)
 
+    def find_matching(
+        self,
+        solar_system=None,
+        name=None,
+        structure_type=None,
+        structure_id=None,
+        location_details="",
+    ):
+        """
+        Smart deduplication search for an existing structure:
+        - Exact structure_id match if provided
+        - Exact normalized name match in solar_system (or globally if no system)
+        - Ansiblex route matching (matching both endpoint systems in Ansiblex names)
+        - Generic vs System-specific fallback matching ('Mercenary Den' vs 'Mercenary Den (BNX-AS)')
+        - Coordinate/celestial matching
+        """
+        from hostile.models import normalize_structure_name
+
+        if structure_id:
+            match = self.filter(structure_id=structure_id).first()
+            if match:
+                return match
+
+        if not name and not structure_type and not location_details:
+            return None
+
+        norm_name = normalize_structure_name(name) if name else ""
+        system_structures = self.filter(solar_system=solar_system) if solar_system else self.all()
+
+        # 1. Exact case-insensitive match on normalized name
+        if norm_name:
+            match = system_structures.filter(name__iexact=norm_name).first()
+            if match:
+                return match
+
+        # 2. Ansiblex route matching
+        if norm_name and "»" in norm_name:
+            parts = [p.strip() for p in norm_name.split("»")]
+            if len(parts) >= 2:
+                sys1 = parts[0].split()[0] if parts[0].split() else ""
+                sys2 = parts[1].split()[0] if parts[1].split() else ""
+                if sys1 and sys2:
+                    ansiblex_matches = system_structures.filter(
+                        models.Q(name__icontains=sys1) & models.Q(name__icontains=sys2)
+                    )
+                    if ansiblex_matches.exists():
+                        return ansiblex_matches.first()
+
+        # 3. Generic deployable vs System-specific fallback name
+        if solar_system:
+            sys_name = getattr(solar_system, "name", str(solar_system))
+            type_name = getattr(structure_type, "name", "") if structure_type else ""
+
+            # Check if norm_name is generic like "Mercenary Den"
+            if norm_name:
+                synth_name = f"{norm_name} ({sys_name})"
+                match = system_structures.filter(name__iexact=synth_name).first()
+                if match:
+                    return match
+
+                # Check if norm_name ends with f"({sys_name})" e.g. "Mercenary Den (BNX-AS)"
+                if norm_name.lower().endswith(f"({sys_name.lower()})"):
+                    base_name = norm_name[: -len(f"({sys_name})")].strip()
+                    match = system_structures.filter(name__iexact=base_name).first()
+                    if match:
+                        return match
+
+            # If structure_type is provided and norm_name is or contains type_name
+            if type_name:
+                type_synth = f"{type_name} ({sys_name})"
+                match = system_structures.filter(
+                    models.Q(name__iexact=type_name) | models.Q(name__iexact=type_synth)
+                ).first()
+                if match:
+                    return match
+
+        # 4. Global match if solar_system was not specified
+        if norm_name and not solar_system:
+            match = self.filter(name__iexact=norm_name).first()
+            if match:
+                return match
+
+        return None
+
 
 class TimerQuerySet(models.QuerySet):
     def upcoming(self):

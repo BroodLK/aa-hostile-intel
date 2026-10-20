@@ -4,7 +4,10 @@ Trust management, intel verification, auditing, and pilot dossier role tagging
 
 # Standard Library
 import re
-from typing import Any, Optional
+from typing import Any, Dict, List, Optional, Tuple
+
+# Third Party
+from eve_sde.models import ItemType, SolarSystem
 
 # Django
 from django.contrib.auth.models import User
@@ -24,6 +27,7 @@ from hostile.models import (
     StructureModule,
     StructureTimer,
     SystemObservation,
+    normalize_structure_name,
 )
 
 
@@ -267,6 +271,288 @@ class IntelManager:
             pilot.is_rookie = True
 
         return pilot
+
+    @classmethod
+    def get_or_create_structure(
+        cls,
+        name: str,
+        solar_system: Optional[SolarSystem] = None,
+        structure_type: Optional[ItemType] = None,
+        structure_id: Optional[int] = None,
+        defaults: Optional[Dict[str, Any]] = None,
+        user: Optional[User] = None,
+    ) -> Tuple[HostileStructure, bool]:
+        """
+        Gets an existing structure using intelligent deduplication or creates a new one.
+        """
+        defaults_dict = dict(defaults or {})
+        norm_name = normalize_structure_name(name)
+        if not norm_name and structure_type and solar_system:
+            norm_name = f"{structure_type.name} ({solar_system.name})"
+        elif not norm_name:
+            norm_name = "Hostile Structure"
+
+        existing = HostileStructure.objects.find_matching(
+            solar_system=solar_system,
+            name=norm_name,
+            structure_type=structure_type,
+            structure_id=structure_id,
+            location_details=defaults_dict.get("location_details", ""),
+        )
+
+        if existing:
+            updated_fields = []
+            if structure_type and not existing.structure_type:
+                existing.structure_type = structure_type
+                updated_fields.append("structure_type")
+            if solar_system and not existing.solar_system:
+                existing.solar_system = solar_system
+                updated_fields.append("solar_system")
+            if defaults_dict.get("alliance") and not existing.alliance:
+                existing.alliance = defaults_dict["alliance"]
+                updated_fields.append("alliance")
+            if defaults_dict.get("corporation") and not existing.corporation:
+                existing.corporation = defaults_dict["corporation"]
+                updated_fields.append("corporation")
+            if defaults_dict.get("owner_ticker") and not existing.owner_ticker:
+                existing.owner_ticker = defaults_dict["owner_ticker"][:32]
+                updated_fields.append("owner_ticker")
+            if defaults_dict.get("location_details") and not existing.location_details:
+                existing.location_details = defaults_dict["location_details"]
+                updated_fields.append("location_details")
+            if defaults_dict.get("core_status") and existing.core_status == "UNKNOWN":
+                existing.core_status = defaults_dict["core_status"]
+                updated_fields.append("core_status")
+            if (
+                defaults_dict.get("state")
+                and defaults_dict["state"] != "ONLINE"
+                and existing.state == "ONLINE"
+            ):
+                existing.state = defaults_dict["state"]
+                updated_fields.append("state")
+            if (
+                defaults_dict.get("vulnerability_window")
+                and not existing.vulnerability_window
+            ):
+                existing.vulnerability_window = defaults_dict["vulnerability_window"]
+                updated_fields.append("vulnerability_window")
+            if (
+                defaults_dict.get("vulnerability_hour") is not None
+                and existing.vulnerability_hour is None
+            ):
+                existing.vulnerability_hour = defaults_dict["vulnerability_hour"]
+                updated_fields.append("vulnerability_hour")
+            if (
+                solar_system
+                and existing.name.endswith(f"({solar_system.name})")
+                and not norm_name.endswith(f"({solar_system.name})")
+                and "(" not in norm_name
+            ):
+                existing.name = norm_name
+                updated_fields.append("name")
+
+            if updated_fields:
+                existing.save(update_fields=list(set(updated_fields)) + ["updated_at"])
+            return existing, False
+
+        create_kwargs = {
+            "name": norm_name,
+            "solar_system": solar_system,
+            "structure_type": structure_type,
+            "structure_id": structure_id,
+            "created_by": user,
+            **defaults_dict,
+        }
+        struct = HostileStructure.objects.create(**create_kwargs)
+        return struct, True
+
+    @classmethod
+    @transaction.atomic
+    def merge_structures(
+        cls,
+        primary: HostileStructure,
+        duplicates: List[HostileStructure],
+        user: Optional[User] = None,
+    ) -> int:
+        """
+        Merges duplicate HostileStructure objects into primary HostileStructure.
+        Re-points all fittings, timers, audit logs, and fills missing metadata.
+        """
+        if not duplicates:
+            return 0
+
+        dup_ids = [d.id for d in duplicates if d.id != primary.id]
+        if not dup_ids:
+            return 0
+
+        dup_objs = list(HostileStructure.objects.filter(id__in=dup_ids))
+        merged_count = 0
+
+        update_fields = []
+        for d in dup_objs:
+            if not primary.structure_type and d.structure_type:
+                primary.structure_type = d.structure_type
+                update_fields.append("structure_type")
+            if not primary.solar_system and d.solar_system:
+                primary.solar_system = d.solar_system
+                update_fields.append("solar_system")
+            if not primary.alliance and d.alliance:
+                primary.alliance = d.alliance
+                update_fields.append("alliance")
+            if not primary.corporation and d.corporation:
+                primary.corporation = d.corporation
+                update_fields.append("corporation")
+            if not primary.owner_ticker and d.owner_ticker:
+                primary.owner_ticker = d.owner_ticker
+                update_fields.append("owner_ticker")
+            if not primary.location_details and d.location_details:
+                primary.location_details = d.location_details
+                update_fields.append("location_details")
+            if primary.core_status == "UNKNOWN" and d.core_status != "UNKNOWN":
+                primary.core_status = d.core_status
+                update_fields.append("core_status")
+            if not primary.vulnerability_window and d.vulnerability_window:
+                primary.vulnerability_window = d.vulnerability_window
+                update_fields.append("vulnerability_window")
+            if primary.vulnerability_hour is None and d.vulnerability_hour is not None:
+                primary.vulnerability_hour = d.vulnerability_hour
+                update_fields.append("vulnerability_hour")
+            if not primary.notes and d.notes:
+                primary.notes = d.notes
+                update_fields.append("notes")
+            elif d.notes and d.notes not in primary.notes:
+                primary.notes = f"{primary.notes}\n{d.notes}".strip()
+                update_fields.append("notes")
+
+        if update_fields:
+            primary.save(update_fields=list(set(update_fields)) + ["updated_at"])
+
+        # Re-link child records
+        StructureFitting.objects.filter(structure_id__in=dup_ids).update(structure=primary)
+        StructureTimer.objects.filter(structure_id__in=dup_ids).update(structure=primary)
+        IntelAuditLog.objects.filter(
+            target_model="HostileStructure", target_id__in=[str(i) for i in dup_ids]
+        ).update(target_id=str(primary.id))
+
+        # Delete duplicates
+        for d in dup_objs:
+            d.delete()
+            merged_count += 1
+
+        cls.record_audit(
+            user,
+            "MERGE",
+            primary,
+            f"Merged {merged_count} duplicate structure(s) into '{primary.name}'",
+        )
+        return merged_count
+
+    @classmethod
+    def auto_deduplicate_all(cls, user: Optional[User] = None) -> Dict[str, int]:
+        """
+        Scans all solar systems and merges duplicate structure records.
+        """
+        system_ids = (
+            HostileStructure.objects.filter(solar_system__isnull=False)
+            .values_list("solar_system_id", flat=True)
+            .distinct()
+        )
+
+        total_merged = 0
+        systems_affected = 0
+
+        for sys_id in system_ids:
+            system = SolarSystem.objects.filter(id=sys_id).first()
+            if not system:
+                continue
+
+            structs = list(
+                HostileStructure.objects.filter(solar_system=system)
+                .prefetch_related("fittings", "timers")
+                .order_by("id")
+            )
+            if len(structs) <= 1:
+                continue
+
+            processed_ids = set()
+            system_merged_any = False
+
+            for i, s1 in enumerate(structs):
+                if s1.id in processed_ids:
+                    continue
+
+                dups_for_s1 = []
+                for s2 in structs[i + 1 :]:
+                    if s2.id in processed_ids:
+                        continue
+
+                    # Check if s2 matches s1
+                    is_dup = False
+                    norm1 = normalize_structure_name(s1.name).lower()
+                    norm2 = normalize_structure_name(s2.name).lower()
+
+                    # Exact normalized name
+                    if norm1 == norm2:
+                        is_dup = True
+                    # Ansiblex matching
+                    elif "»" in norm1 and "»" in norm2:
+                        parts1 = [p.strip().split()[0] for p in norm1.split("»") if p.strip().split()]
+                        parts2 = [p.strip().split()[0] for p in norm2.split("»") if p.strip().split()]
+                        if len(parts1) >= 2 and len(parts2) >= 2:
+                            if (parts1[0] == parts2[0] and parts1[1] == parts2[1]) or (
+                                parts1[0] == parts2[1] and parts1[1] == parts2[0]
+                            ):
+                                is_dup = True
+                    # Generic name vs System-suffixed name
+                    elif system:
+                        s_name = system.name.lower()
+                        if norm1 == f"{norm2} ({s_name})" or norm2 == f"{norm1} ({s_name})":
+                            is_dup = True
+                        elif s1.structure_type and s2.structure_type and s1.structure_type == s2.structure_type:
+                            type_low = s1.structure_type.name.lower()
+                            if (norm1 == type_low or norm1 == f"{type_low} ({s_name})") or (
+                                norm2 == type_low or norm2 == f"{type_low} ({s_name})"
+                            ):
+                                is_dup = True
+
+                    if is_dup:
+                        dups_for_s1.append(s2)
+                        processed_ids.add(s2.id)
+
+                if dups_for_s1:
+                    primary = s1
+                    candidates = [s1] + dups_for_s1
+
+                    def struct_score(st):
+                        score = 0
+                        if st.is_verified:
+                            score += 100
+                        score += st.fittings.count() * 10
+                        score += st.timers.count() * 10
+                        if st.alliance_id:
+                            score += 5
+                        if st.corporation_id:
+                            score += 5
+                        if st.vulnerability_window:
+                            score += 5
+                        if not st.name.endswith(f"({system.name})"):
+                            score += 2
+                        return score
+
+                    best_candidate = max(candidates, key=struct_score)
+                    other_candidates = [c for c in candidates if c.id != best_candidate.id]
+                    count = cls.merge_structures(best_candidate, other_candidates, user=user)
+                    total_merged += count
+                    system_merged_any = True
+                    processed_ids.add(best_candidate.id)
+
+            if system_merged_any:
+                systems_affected += 1
+
+        return {
+            "total_merged": total_merged,
+            "systems_affected": systems_affected,
+        }
 
     @classmethod
     def run_alt_detection(

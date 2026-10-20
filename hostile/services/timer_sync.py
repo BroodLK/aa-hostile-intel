@@ -1097,13 +1097,6 @@ class TimerSyncService:
                 )
             )
 
-            hostile_structure = None
-            if solar_system:
-                hostile_structure = HostileStructure.objects.filter(
-                    solar_system=solar_system,
-                    name__iexact=structure_name,
-                ).first()
-
             st_objective = getattr(st_timer, "objective", None)
             is_friendly = (
                 st_objective
@@ -1121,6 +1114,7 @@ class TimerSyncService:
             owner_ticker = owner_raw
 
             from hostile.services.entity_resolver import EntityResolver
+            from hostile.services.intel_manager import IntelManager
 
             if owner_raw and owner_raw.lower() not in ["unknown", "none", ""]:
                 resolved_alliance = EntityResolver.get_or_create_alliance(owner_raw)
@@ -1165,7 +1159,6 @@ class TimerSyncService:
                         defaults={
                             "corporation_name": st_timer.eve_corporation.corporation_name,
                             "ticker": getattr(st_timer.eve_corporation, "corporation_ticker", "CORP"),
-                            "alliance": alliance,
                             "is_friendly": True,
                         },
                     )
@@ -1176,53 +1169,26 @@ class TimerSyncService:
                         owner_ticker = getattr(st_timer.eve_corporation, "corporation_ticker",
                                                "") or st_timer.eve_corporation.corporation_name
 
-            if not hostile_structure:
-                hostile_structure = HostileStructure.objects.create(
-                    name=structure_name,
-                    structure_type=item_type,
-                    solar_system=solar_system,
-                    alliance=alliance,
-                    corporation=corp,
-                    owner_ticker=(owner_ticker or "")[:32],
-                    location_details=st_timer.location_details or "",
-                    created_by=st_timer.user,
-                )
-            else:
+            hostile_structure, _ = IntelManager.get_or_create_structure(
+                name=structure_name,
+                solar_system=solar_system,
+                structure_type=item_type,
+                defaults={
+                    "alliance": alliance,
+                    "corporation": corp,
+                    "owner_ticker": (owner_ticker or "")[:32],
+                    "location_details": st_timer.location_details or "",
+                },
+                user=st_timer.user,
+            )
+
+            if not is_friendly:
                 updated_struct = False
-                if item_type and hostile_structure.structure_type != item_type:
-                    hostile_structure.structure_type = item_type
-                    updated_struct = True
-                if (
-                    owner_ticker
-                    and hostile_structure.owner_ticker != owner_ticker[:32]
-                ):
-                    hostile_structure.owner_ticker = owner_ticker[:32]
-                    updated_struct = True
-                if alliance is not None and hostile_structure.alliance != alliance:
-                    hostile_structure.alliance = alliance
-                    updated_struct = True
-                elif (
-                    not is_friendly
-                    and hostile_structure.alliance
-                    and cls.is_entity_friendly(alliance_id=hostile_structure.alliance.alliance_id)
-                ):
+                if hostile_structure.alliance and cls.is_entity_friendly(alliance_id=hostile_structure.alliance.alliance_id):
                     hostile_structure.alliance = None
                     updated_struct = True
-                if corp is not None and hostile_structure.corporation != corp:
-                    hostile_structure.corporation = corp
-                    updated_struct = True
-                elif (
-                    not is_friendly
-                    and hostile_structure.corporation
-                    and cls.is_entity_friendly(corp_id=hostile_structure.corporation.corporation_id)
-                ):
+                if hostile_structure.corporation and cls.is_entity_friendly(corp_id=hostile_structure.corporation.corporation_id):
                     hostile_structure.corporation = None
-                    updated_struct = True
-                if (
-                    st_timer.location_details
-                    and hostile_structure.location_details != st_timer.location_details
-                ):
-                    hostile_structure.location_details = st_timer.location_details
                     updated_struct = True
                 if updated_struct:
                     hostile_structure.save()
@@ -1370,60 +1336,28 @@ class TimerSyncService:
             ) or ""
 
             struct_name = f"{tb_timer.system} {tb_timer.structure}"
-            hostile_structure = None
-            if solar_system:
-                hostile_structure = HostileStructure.objects.filter(
-                    solar_system=solar_system,
-                    name__iexact=struct_name,
-                ).first()
+            from hostile.services.intel_manager import IntelManager
 
-            if not hostile_structure:
-                hostile_structure = HostileStructure.objects.create(
-                    name=struct_name,
-                    structure_type=item_type,
-                    solar_system=solar_system,
-                    alliance=alliance,
-                    corporation=corp,
-                    owner_ticker=(owner_ticker or "")[:32],
-                    location_details=location_details,
-                    created_by=tb_timer.user,
-                )
-            else:
+            hostile_structure, _ = IntelManager.get_or_create_structure(
+                name=struct_name,
+                solar_system=solar_system,
+                structure_type=item_type,
+                defaults={
+                    "alliance": alliance,
+                    "corporation": corp,
+                    "owner_ticker": (owner_ticker or "")[:32],
+                    "location_details": location_details,
+                },
+                user=tb_timer.user,
+            )
+
+            if not is_friendly:
                 updated_struct = False
-                if item_type and hostile_structure.structure_type != item_type:
-                    hostile_structure.structure_type = item_type
-                    updated_struct = True
-                if (
-                    owner_ticker
-                    and hostile_structure.owner_ticker != owner_ticker[:32]
-                ):
-                    hostile_structure.owner_ticker = owner_ticker[:32]
-                    updated_struct = True
-                if alliance is not None and hostile_structure.alliance != alliance:
-                    hostile_structure.alliance = alliance
-                    updated_struct = True
-                elif (
-                    not is_friendly
-                    and hostile_structure.alliance
-                    and cls.is_entity_friendly(alliance_id=hostile_structure.alliance.alliance_id)
-                ):
+                if hostile_structure.alliance and cls.is_entity_friendly(alliance_id=hostile_structure.alliance.alliance_id):
                     hostile_structure.alliance = None
                     updated_struct = True
-                if corp is not None and hostile_structure.corporation != corp:
-                    hostile_structure.corporation = corp
-                    updated_struct = True
-                elif (
-                    not is_friendly
-                    and hostile_structure.corporation
-                    and cls.is_entity_friendly(corp_id=hostile_structure.corporation.corporation_id)
-                ):
+                if hostile_structure.corporation and cls.is_entity_friendly(corp_id=hostile_structure.corporation.corporation_id):
                     hostile_structure.corporation = None
-                    updated_struct = True
-                if (
-                    location_details
-                    and hostile_structure.location_details != location_details
-                ):
-                    hostile_structure.location_details = location_details
                     updated_struct = True
                 if updated_struct:
                     hostile_structure.save()

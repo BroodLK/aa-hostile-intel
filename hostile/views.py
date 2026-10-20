@@ -592,13 +592,36 @@ def structure_add(request: WSGIRequest) -> HttpResponse:
             struct.created_by = request.user
             if request.user.has_perm("hostile.manage_intel"):
                 struct.is_verified = True
-            struct.save()
+
+            struct, created = IntelManager.get_or_create_structure(
+                name=struct.name,
+                solar_system=struct.solar_system,
+                structure_type=struct.structure_type,
+                structure_id=struct.structure_id,
+                defaults={
+                    "corporation": struct.corporation,
+                    "alliance": struct.alliance,
+                    "owner_ticker": struct.owner_ticker,
+                    "core_status": struct.core_status,
+                    "state": struct.state,
+                    "vulnerability_window": struct.vulnerability_window,
+                    "vulnerability_hour": struct.vulnerability_hour,
+                    "location_details": struct.location_details,
+                    "notes": struct.notes,
+                    "is_verified": struct.is_verified,
+                },
+                user=request.user,
+            )
+
             if struct.alliance:
                 SovAnalysisEngine.aggregate_alliance_vulnerability_windows(
                     struct.alliance
                 )
             IntelManager.record_audit(
-                request.user, "CREATE", struct, "Manual structure creation."
+                request.user,
+                "CREATE" if created else "UPDATE",
+                struct,
+                f"Structure '{struct.name}' {'created' if created else 'updated via submission'}.",
             )
 
             # Check if a timer should be created (Anchoring, Armor, Hull, Reinforced)
@@ -793,6 +816,54 @@ def structure_set_state(request: WSGIRequest, structure_id: int) -> HttpResponse
 
 
 @login_required
+@permission_required("hostile.manage_intel")
+def structure_auto_deduplicate(request: WSGIRequest) -> HttpResponse:
+    """Auto-deduplicates structures across all systems by merging duplicates into primary structures"""
+    if request.method == "POST":
+        res = IntelManager.auto_deduplicate_all(user=request.user)
+        total_merged = res["total_merged"]
+        systems_affected = res["systems_affected"]
+        if total_merged > 0:
+            messages.success(
+                request,
+                f"Successfully deduplicated structures: {total_merged} duplicate(s) merged across {systems_affected} system(s).",
+            )
+        else:
+            messages.info(request, "No duplicate structures found to merge.")
+    return redirect("hostile:structures")
+
+
+@login_required
+@permission_required("hostile.manage_intel")
+def structure_merge(request: WSGIRequest) -> HttpResponse:
+    """Manually merges selected duplicate structures into a primary structure"""
+    if request.method == "POST":
+        primary_id = request.POST.get("primary_structure_id")
+        duplicate_ids = request.POST.getlist("duplicate_structure_ids")
+        if primary_id and duplicate_ids:
+            try:
+                primary = HostileStructure.objects.get(id=int(primary_id))
+                duplicates = list(
+                    HostileStructure.objects.filter(
+                        id__in=[int(i) for i in duplicate_ids if int(i) != primary.id]
+                    )
+                )
+                if duplicates:
+                    count = IntelManager.merge_structures(primary, duplicates, user=request.user)
+                    messages.success(
+                        request,
+                        f"Merged {count} structure(s) into '{primary.name}'.",
+                    )
+                else:
+                    messages.warning(request, "No valid duplicate structures selected for merge.")
+            except (HostileStructure.DoesNotExist, ValueError) as e:
+                messages.error(request, f"Error merging structures: {e}")
+        else:
+            messages.warning(request, "Please specify a primary structure and at least one duplicate.")
+    return redirect("hostile:structures")
+
+
+@login_required
 @permission_required("hostile.basic_access")
 def timers_list(request: WSGIRequest) -> HttpResponse:
     """Timer board with live countdowns and timezone conversion"""
@@ -968,22 +1039,24 @@ def timer_add(request: WSGIRequest) -> HttpResponse:
                     elif corporation and corporation.ticker:
                         owner_ticker = corporation.ticker
 
-                struct = HostileStructure.objects.create(
+                struct, _ = IntelManager.get_or_create_structure(
                     name=name,
-                    structure_type=form.cleaned_data.get("structure_type"),
                     solar_system=solar_system,
-                    owner_ticker=owner_ticker,
-                    alliance=alliance,
-                    corporation=corporation,
-                    core_status=form.cleaned_data.get("core_status") or "UNKNOWN",
-                    state=form.cleaned_data.get("state") or "ONLINE",
-                    vulnerability_hour=form.cleaned_data.get("vulnerability_hour"),
-                    vulnerability_window=form.cleaned_data.get("vulnerability_window")
-                    or "",
-                    location_details=form.cleaned_data.get("location_details") or "",
-                    notes=form.cleaned_data.get("notes") or "",
-                    created_by=request.user,
-                    is_verified=request.user.has_perm("hostile.manage_intel"),
+                    structure_type=form.cleaned_data.get("structure_type"),
+                    defaults={
+                        "owner_ticker": owner_ticker,
+                        "alliance": alliance,
+                        "corporation": corporation,
+                        "core_status": form.cleaned_data.get("core_status") or "UNKNOWN",
+                        "state": form.cleaned_data.get("state") or "ONLINE",
+                        "vulnerability_hour": form.cleaned_data.get("vulnerability_hour"),
+                        "vulnerability_window": form.cleaned_data.get("vulnerability_window")
+                        or "",
+                        "location_details": form.cleaned_data.get("location_details") or "",
+                        "notes": form.cleaned_data.get("notes") or "",
+                        "is_verified": request.user.has_perm("hostile.manage_intel"),
+                    },
+                    user=request.user,
                 )
                 if struct.alliance:
                     SovAnalysisEngine.aggregate_alliance_vulnerability_windows(
@@ -2799,18 +2872,18 @@ def smart_paste(request: WSGIRequest) -> HttpResponse:
             elif fmt == IntelFormat.DSCAN:
                 created_count = 0
                 for s in data["structures"]:
-                    struct, created = HostileStructure.objects.get_or_create(
+                    struct, created = IntelManager.get_or_create_structure(
                         name=s["name"],
+                        solar_system=s["solar_system"] or override_system,
+                        structure_type=s["structure_type"],
                         defaults={
-                            "structure_type": s["structure_type"],
-                            "solar_system": s["solar_system"] or override_system,
                             "owner_ticker": s["owner_ticker"],
                             "location_details": s["location_details"],
-                            "created_by": request.user,
                             "is_verified": request.user.has_perm(
                                 "hostile.manage_intel"
                             ),
                         },
+                        user=request.user,
                     )
                     if created:
                         created_count += 1
@@ -2834,11 +2907,11 @@ def smart_paste(request: WSGIRequest) -> HttpResponse:
                         alliance_name__iexact=data["alliance_name"]
                     ).first()
 
-                struct, created = HostileStructure.objects.get_or_create(
+                struct, created = IntelManager.get_or_create_structure(
                     name=data["name"],
+                    solar_system=struct_system,
+                    structure_type=data["structure_type"],
                     defaults={
-                        "structure_type": data["structure_type"],
-                        "solar_system": struct_system,
                         "alliance": alliance_obj,
                         "owner_ticker": data["owner_ticker"],
                         "core_status": data["core_status"],
@@ -2847,9 +2920,9 @@ def smart_paste(request: WSGIRequest) -> HttpResponse:
                         "vulnerability_hour": data.get("vulnerability_hour"),
                         "location_details": data["location_details"],
                         "notes": data["notes"],
-                        "created_by": request.user,
                         "is_verified": request.user.has_perm("hostile.manage_intel"),
                     },
+                    user=request.user,
                 )
                 if not created:
                     struct.core_status = data["core_status"]
@@ -2906,19 +2979,20 @@ def smart_paste(request: WSGIRequest) -> HttpResponse:
                 vuln_hour = data.get("vulnerability_hour")
                 vuln_window = data.get("vulnerability_window", "")
 
-                # Look up existing structure by name and system, or by exact name
-                struct = None
-                if struct_system:
-                    struct = HostileStructure.objects.filter(
-                        solar_system=struct_system,
-                        name__iexact=struct_name,
-                    ).first()
-                if not struct:
-                    struct = HostileStructure.objects.filter(
-                        name__iexact=struct_name
-                    ).first()
-
-                if struct:
+                struct, created = IntelManager.get_or_create_structure(
+                    name=struct_name,
+                    solar_system=struct_system,
+                    structure_type=data.get("structure_type"),
+                    defaults={
+                        "owner_ticker": data.get("owner_ticker", ""),
+                        "vulnerability_hour": vuln_hour,
+                        "vulnerability_window": vuln_window,
+                        "notes": data.get("notes", ""),
+                        "is_verified": request.user.has_perm("hostile.manage_intel"),
+                    },
+                    user=request.user,
+                )
+                if not created:
                     if vuln_hour is not None:
                         struct.vulnerability_hour = vuln_hour
                     if vuln_window:
@@ -2930,18 +3004,6 @@ def smart_paste(request: WSGIRequest) -> HttpResponse:
                     if data.get("structure_type") and not struct.structure_type:
                         struct.structure_type = data["structure_type"]
                     struct.save()
-                else:
-                    struct = HostileStructure.objects.create(
-                        name=struct_name,
-                        structure_type=data.get("structure_type"),
-                        solar_system=struct_system,
-                        owner_ticker=data.get("owner_ticker", ""),
-                        vulnerability_hour=vuln_hour,
-                        vulnerability_window=vuln_window,
-                        notes=data.get("notes", ""),
-                        created_by=request.user,
-                        is_verified=request.user.has_perm("hostile.manage_intel"),
-                    )
 
                 if struct.alliance:
                     SovAnalysisEngine.aggregate_alliance_vulnerability_windows(
@@ -2975,35 +3037,16 @@ def smart_paste(request: WSGIRequest) -> HttpResponse:
                     hull_display = hull_type.name if hull_type else "Structure"
                     fit_name = f"Scanned {hull_display} Fit ({timezone.now().strftime('%Y-%m-%d %H:%M')})"
 
-                struct = None
-                if override_system:
-                    # Check if structure with fitting_name exists in this system
-                    if fit_res.get("fitting_name"):
-                        struct = HostileStructure.objects.filter(
-                            solar_system=override_system,
-                            name__iexact=fit_res["fitting_name"],
-                        ).first()
-                    if not struct:
-                        # Or match existing structure in system with same hull type
-                        if hull_type:
-                            struct = HostileStructure.objects.filter(
-                                solar_system=override_system,
-                                structure_type=hull_type,
-                            ).first()
-                elif fit_res.get("fitting_name"):
-                    struct = HostileStructure.objects.filter(
-                        name__iexact=fit_res["fitting_name"]
-                    ).first()
-
-                if not struct:
-                    struct = HostileStructure.objects.create(
-                        name=fit_name,
-                        structure_type=hull_type,
-                        solar_system=override_system,
-                        created_by=request.user,
-                        is_verified=request.user.has_perm("hostile.manage_intel"),
-                    )
-                elif hull_type and not struct.structure_type:
+                struct, created = IntelManager.get_or_create_structure(
+                    name=fit_res.get("fitting_name") or fit_name,
+                    solar_system=override_system,
+                    structure_type=hull_type,
+                    defaults={
+                        "is_verified": request.user.has_perm("hostile.manage_intel"),
+                    },
+                    user=request.user,
+                )
+                if hull_type and not struct.structure_type:
                     struct.structure_type = hull_type
                     struct.save(update_fields=["structure_type"])
 

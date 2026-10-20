@@ -3,6 +3,7 @@ Hostile Intelligence Models
 """
 
 # Standard Library
+import re
 import uuid
 from typing import Any, Dict, List, Optional
 
@@ -508,6 +509,23 @@ class SystemTag(models.Model):
         return self.name
 
 
+def normalize_structure_name(name: str) -> str:
+    """
+    Normalizes structure names:
+    1. Converts variations of Ansiblex jump gate route separators (>>, ->, -->, —, –) into standard »
+    2. Enforces consistent spacing around » (e.g. 'A-YB15 » ZS-PNI - 6 to 7 jumps')
+    3. Trims and collapses multiple spaces
+    """
+    if not name:
+        return ""
+    cleaned = str(name).strip()
+    # Normalize unicode / ascii arrows between words/systems to standard »
+    cleaned = re.sub(r"\s*(?:>>|-->|->|—|–)\s*", " » ", cleaned)
+    cleaned = re.sub(r"\s*»\s*", " » ", cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    return cleaned.strip()
+
+
 class HostileStructure(models.Model):
     """Hostile Upwell structure or starbase deployment"""
 
@@ -616,7 +634,13 @@ class HostileStructure(models.Model):
             return self.corporation.corporation_name
         return self.owner_ticker or "Unknown"
 
+    @staticmethod
+    def normalize_name(name: str) -> str:
+        return normalize_structure_name(name)
+
     def save(self, *args, **kwargs):
+        if self.name:
+            self.name = normalize_structure_name(self.name)
         if self.state == "ANCHORING":
             self.core_status = "UNFITTED"
         if self.vulnerability_hour is not None and not self.vulnerability_window:

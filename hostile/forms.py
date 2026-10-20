@@ -25,6 +25,7 @@ from hostile.models import (
     StructureTimer,
     SystemObservation,
     SystemTag,
+    normalize_structure_name,
 )
 from hostile.services.reinforcement_calculator import (
     LocationSecurity,
@@ -668,6 +669,9 @@ class HostileStructureForm(forms.ModelForm):
         cleaned_data = super().clean()
         from hostile.services.entity_resolver import EntityResolver
 
+        if cleaned_data.get("name"):
+            cleaned_data["name"] = normalize_structure_name(cleaned_data["name"])
+
         if not cleaned_data.get("core_status"):
             cleaned_data["core_status"] = "UNKNOWN"
         if not cleaned_data.get("state"):
@@ -1289,6 +1293,9 @@ class StructureTimerForm(forms.ModelForm):
         cleaned_data = super().clean()
         structure = cleaned_data.get("structure")
         name = (cleaned_data.get("name") or "").strip()
+        if name:
+            name = normalize_structure_name(name)
+            cleaned_data["name"] = name
         solar_system = cleaned_data.get("solar_system")
 
         if structure:

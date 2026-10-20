@@ -9,6 +9,9 @@ from typing import Any, Dict, List, Optional
 # Third Party
 from eve_sde.models import ItemType, SolarSystem
 
+# AA Hostile Intel
+from hostile.models import normalize_structure_name
+
 KNOWN_STRUCTURE_KEYWORDS = {
     "keepstar",
     "fortizar",
@@ -199,7 +202,7 @@ class DScanParser:
             if is_structure:
                 structures.append(
                     {
-                        "name": name,
+                        "name": normalize_structure_name(name),
                         "structure_type_name": type_name,
                         "structure_type": item_type,
                         "solar_system": detected_system,

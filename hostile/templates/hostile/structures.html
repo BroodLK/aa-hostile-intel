@@ -8,6 +8,14 @@
         <p class="text-muted small mb-0">{% translate "Tracked hostile citadels, engineering complexes, refineries, and POSes." %}</p>
     </div>
     <div class="d-flex gap-2">
+        {% if perms.hostile.manage_intel %}
+        <form action="{% url 'hostile:structure_auto_deduplicate' %}" method="post" class="d-inline" onsubmit="return confirm('{% translate "Are you sure you want to scan and merge all duplicate structures across all systems?" %}');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-warning btn-sm fw-bold shadow-sm" title="{% translate 'Scan and merge duplicate structures (Ansiblex variants, generic timer syncs, etc.)' %}">
+                <i class="fas fa-compress-alt me-1"></i>{% translate "Merge Duplicates" %}
+            </button>
+        </form>
+        {% endif %}
         <button type="button" class="btn btn-primary btn-sm fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#addStructureModal">
             <i class="fas fa-plus me-1"></i>{% translate "Add Structure" %}
         </button>
