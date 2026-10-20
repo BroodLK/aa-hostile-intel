@@ -110,7 +110,7 @@
                         <th class="sortable-th cursor-pointer user-select-none" data-sort="updated" title="{% translate 'Click to sort by Last Updated' %}">
                             {% translate "Last Updated" %} <i class="fas fa-sort sort-icon text-muted ms-1"></i>
                         </th>
-                        <th class="text-end">{% translate "Actions" %}</th>
+                        <th class="text-start">{% translate "Actions" %}</th>
                     </tr>
                 </thead>
                 <tbody id="structuresTableBody" class="border-secondary">
@@ -232,12 +232,12 @@
                             {% endif %}
                         </td>
                         <td class="small text-muted structure-updated-cell">{{ struct.updated_at|naturaltime }}</td>
-                        <td class="text-end">
+                        <td class="text-start text-nowrap">
                             <div class="dropdown d-inline-block me-1">
                                 <button class="btn btn-outline-secondary btn-xs py-0 px-2 dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" title="{% translate 'Change Structure State' %}">
                                     <i class="fas fa-exchange-alt me-1"></i>State
                                 </button>
-                                <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end shadow border-secondary" style="z-index: 1080;">
+                                <ul class="dropdown-menu dropdown-menu-dark shadow border-secondary" style="z-index: 1080;">
                                     <li><h6 class="dropdown-header small text-uppercase">{% translate "Change Structure State" %}</h6></li>
                                     <li>
                                         <form action="{% url 'hostile:structure_set_state' struct.id %}" method="post" class="m-0 p-0">

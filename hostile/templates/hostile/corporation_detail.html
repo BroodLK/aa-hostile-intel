@@ -342,7 +342,7 @@
                                 <th>{% translate "State" %}</th>
                                 <th>{% translate "Core Status" %}</th>
                                 <th>{% translate "Vuln Window" %}</th>
-                                <th class="text-end">{% translate "Actions" %}</th>
+                                <th class="text-start">{% translate "Actions" %}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -370,7 +370,7 @@
                                     {% endif %}
                                 </td>
                                 <td class="font-mono small text-muted">{{ struct.vulnerability_window|default:"-" }}</td>
-                                <td class="text-end">
+                                <td class="text-start text-nowrap">
                                     <a href="{% url 'hostile:calculator' %}?structure_id={{ struct.id }}" class="btn btn-outline-warning btn-xs py-0 px-2 me-1" title="{% translate 'Calculate Reinforce Exit Window' %}">
                                         <i class="fas fa-calculator me-1"></i>{% translate "Calc" %}
                                     </a>
