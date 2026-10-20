@@ -6,7 +6,6 @@ Circuit breaker implementation for external API resilience (ESI, zKillboard)
 import logging
 import time
 from collections.abc import Callable
-from functools import wraps
 from typing import Any
 
 # Django

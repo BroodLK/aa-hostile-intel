@@ -24,7 +24,6 @@ from allianceauth.tests.auth_utils import AuthUtils
 # AA Hostile Intel
 from hostile.models import (
     HostileAlliance,
-    HostileCorporation,
     HostileStructure,
     IntelAuditLog,
     LocalThreatScan,
@@ -92,6 +91,7 @@ class TestImprovements(TestCase):
         dummy_func.assert_not_called()
 
         # Wait for recovery timeout
+        # Standard Library
         import time
 
         time.sleep(0.25)
@@ -203,9 +203,7 @@ class TestImprovements(TestCase):
         # Dry run prune
         out = StringIO()
         call_command("hostile_prune_threat_scans", days=30, dry_run=True, stdout=out)
-        self.assertIn(
-            "Found 1 threat scan(s) eligible for pruning", out.getvalue()
-        )
+        self.assertIn("Found 1 threat scan(s) eligible for pruning", out.getvalue())
         self.assertTrue(LocalThreatScan.objects.filter(id=old_scan.id).exists())
 
         # Execute Celery task
@@ -213,9 +211,7 @@ class TestImprovements(TestCase):
         self.assertIn("Pruned 1 threat scan(s)", msg)
 
         self.assertFalse(LocalThreatScan.objects.filter(id=old_scan.id).exists())
-        self.assertTrue(
-            LocalThreatScan.objects.filter(id=recent_scan.id).exists()
-        )
+        self.assertTrue(LocalThreatScan.objects.filter(id=recent_scan.id).exists())
 
     def test_entity_resolver_and_zkill_caching(self):
         HostileAlliance.objects.create(
@@ -236,7 +232,9 @@ class TestImprovements(TestCase):
 
         # Second resolution should hit cache
         with patch.object(
-            HostileAlliance.objects, "filter", side_effect=Exception("DB should not be called")
+            HostileAlliance.objects,
+            "filter",
+            side_effect=Exception("DB should not be called"),
         ):
             res2 = EntityResolver.resolve_alliance("Pandemic Horde")
             self.assertEqual(res2["alliance_id"], 99005338)
@@ -265,7 +263,7 @@ class TestImprovements(TestCase):
         # Test view JSON API
         self.client.force_login(self.user)
         url = reverse("hostile:structure_suspected_duplicates")
-        response = self.client.get(url, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+        response = self.client.get(url, headers={"x-requested-with": "XMLHttpRequest"})
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertIn("suspected_groups", data)
