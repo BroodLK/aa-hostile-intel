@@ -233,7 +233,33 @@
             }
         });
 
-        // Focus search input when dropdown is shown
+        function updateAncestorsActive(active) {
+            let el = wrapper.parentElement;
+            while (el && el !== document.body) {
+                if (el.matches('.card, .hostile-card, .row, [class*="col-"], .col, .collapse, .modal-body, .modal-content, form')) {
+                    if (active) {
+                        el.classList.add('hostile-dropdown-active');
+                    } else {
+                        if (!el.querySelector('.hostile-searchable-select.show, .dropdown-menu.show, .hostile-searchable-menu.show')) {
+                            el.classList.remove('hostile-dropdown-active');
+                        }
+                    }
+                }
+                el = el.parentElement;
+            }
+        }
+
+        // Focus search input when dropdown is shown and elevate parent container
+        toggleBtn.addEventListener('show.bs.dropdown', function () {
+            wrapper.classList.add('show');
+            updateAncestorsActive(true);
+        });
+
+        toggleBtn.addEventListener('hidden.bs.dropdown', function () {
+            wrapper.classList.remove('show');
+            updateAncestorsActive(false);
+        });
+
         toggleBtn.addEventListener('shown.bs.dropdown', function () {
             searchInput.value = '';
             renderOptions();

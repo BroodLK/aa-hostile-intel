@@ -298,6 +298,14 @@ a:hover .hostile-stat-card,
     overflow: visible !important;
 }
 
+.hostile-searchable-select.show,
+.hostile-searchable-select:focus-within,
+.hostile-searchable-select:has(.dropdown-menu.show),
+.hostile-searchable-select:has(.hostile-searchable-menu.show) {
+    position: relative !important;
+    z-index: 1070 !important;
+}
+
 .hostile-searchable-toggle {
     cursor: pointer;
     text-align: left;
@@ -324,9 +332,58 @@ a:hover .hostile-stat-card,
     z-index: 1080 !important;
 }
 
+.col:has(.dropdown-menu.show),
+.col:has(.hostile-searchable-select.show),
+.col:has(.hostile-searchable-menu.show),
+.col:focus-within:has(.hostile-searchable-select),
+[class*="col-"]:has(.dropdown-menu.show),
+[class*="col-"]:has(.hostile-searchable-select.show),
+[class*="col-"]:has(.hostile-searchable-menu.show),
+[class*="col-"]:focus-within:has(.hostile-searchable-select),
+.col.hostile-dropdown-active,
+[class*="col-"].hostile-dropdown-active,
+.row:has(.dropdown-menu.show),
+.row:has(.hostile-searchable-select.show),
+.row:has(.hostile-searchable-menu.show),
+.row.hostile-dropdown-active {
+    position: relative !important;
+    z-index: 1060 !important;
+    overflow: visible !important;
+}
+
+.card,
+.card-body,
+.card-header,
 .hostile-card,
-.hostile-card .card-body {
+.hostile-card .card-body,
+.hostile-card .card-header,
+.card.hostile-card,
+.card.hostile-card .card-body {
     overflow: visible;
+}
+
+.hostile-card.hostile-dropdown-active,
+.hostile-card:focus-within:has(.hostile-searchable-select),
+.hostile-card:has(.dropdown-menu.show),
+.hostile-card:has(.hostile-searchable-select.show),
+.hostile-card:has(.show),
+.card.hostile-dropdown-active,
+.card:has(.hostile-searchable-menu.show),
+.card:has(.hostile-searchable-select.show),
+.card:has(.dropdown-menu.show),
+.collapse.show:has(.dropdown-menu.show),
+.collapse.show:has(.hostile-searchable-select.show),
+.collapse.show.hostile-dropdown-active {
+    position: relative !important;
+    z-index: 1050 !important;
+    overflow: visible !important;
+}
+
+.collapse.show:has(.dropdown-menu.show) .card,
+.collapse.show:has(.dropdown-menu.show) .card-body,
+.collapse.show.hostile-dropdown-active .card,
+.collapse.show.hostile-dropdown-active .card-body {
+    overflow: visible !important;
 }
 
 .hostile-searchable-search-box input {
