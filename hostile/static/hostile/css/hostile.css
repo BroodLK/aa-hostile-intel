@@ -985,6 +985,11 @@ a:hover .hostile-stat-card,
     border-radius: 4px;
 }
 
+.btn-inline-save {
+    white-space: nowrap !important;
+    transition: all 0.15s ease-in-out;
+}
+
 .editable-cell-flash {
     animation: hostileCellFlash 1.2s ease-out;
 }

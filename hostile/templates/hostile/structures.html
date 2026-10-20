@@ -1077,14 +1077,43 @@ document.addEventListener("DOMContentLoaded", function() {
                 const saveBtn = this.querySelector(".btn-inline-save");
                 const cancelBtn = this.querySelector(".btn-inline-cancel");
 
+                let isConfirming = false;
+
+                const resetConfirm = () => {
+                    if (isConfirming) {
+                        isConfirming = false;
+                        if (saveBtn) {
+                            saveBtn.className = "btn btn-sm btn-success btn-inline-save";
+                            saveBtn.innerHTML = '<i class="fas fa-check"></i>';
+                            saveBtn.title = "Save (Enter)";
+                        }
+                    }
+                };
+
+                const triggerSave = () => {
+                    if (!isConfirming) {
+                        isConfirming = true;
+                        if (saveBtn) {
+                            saveBtn.className = "btn btn-sm btn-warning btn-inline-save";
+                            saveBtn.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>Are you sure?';
+                            saveBtn.title = "Click again to confirm (Enter)";
+                        }
+                        return;
+                    }
+                    doSave(this, field, structureId, inputEl ? inputEl.value : "");
+                };
+
                 if (inputEl) {
                     inputEl.focus();
                     if (inputEl.select && inputEl.tagName === "INPUT") inputEl.select();
 
+                    inputEl.addEventListener("input", resetConfirm);
+                    inputEl.addEventListener("change", resetConfirm);
+
                     inputEl.addEventListener("keydown", (evt) => {
                         if (evt.key === "Enter") {
                             evt.preventDefault();
-                            doSave(this, field, structureId, inputEl.value);
+                            triggerSave();
                         } else if (evt.key === "Escape") {
                             evt.preventDefault();
                             cancelActiveEdit();
@@ -1095,7 +1124,7 @@ document.addEventListener("DOMContentLoaded", function() {
                 if (saveBtn) {
                     saveBtn.addEventListener("click", (evt) => {
                         evt.stopPropagation();
-                        doSave(this, field, structureId, inputEl ? inputEl.value : "");
+                        triggerSave();
                     });
                 }
 
