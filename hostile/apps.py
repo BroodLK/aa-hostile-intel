@@ -7,7 +7,7 @@ from django.apps import AppConfig
 from hostile import __version__
 
 
-class ExampleConfig(AppConfig):
+class HostileConfig(AppConfig):
     """App Config"""
 
     name = "hostile"
