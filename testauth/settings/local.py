@@ -66,10 +66,16 @@ INSTALLED_APPS = [app for app in INSTALLED_APPS if app != "allianceauth.admin_st
 INSTALLED_APPS += [
     "eve_sde",
     "allianceauth.timerboard",
-    "eveuniverse",
-    "structuretimers",
-    PACKAGE,
 ]
+# Standard Library
+import importlib.util
+
+if importlib.util.find_spec("eveuniverse") is not None:
+    INSTALLED_APPS.append("eveuniverse")
+if importlib.util.find_spec("structuretimers") is not None:
+    INSTALLED_APPS.append("structuretimers")
+
+INSTALLED_APPS.append(PACKAGE)
 
 # By default, apps are prevented from having public views for security reasons.
 # If you want to allow specific apps to have public views,

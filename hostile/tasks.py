@@ -164,3 +164,33 @@ def sync_timerboard_timers() -> str:
     )
     logger.info(msg)
     return msg
+
+
+@shared_task
+def prune_old_threat_scans(days: int | None = None) -> str:
+    """
+    Celery task to automatically prune outdated Local Threat Scans.
+    """
+    # Standard Library
+    from datetime import timedelta
+
+    # Django
+    from django.utils import timezone
+
+    # AA Hostile Intel
+    from hostile.app_settings import HOSTILE_THREAT_SCAN_RETENTION_DAYS
+    from hostile.models import LocalThreatScan
+
+    retention_days = days if days is not None else HOSTILE_THREAT_SCAN_RETENTION_DAYS
+    cutoff = timezone.now() - timedelta(days=retention_days)
+
+    logger.info(
+        "Starting background pruning of threat scans older than %d days (cutoff: %s)...",
+        retention_days,
+        cutoff.isoformat(),
+    )
+    scans_qs = LocalThreatScan.objects.filter(created_at__lt=cutoff)
+    count, _ = scans_qs.delete()
+    msg = f"Pruned {count} threat scan(s) older than {retention_days} days."
+    logger.info(msg)
+    return msg

@@ -34,6 +34,7 @@ class General(models.Model):
         default_permissions = ()
         permissions = (
             ("basic_access", "Can access this app"),
+            ("threat_scan_access", "Can access intel scanner / threat scanner"),
             ("manage_intel", "Can manage, verify, and moderate hostile intel"),
             ("officer_access", "Can perform senior intel officer actions"),
         )

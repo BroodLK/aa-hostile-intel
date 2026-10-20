@@ -598,6 +598,10 @@ class LocalThreatParser:
         synced_count = sum(1 for p in pilots if p.get("zkill_synced"))
         remaining_count = total_pilots - synced_count
 
+        composition_summary = cls.calculate_composition_summary(
+            pilots=pilots, ship_profile=threat_results.get("ship_profile")
+        )
+
         return {
             "success": True,
             "scan_id": str(scan.id),
@@ -607,6 +611,7 @@ class LocalThreatParser:
             "threat_factors": scan.threat_factors,
             "ship_profile": scan.ship_profile,
             "activity_profile": scan.activity_profile,
+            "composition_summary": composition_summary,
             "cynos_count": cynos_count,
             "blops_count": blops_count,
             "supers_count": supers_count,
@@ -617,6 +622,176 @@ class LocalThreatParser:
             "synced_count": synced_count,
             "remaining_count": remaining_count,
             "is_finished": remaining_count == 0,
+        }
+
+    @classmethod
+    def calculate_composition_summary(
+        cls,
+        pilots: list[dict[str, Any]] | None = None,
+        ship_profile: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Calculates high-level breakdown of Alliances, Corporations, and categorized ships (aa-intel-tool style).
+        """
+        pilots = pilots or []
+        total_pilots = len(pilots)
+
+        alliance_counts: dict[str, dict[str, Any]] = {}
+        corp_counts: dict[str, dict[str, Any]] = {}
+
+        for p in pilots:
+            # Alliance aggregation
+            a_name = p.get("alliance_name") or "No Alliance"
+            a_id = p.get("alliance_id")
+            ticker = p.get("alliance_ticker") or ""
+            if not ticker and p.get("ticker"):
+                ticker = p.get("ticker")
+
+            if a_name not in alliance_counts:
+                alliance_counts[a_name] = {
+                    "name": a_name,
+                    "id": a_id,
+                    "ticker": ticker,
+                    "count": 0,
+                    "percent": 0.0,
+                }
+            alliance_counts[a_name]["count"] += 1
+            if a_id and not alliance_counts[a_name]["id"]:
+                alliance_counts[a_name]["id"] = a_id
+            if ticker and not alliance_counts[a_name]["ticker"]:
+                alliance_counts[a_name]["ticker"] = ticker
+
+            # Corporation aggregation
+            c_name = p.get("corporation_name") or "Unknown Corporation"
+            c_id = p.get("corporation_id")
+            c_ticker = p.get("corporation_ticker") or ""
+            c_alliance = p.get("alliance_name") or ""
+
+            if c_name not in corp_counts:
+                corp_counts[c_name] = {
+                    "name": c_name,
+                    "id": c_id,
+                    "ticker": c_ticker,
+                    "alliance_name": c_alliance,
+                    "count": 0,
+                    "percent": 0.0,
+                }
+            corp_counts[c_name]["count"] += 1
+            if c_id and not corp_counts[c_name]["id"]:
+                corp_counts[c_name]["id"] = c_id
+            if c_ticker and not corp_counts[c_name]["ticker"]:
+                corp_counts[c_name]["ticker"] = c_ticker
+            if c_alliance and not corp_counts[c_name]["alliance_name"]:
+                corp_counts[c_name]["alliance_name"] = c_alliance
+
+        alliances = list(alliance_counts.values())
+        for a in alliances:
+            a["percent"] = (
+                round((a["count"] / total_pilots * 100), 1) if total_pilots > 0 else 0.0
+            )
+        alliances.sort(key=lambda x: (-x["count"], x["name"].lower()))
+
+        corporations = list(corp_counts.values())
+        for c in corporations:
+            c["percent"] = (
+                round((c["count"] / total_pilots * 100), 1) if total_pilots > 0 else 0.0
+            )
+        corporations.sort(key=lambda x: (-x["count"], x["name"].lower()))
+
+        # Ship breakdown: aggregate from ship_profile
+        ship_categories = []
+        if ship_profile:
+            cat_defs = [
+                (
+                    "Supercapitals & Titans",
+                    "supers",
+                    "fas fa-crown text-danger",
+                    "danger",
+                ),
+                (
+                    "Capitals, Dreads & FAX",
+                    "capitals",
+                    "fas fa-shield-virus text-danger",
+                    "danger",
+                ),
+                (
+                    "Black Ops Battleships",
+                    "blops",
+                    "fas fa-user-ninja text-purple",
+                    "warning",
+                ),
+                (
+                    "Covert Recons & Stealth Bombers",
+                    "recons",
+                    "fas fa-eye text-info",
+                    "info",
+                ),
+                (
+                    "Heavy Interdictors & Bubbles",
+                    "bubbles",
+                    "fas fa-magnet text-warning",
+                    "warning",
+                ),
+                (
+                    "Cyno & Covert Cyno Hulls",
+                    "cynos",
+                    "fas fa-satellite text-warning",
+                    "warning",
+                ),
+                (
+                    "Battleships",
+                    "battleships",
+                    "fas fa-rocket text-light",
+                    "secondary",
+                ),
+                (
+                    "Cruisers & Battlecruisers",
+                    "cruisers",
+                    "fas fa-fighter-jet text-light",
+                    "secondary",
+                ),
+                (
+                    "Frigates & Destroyers",
+                    "frigates",
+                    "fas fa-space-shuttle text-light",
+                    "secondary",
+                ),
+                (
+                    "Other Grid Items",
+                    "others",
+                    "fas fa-circle text-muted",
+                    "dark",
+                ),
+            ]
+            for title, key, icon, badge_color in cat_defs:
+                items = ship_profile.get(key, [])
+                if items:
+                    hull_counts: dict[str, int] = {}
+                    for item in items:
+                        t_name = item.get("type_name") or item.get("name") or "Unknown"
+                        hull_counts[t_name] = hull_counts.get(t_name, 0) + 1
+                    hulls_summary = [
+                        {"type_name": t, "count": cnt}
+                        for t, cnt in sorted(
+                            hull_counts.items(), key=lambda x: (-x[1], x[0])
+                        )
+                    ]
+                    ship_categories.append(
+                        {
+                            "category": title,
+                            "key": key,
+                            "icon": icon,
+                            "badge_color": badge_color,
+                            "count": len(items),
+                            "hulls": hulls_summary,
+                        }
+                    )
+
+        return {
+            "total_pilots": total_pilots,
+            "alliances": alliances,
+            "corporations": corporations,
+            "ship_categories": ship_categories,
         }
 
     @classmethod

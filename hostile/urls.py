@@ -26,6 +26,11 @@ urlpatterns = [
         name="structure_merge",
     ),
     path(
+        "structures/suspected-duplicates/",
+        views.structure_suspected_duplicates,
+        name="structure_suspected_duplicates",
+    ),
+    path(
         "structures/<int:structure_id>/inline-update/",
         views.structure_inline_update,
         name="structure_inline_update",

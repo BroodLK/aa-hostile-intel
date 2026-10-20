@@ -27,6 +27,7 @@ from esi.openapi_clients import (
 
 # AA Hostile Intel
 from hostile import __appname__, __url__, __version__
+from hostile.services.circuit_breaker import esi_circuit_breaker
 
 logger = get_extension_logger(__name__)
 
@@ -153,8 +154,21 @@ class HostileESIClientProvider(ESIClientProvider):
         backoff_base: float = 2.0,
         **kwargs,
     ) -> Any | None:
-        """Executes an ESI operation with retry on 420 rate limit, transient 5xx errors, and 304 cache retrieval with force-refresh fallback"""
+        """Executes an ESI operation with retry on 420 rate limit, transient 5xx errors, circuit breaker guard, and 304 cache retrieval with force-refresh fallback"""
         cache_key = _get_esi_cache_key(op_func, args, kwargs)
+        if not esi_circuit_breaker.can_execute():
+            logger.warning(
+                "ESI circuit breaker is OPEN. Attempting cache fallback for %s",
+                cache_key,
+            )
+            try:
+                cached = cache.get(cache_key)
+                if cached is not None:
+                    return cached
+            except Exception:
+                pass
+            return None
+
         for attempt in range(1, max_retries + 1):
             try:
                 response = op_func(*args, **kwargs)
@@ -172,6 +186,7 @@ class HostileESIClientProvider(ESIClientProvider):
                             cache_key,
                             c_exc,
                         )
+                esi_circuit_breaker.record_success()
                 return normalized
             except HTTPNotModified:
                 logger.debug(
@@ -183,6 +198,7 @@ class HostileESIClientProvider(ESIClientProvider):
                 except Exception:
                     cached = None
                 if cached is not None:
+                    esi_circuit_breaker.record_success()
                     return cached
                 logger.info(
                     "Cache miss on 304 for %s, requesting force refresh from ESI...",
@@ -201,11 +217,14 @@ class HostileESIClientProvider(ESIClientProvider):
                             cache.set(cache_key, normalized, timeout=86400)
                         except Exception:
                             pass
+                    esi_circuit_breaker.record_success()
                     return normalized
                 except Exception as ref_exc:
                     logger.warning("Force refresh on 304 failed: %s", ref_exc)
+                    esi_circuit_breaker.record_failure(ref_exc)
                     return None
             except ESIErrorLimitException as exc:
+                esi_circuit_breaker.record_failure(exc)
                 wait_time = backoff_base**attempt + 5.0
                 logger.warning(
                     "ESI rate limit hit (attempt %d/%d). Sleeping for %.1f seconds: %s",
@@ -227,6 +246,7 @@ class HostileESIClientProvider(ESIClientProvider):
                     except Exception:
                         cached = None
                     if cached is not None:
+                        esi_circuit_breaker.record_success()
                         return cached
                     logger.info(
                         "Cache miss on 304 for %s, requesting force refresh from ESI...",
@@ -245,11 +265,14 @@ class HostileESIClientProvider(ESIClientProvider):
                                 cache.set(cache_key, normalized, timeout=86400)
                             except Exception:
                                 pass
+                        esi_circuit_breaker.record_success()
                         return normalized
                     except Exception as ref_exc:
                         logger.warning("Force refresh on 304 failed: %s", ref_exc)
+                        esi_circuit_breaker.record_failure(ref_exc)
                         return None
                 if status_code in [420, 500, 502, 503, 504]:
+                    esi_circuit_breaker.record_failure(exc)
                     wait_time = backoff_base**attempt
                     logger.warning(
                         "ESI error %s on attempt %d/%d. Retrying in %.1f seconds...",
@@ -266,6 +289,7 @@ class HostileESIClientProvider(ESIClientProvider):
                 logger.warning("ESI 4xx Client Error: %s", exc)
                 return None
             except Exception as exc:
+                esi_circuit_breaker.record_failure(exc)
                 logger.error("Unexpected error querying ESI: %s", exc, exc_info=True)
                 if attempt == max_retries:
                     raise

@@ -68,7 +68,7 @@ class TestLoadingOverlay(TestCase):
             "Loading Timer Calculator",
             "Loading System Intel",
             "Loading Pilot Dossiers",
-            "Loading Threat Scanner",
+            "Loading Intel Scanner",
             "Loading Alliances & Sov",
         ]:
             self.assertIn(

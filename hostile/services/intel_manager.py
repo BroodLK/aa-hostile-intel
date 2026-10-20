@@ -425,6 +425,7 @@ class IntelManager:
         primary: HostileStructure,
         duplicates: list[HostileStructure],
         user: User | None = None,
+        reason: str = "",
     ) -> int:
         """
         Merges duplicate HostileStructure objects into primary HostileStructure.
@@ -438,6 +439,7 @@ class IntelManager:
             return 0
 
         dup_objs = list(HostileStructure.objects.filter(id__in=dup_ids))
+        dup_names = [d.name for d in dup_objs]
         merged_count = 0
 
         update_fields = []
@@ -495,35 +497,53 @@ class IntelManager:
             d.delete()
             merged_count += 1
 
+        details_msg = f"Merged {merged_count} duplicate structure(s) [{', '.join(dup_names)}] into '{primary.name}'"
+        if reason:
+            details_msg += f" (Reason: {reason})"
         cls.record_audit(
             user,
             "MERGE",
             primary,
-            f"Merged {merged_count} duplicate structure(s) into '{primary.name}'",
+            details_msg,
         )
         return merged_count
 
     @classmethod
-    def auto_deduplicate_all(cls, user: User | None = None) -> dict[str, int]:
+    def auto_deduplicate_all(
+        cls,
+        user: User | None = None,
+        system: Any = None,
+        dry_run: bool = False,
+        verbose: bool = False,
+    ) -> dict[str, Any]:
         """
-        Scans all solar systems and merges duplicate structure records.
+        Scans solar systems and merges duplicate structure records.
+        Supports targeted solar system filtering and dry-run preview mode.
         """
-        system_ids = (
-            HostileStructure.objects.filter(solar_system__isnull=False)
-            .values_list("solar_system_id", flat=True)
-            .distinct()
-        )
+        qs = HostileStructure.objects.filter(solar_system__isnull=False)
+        if system:
+            if isinstance(system, SolarSystem):
+                qs = qs.filter(solar_system=system)
+            elif isinstance(system, int) or (
+                isinstance(system, str) and system.isdigit()
+            ):
+                qs = qs.filter(solar_system_id=int(system))
+            elif isinstance(system, str):
+                qs = qs.filter(solar_system__name__iexact=system.strip())
+
+        system_ids = qs.order_by().values_list("solar_system_id", flat=True).distinct()
 
         total_merged = 0
         systems_affected = 0
+        details = []
 
         for sys_id in system_ids:
-            system = SolarSystem.objects.filter(id=sys_id).first()
-            if not system:
+            solar_sys = SolarSystem.objects.filter(id=sys_id).first()
+            if not solar_sys:
                 continue
 
             structs = list(
-                HostileStructure.objects.filter(solar_system=system)
+                HostileStructure.objects.filter(solar_system=solar_sys)
                 .prefetch_related("fittings", "timers")
                 .order_by("id")
             )
@@ -538,18 +558,21 @@ class IntelManager:
                     continue
 
                 dups_for_s1 = []
+                match_reasons = []
                 for s2 in structs[i + 1 :]:
                     if s2.id in processed_ids:
                         continue
 
                     # Check if s2 matches s1
                     is_dup = False
+                    reason = ""
                     norm1 = normalize_structure_name(s1.name).lower()
                     norm2 = normalize_structure_name(s2.name).lower()
 
                     # Exact normalized name
                     if norm1 == norm2:
                         is_dup = True
+                        reason = f"Exact normalized name match ('{norm1}')"
                     # Ansiblex matching
                     elif "»" in norm1 and "»" in norm2:
                         parts1 = [
@@ -567,14 +590,16 @@ class IntelManager:
                                 parts1[0] == parts2[1] and parts1[1] == parts2[0]
                             ):
                                 is_dup = True
+                                reason = f"Ansiblex gate pair match ('{parts1[0]}' <-> '{parts1[1]}')"
                     # Generic name vs System-suffixed name
-                    elif system:
-                        s_name = system.name.lower()
+                    elif solar_sys:
+                        s_name = solar_sys.name.lower()
                         if (
                             norm1 == f"{norm2} ({s_name})"
                             or norm2 == f"{norm1} ({s_name})"
                         ):
                             is_dup = True
+                            reason = f"System suffix name match with '{s_name}'"
                         elif (
                             s1.structure_type
                             and s2.structure_type
@@ -587,9 +612,11 @@ class IntelManager:
                                 norm2 == type_low or norm2 == f"{type_low} ({s_name})"
                             ):
                                 is_dup = True
+                                reason = f"Generic {s1.structure_type.name} type match in {solar_sys.name}"
 
                     if is_dup:
                         dups_for_s1.append(s2)
+                        match_reasons.append(reason)
                         processed_ids.add(s2.id)
 
                 if dups_for_s1:
@@ -607,7 +634,7 @@ class IntelManager:
                             score += 5
                         if st.vulnerability_window:
                             score += 5
-                        if not st.name.endswith(f"({system.name})"):
+                        if not st.name.endswith(f"({solar_sys.name})"):
                             score += 2
                         return score
 
@@ -615,12 +642,35 @@ class IntelManager:
                     other_candidates = [
                         c for c in candidates if c.id != best_candidate.id
                     ]
-                    count = cls.merge_structures(
-                        best_candidate, other_candidates, user=user
+                    combined_reason = "; ".join(dict.fromkeys(match_reasons))
+
+                    details.append(
+                        {
+                            "system_id": solar_sys.id,
+                            "system_name": solar_sys.name,
+                            "primary_id": best_candidate.id,
+                            "primary_name": best_candidate.name,
+                            "duplicate_ids": [c.id for c in other_candidates],
+                            "duplicate_names": [c.name for c in other_candidates],
+                            "reason": combined_reason,
+                            "primary_score": struct_score(best_candidate),
+                        }
                     )
-                    total_merged += count
+
+                    if not dry_run:
+                        count = cls.merge_structures(
+                            best_candidate,
+                            other_candidates,
+                            user=user,
+                            reason=combined_reason,
+                        )
+                        total_merged += count
+                    else:
+                        total_merged += len(other_candidates)
+
                     system_merged_any = True
-                    processed_ids.add(best_candidate.id)
+                    for c in candidates:
+                        processed_ids.add(c.id)
 
             if system_merged_any:
                 systems_affected += 1
@@ -628,7 +678,112 @@ class IntelManager:
         return {
             "total_merged": total_merged,
             "systems_affected": systems_affected,
+            "details": details,
         }
+
+    @classmethod
+    def find_suspected_duplicates(cls, system: Any = None) -> list[dict[str, Any]]:
+        """
+        Scans for suspected duplicate structures that fell below automatic merge criteria.
+        Groups structures in the same solar system that share identical or similar types,
+        high name token overlap, or similar names across differing owners or unverified records.
+        """
+        qs = (
+            HostileStructure.objects.filter(solar_system__isnull=False)
+            .select_related("solar_system", "structure_type", "alliance", "corporation")
+            .prefetch_related("fittings", "timers")
+        )
+
+        if system:
+            if isinstance(system, SolarSystem):
+                qs = qs.filter(solar_system=system)
+            elif isinstance(system, int) or (
+                isinstance(system, str) and system.isdigit()
+            ):
+                qs = qs.filter(solar_system_id=int(system))
+            elif isinstance(system, str):
+                qs = qs.filter(solar_system__name__iexact=system.strip())
+
+        system_ids = qs.order_by().values_list("solar_system_id", flat=True).distinct()
+        suspected_groups = []
+
+        for sys_id in system_ids:
+            structs = list(
+                qs.filter(solar_system_id=sys_id).order_by("-is_verified", "id")
+            )
+            if len(structs) <= 1:
+                continue
+
+            processed_ids = set()
+            for i, s1 in enumerate(structs):
+                if s1.id in processed_ids:
+                    continue
+
+                candidates = []
+                for s2 in structs[i + 1 :]:
+                    if s2.id in processed_ids:
+                        continue
+
+                    # Evaluate similarity
+                    is_suspected = False
+                    reason = ""
+                    confidence = "MEDIUM"
+
+                    tokens1 = set(
+                        re.findall(r"\w+", normalize_structure_name(s1.name).lower())
+                    )
+                    tokens2 = set(
+                        re.findall(r"\w+", normalize_structure_name(s2.name).lower())
+                    )
+                    common_tokens = tokens1.intersection(tokens2)
+
+                    # Same structure type in same system
+                    if (
+                        s1.structure_type
+                        and s2.structure_type
+                        and s1.structure_type_id == s2.structure_type_id
+                    ):
+                        if common_tokens:
+                            is_suspected = True
+                            confidence = "HIGH" if len(common_tokens) >= 2 else "MEDIUM"
+                            reason = f"Same structure type ({s1.structure_type.name}) with overlapping keywords: {', '.join(common_tokens)}"
+                        elif (
+                            s1.owner_ticker
+                            and s2.owner_ticker
+                            and s1.owner_ticker == s2.owner_ticker
+                        ):
+                            is_suspected = True
+                            confidence = "MEDIUM"
+                            reason = f"Same structure type ({s1.structure_type.name}) and owner ticker [{s1.owner_ticker}]"
+                    # High token overlap regardless of type
+                    elif len(common_tokens) >= 3 or (
+                        len(tokens1) > 0 and len(common_tokens) / len(tokens1) >= 0.7
+                    ):
+                        is_suspected = True
+                        confidence = "MEDIUM"
+                        reason = f"High name similarity ({len(common_tokens)} common keywords): {', '.join(common_tokens)}"
+
+                    if is_suspected:
+                        candidates.append((s2, reason, confidence))
+                        processed_ids.add(s2.id)
+
+                if candidates:
+                    processed_ids.add(s1.id)
+                    reasons = [c[1] for c in candidates]
+                    conf = (
+                        "HIGH" if any(c[2] == "HIGH" for c in candidates) else "MEDIUM"
+                    )
+                    suspected_groups.append(
+                        {
+                            "system": s1.solar_system,
+                            "primary": s1,
+                            "duplicates": [c[0] for c in candidates],
+                            "reason": "; ".join(dict.fromkeys(reasons)),
+                            "confidence": conf,
+                        }
+                    )
+
+        return suspected_groups
 
     @classmethod
     def run_alt_detection(cls, pilots: Any | None = None) -> int:

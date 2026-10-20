@@ -25,10 +25,13 @@ from allianceauth.services.hooks import get_extension_logger
 
 # AA Hostile Intel
 from hostile.app_settings import (
+    HOSTILE_CACHE_TTL_CORP,
+    HOSTILE_CACHE_TTL_PILOT,
     HOSTILE_ZKILL_MIN_REQUEST_INTERVAL,
     HOSTILE_ZKILL_USER_AGENT,
 )
 from hostile.models import HostileAlliance, HostileCorporation, HostilePilotDossier
+from hostile.services.circuit_breaker import zkill_circuit_breaker
 from hostile.services.esi_client import esi_client
 from hostile.services.intel_manager import IntelManager
 from hostile.services.sov_engine import SovAnalysisEngine
@@ -79,9 +82,15 @@ class ZKillClient:
 
     def _get(self, url: str) -> requests.Response | None:
         """
-        Helper to perform GET requests to zKillboard with rate limiting.
+        Helper to perform GET requests to zKillboard with rate limiting and circuit breaker resilience.
         Enforces a minimum interval between calls and sets appropriate compression and contact headers.
         """
+        if not zkill_circuit_breaker.can_execute():
+            logger.warning(
+                "zKillboard circuit breaker is OPEN. Fast-failing request to %s", url
+            )
+            return None
+
         now = time.time()
         elapsed = now - self._last_call
         min_interval = float(HOSTILE_ZKILL_MIN_REQUEST_INTERVAL)
@@ -96,9 +105,16 @@ class ZKillClient:
         try:
             response = self._session.get(url, headers=headers, timeout=self.TIMEOUT)
             self._last_call = time.time()
+            if response.status_code in (200, 404):
+                zkill_circuit_breaker.record_success()
+            elif response.status_code in (429, 500, 502, 503, 504):
+                zkill_circuit_breaker.record_failure(
+                    Exception(f"HTTP {response.status_code} from zKillboard")
+                )
             return response
         except Exception as e:
             self._last_call = time.time()
+            zkill_circuit_breaker.record_failure(e)
             logger.error("Failed to fetch from zKillboard URL %s: %s", url, e)
             return None
 
@@ -367,12 +383,26 @@ class ZKillClient:
         )
 
     def fetch_alliance_stats(self, alliance_id: int) -> dict[str, Any] | None:
-        """Fetches public zKillboard statistics for an alliance"""
-        return self._fetch_stats(f"allianceID/{alliance_id}")
+        """Fetches public zKillboard statistics for an alliance with caching"""
+        cache_key = f"hostile_zkill_alliance_stats_{alliance_id}"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
+        stats = self._fetch_stats(f"allianceID/{alliance_id}")
+        if stats:
+            cache.set(cache_key, stats, timeout=HOSTILE_CACHE_TTL_CORP)
+        return stats
 
     def fetch_corporation_stats(self, corporation_id: int) -> dict[str, Any] | None:
-        """Fetches public zKillboard statistics for a corporation"""
-        return self._fetch_stats(f"corporationID/{corporation_id}")
+        """Fetches public zKillboard statistics for a corporation with caching"""
+        cache_key = f"hostile_zkill_corp_stats_{corporation_id}"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
+        stats = self._fetch_stats(f"corporationID/{corporation_id}")
+        if stats:
+            cache.set(cache_key, stats, timeout=HOSTILE_CACHE_TTL_CORP)
+        return stats
 
     PILOT_CATEGORIES = {
         "character",
@@ -1018,11 +1048,11 @@ class ZKillClient:
         """Queries zKillboard character statistics endpoint with rate limiting and caching"""
         cache_key = f"hostile_zkill_char_stats_{character_id}"
         cached = cache.get(cache_key)
-        if cached:
+        if cached is not None:
             return cached
         stats = self._fetch_stats(f"characterID/{character_id}")
         if stats:
-            cache.set(cache_key, stats, timeout=86400)
+            cache.set(cache_key, stats, timeout=HOSTILE_CACHE_TTL_PILOT)
         return stats
 
     def get_character_combat_intelligence(self, character_id: int) -> dict[str, Any]:
@@ -1030,6 +1060,54 @@ class ZKillClient:
         Fetches character statistics and extracts rich combat intelligence:
         danger ratio, kills/losses, gang/solo ratios, top flown ships, and behavioral tags.
         """
+        if not character_id:
+            return {
+                "danger_ratio": 0,
+                "gang_ratio": 0,
+                "solo_kills": 0,
+                "kills_count": 0,
+                "losses_count": 0,
+                "isk_destroyed": 0,
+                "isk_lost": 0,
+                "top_ships": [],
+                "likely_ship": "",
+                "zkill_labels": [],
+                "is_fc": False,
+                "fc_level": "",
+                "fc_score": 0,
+                "is_awox": False,
+                "awox_count": 0,
+                "is_alliance_awox": False,
+                "alliance_awox_count": 0,
+                "is_faction_awox": False,
+                "faction_awox_count": 0,
+                "is_bait": False,
+                "bait_level": "",
+                "bait_count": 0,
+                "is_ganker": False,
+                "ganker_count": 0,
+                "is_logi_pilot": False,
+                "logi_count": 0,
+                "is_cyno_alt": False,
+                "cyno_count": 0,
+                "is_blops_pilot": False,
+                "blops_count": 0,
+                "is_capital_pilot": False,
+                "capital_count": 0,
+                "is_super_pilot": False,
+                "super_count": 0,
+                "is_titan_pilot": False,
+                "titan_count": 0,
+                "is_dread_pilot": False,
+                "is_fax_pilot": False,
+                "is_rookie": False,
+            }
+
+        cache_key = f"hostile_pilot_combat_intel_{character_id}"
+        cached_intel = cache.get(cache_key)
+        if cached_intel is not None:
+            return cached_intel
+
         default_res = {
             "danger_ratio": 0,
             "gang_ratio": 0,
@@ -1147,6 +1225,8 @@ class ZKillClient:
             "likely_ship": likely_ship,
             "activity": activity,
         }
+        if character_id:
+            cache.set(cache_key, res, timeout=HOSTILE_CACHE_TTL_PILOT)
         return res
 
     def sync_pilot_dossier_zkill(self, dossier: HostilePilotDossier) -> bool:

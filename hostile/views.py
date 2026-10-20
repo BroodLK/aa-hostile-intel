@@ -7,9 +7,11 @@ import hashlib
 import json
 import re
 from datetime import timedelta
+from functools import wraps
 from typing import Any
 
 # Django
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, permission_required
 from django.contrib.humanize.templatetags.humanize import naturaltime
@@ -86,6 +88,23 @@ def user_can_edit_object(user, obj) -> bool:
     if user.has_perm("hostile.manage_intel"):
         return True
     return getattr(obj, "created_by_id", None) == user.id
+
+
+def threat_scan_permission_required(view_func):
+    """Decorator to require either hostile.basic_access or hostile.threat_scan_access"""
+
+    @wraps(view_func)
+    def _wrapped_view(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return redirect(f"{settings.LOGIN_URL}?next={request.path}")
+        if not (
+            request.user.has_perm("hostile.basic_access")
+            or request.user.has_perm("hostile.threat_scan_access")
+        ):
+            return redirect(f"{settings.LOGIN_URL}?next={request.path}")
+        return view_func(request, *args, **kwargs)
+
+    return _wrapped_view
 
 
 @login_required
@@ -475,7 +494,7 @@ def index(request: WSGIRequest) -> HttpResponse:
 @login_required
 @permission_required("hostile.basic_access")
 def structures_list(request: WSGIRequest) -> HttpResponse:
-    """Structure registry view with filtering and fitting preview"""
+    """Structure registry view with filtering, suspected duplicates review queue, and fitting preview"""
     structures = (
         HostileStructure.objects.all()
         .select_related(
@@ -486,10 +505,73 @@ def structures_list(request: WSGIRequest) -> HttpResponse:
     paste_form = SmartPasteForm()
     structure_form = HostileStructureForm()
 
+    suspected_duplicates = []
+    if request.user.has_perm("hostile.manage_intel"):
+        suspected_duplicates = IntelManager.find_suspected_duplicates()
+
     context = {
         "structures": structures,
         "paste_form": paste_form,
         "structure_form": structure_form,
+        "suspected_duplicates": suspected_duplicates,
+        "suspected_count": len(suspected_duplicates),
+    }
+    return render(request, "hostile/structures.html", context)
+
+
+@login_required
+@permission_required("hostile.manage_intel")
+def structure_suspected_duplicates(request: WSGIRequest) -> HttpResponse:
+    """API and queue view for reviewing and merging suspected duplicate structures"""
+    system_filter = request.GET.get("system")
+    suspected_duplicates = IntelManager.find_suspected_duplicates(system=system_filter)
+    if (
+        request.headers.get("x-requested-with") == "XMLHttpRequest"
+        or request.GET.get("format") == "json"
+    ):
+        data = []
+        for g in suspected_duplicates:
+            data.append(
+                {
+                    "system_name": (g["system"].name if g.get("system") else "Unknown"),
+                    "primary": {
+                        "id": g["primary"].id,
+                        "name": g["primary"].name,
+                        "type": (
+                            g["primary"].structure_type.name
+                            if g["primary"].structure_type
+                            else ""
+                        ),
+                        "is_verified": g["primary"].is_verified,
+                    },
+                    "duplicates": [
+                        {
+                            "id": d.id,
+                            "name": d.name,
+                            "type": (d.structure_type.name if d.structure_type else ""),
+                            "is_verified": d.is_verified,
+                        }
+                        for d in g["duplicates"]
+                    ],
+                    "reason": g["reason"],
+                    "confidence": g["confidence"],
+                }
+            )
+        return JsonResponse({"suspected_groups": data, "count": len(data)})
+
+    structures = (
+        HostileStructure.objects.all()
+        .select_related(
+            "structure_type", "solar_system", "alliance", "corporation", "created_by"
+        )
+        .prefetch_related("fittings")
+    )
+    context = {
+        "structures": structures,
+        "suspected_duplicates": suspected_duplicates,
+        "suspected_count": len(suspected_duplicates),
+        "paste_form": SmartPasteForm(),
+        "structure_form": HostileStructureForm(),
     }
     return render(request, "hostile/structures.html", context)
 
@@ -3369,7 +3451,7 @@ def smart_paste(request: WSGIRequest) -> HttpResponse:
 
 
 @login_required
-@permission_required("hostile.basic_access")
+@threat_scan_permission_required
 def threat_scan_list(request: WSGIRequest) -> HttpResponse:
     """Local Threat Intel scanner directory and new scan submission view"""
     if request.method == "POST":
@@ -3433,14 +3515,17 @@ def threat_scan_list(request: WSGIRequest) -> HttpResponse:
 
 
 @login_required
-@permission_required("hostile.basic_access")
+@threat_scan_permission_required
 def threat_scan_detail(request: WSGIRequest, scan_id) -> HttpResponse:
-    """localthreat.xyz-style detailed threat report with drop probabilities, activity profile, and ship pairing"""
+    """localthreat.xyz / aa-intel-tool style detailed threat report with drop probabilities, entity breakdown, ship breakdown, and AJAX streaming"""
     scan = get_object_or_404(
         LocalThreatScan.objects.select_related("solar_system", "created_by"),
         id=scan_id,
     )
     paste_form = SmartPasteForm()
+    composition_summary = LocalThreatParser.calculate_composition_summary(
+        scan.pilots_data, scan.ship_profile
+    )
 
     context = {
         "scan": scan,
@@ -3448,13 +3533,14 @@ def threat_scan_detail(request: WSGIRequest, scan_id) -> HttpResponse:
         "activity_profile": scan.activity_profile,
         "ship_profile": scan.ship_profile,
         "threat_factors": scan.threat_factors,
+        "composition_summary": composition_summary,
         "paste_form": paste_form,
     }
     return render(request, "hostile/threat_scan_detail.html", context)
 
 
 @login_required
-@permission_required("hostile.basic_access")
+@threat_scan_permission_required
 def api_threat_scan_pilot_intelligence(request: WSGIRequest, scan_id) -> JsonResponse:
     """
     Asynchronously streams enriched pilot combat intelligence (corporations, alliances,
@@ -3802,7 +3888,7 @@ def api_timer_calculate(request: WSGIRequest) -> JsonResponse:
 
 
 @login_required
-@permission_required("hostile.basic_access")
+@threat_scan_permission_required
 def api_solar_systems_search(request: WSGIRequest) -> JsonResponse:
     """JSON API endpoint for searching solar systems by name substring with limit"""
     q = request.GET.get("q", "").strip()
@@ -3818,7 +3904,7 @@ def api_solar_systems_search(request: WSGIRequest) -> JsonResponse:
 
 
 @login_required
-@permission_required("hostile.basic_access")
+@threat_scan_permission_required
 def api_infer_system(request: WSGIRequest) -> JsonResponse:
     """JSON API endpoint to infer solar system from pasted D-Scan or clipboard text"""
     text = (request.POST.get("text") or request.GET.get("text") or "").strip()

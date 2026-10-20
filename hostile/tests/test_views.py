@@ -123,6 +123,12 @@ class TestHostileViews(TestCase):
         AuthUtils.add_main_character(cls.user_basic, "Basic User Char", 21100002)
         AuthUtils.add_permission_to_user_by_name("hostile.basic_access", cls.user_basic)
 
+        cls.user_threat_only = AuthUtils.create_user(username="threat_only_user")
+        AuthUtils.add_main_character(cls.user_threat_only, "Threat Only Char", 21100004)
+        AuthUtils.add_permission_to_user_by_name(
+            "hostile.threat_scan_access", cls.user_threat_only
+        )
+
         cls.user_officer = AuthUtils.create_user(username="officer_user")
         AuthUtils.add_main_character(cls.user_officer, "Officer User Char", 21100003)
         AuthUtils.add_permission_to_user_by_name(
@@ -136,6 +142,7 @@ class TestHostileViews(TestCase):
 
     def setUp(self):
         self.user_basic.refresh_from_db()
+        self.user_threat_only.refresh_from_db()
         self.user_officer.refresh_from_db()
         self.user_no_perms.refresh_from_db()
 
@@ -341,6 +348,7 @@ class TestHostileViews(TestCase):
         url = reverse("hostile:threat_scans")
         resp = self.client.get(url)
         self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Intel Scanner")
 
         # POST new local threat scan
         post_data = {
@@ -359,6 +367,81 @@ class TestHostileViews(TestCase):
         resp = self.client.get(detail_url)
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "CynoAlt1")
+        self.assertContains(resp, "Overview & Composition")
+        self.assertContains(resp, "Combat Dossiers & Deep Intel")
+        self.assertContains(resp, "Alliances Breakdown")
+        self.assertContains(resp, "Corporations Breakdown")
+        self.assertContains(resp, "Hostile Alliance")
+
+    def test_threat_scan_permission_isolation(self):
+        """Tests that a user with ONLY threat_scan_access can access Intel Scanner but is denied from all other top nav sections"""
+        self.client.force_login(self.user_threat_only)
+
+        # 1. Allowed Intel Scanner views
+        url = reverse("hostile:threat_scans")
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Intel Scanner")
+        # Ensure other top nav links are NOT visible in the rendered HTML for this user
+        self.assertNotContains(resp, "Structures")
+        self.assertNotContains(resp, "Timer Board")
+        self.assertNotContains(resp, "Pilot Dossiers")
+        self.assertNotContains(resp, "Alliances &amp; Sov")
+
+        # Create scan as threat scan user
+        post_data = {
+            "local_text": "HostileTarget1\tEnemy Corp\tEnemy Alliance",
+            "dscan_text": "11993\tArazu\tArazu\t5 km",
+            "solar_system": self.system_1dq.id,
+        }
+        resp = self.client.post(url, post_data)
+        self.assertEqual(resp.status_code, 302)
+        scan = LocalThreatScan.objects.filter(solar_system=self.system_1dq).last()
+        self.assertIsNotNone(scan)
+
+        # Detail report is accessible and completely unredacted
+        detail_url = reverse("hostile:threat_scan_detail", args=[scan.id])
+        resp = self.client.get(detail_url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "HostileTarget1")
+        self.assertContains(resp, "Enemy Corp")
+        self.assertContains(resp, "Enemy Alliance")
+        self.assertContains(resp, "Black Ops Drop Risk")
+        self.assertContains(resp, "Capital / Super Drop Risk")
+
+        # APIs allowed for scanner autocomplete
+        search_url = reverse("hostile:api_solar_systems_search")
+        resp_search = self.client.get(search_url, {"q": "1DQ"})
+        self.assertEqual(resp_search.status_code, 200)
+
+        infer_url = reverse("hostile:api_infer_system")
+        resp_infer = self.client.post(infer_url, {"text": "11993\tArazu\tArazu\t5 km"})
+        self.assertEqual(resp_infer.status_code, 200)
+
+        # Streaming API allowed
+        api_intel_url = reverse("hostile:api_threat_scan_pilot_intel", args=[scan.id])
+        resp_intel = self.client.get(api_intel_url)
+        self.assertEqual(resp_intel.status_code, 200)
+
+        # 2. Denied other intel modules (requires basic_access)
+        for view_name in [
+            "index",
+            "structures",
+            "timers",
+            "sov_timers",
+            "calculator",
+            "systems",
+            "pilots",
+            "alliances",
+            "doctrines",
+        ]:
+            denied_url = reverse(f"hostile:{view_name}")
+            resp_denied = self.client.get(denied_url)
+            self.assertEqual(
+                resp_denied.status_code,
+                302,
+                f"User with only threat_scan_access should not access {view_name}",
+            )
 
     def test_smart_paste_auto_routing_local(self):
         self.client.force_login(self.user_basic)
@@ -675,6 +758,9 @@ class TestHostileViews(TestCase):
                 self.assertEqual(data2["synced_count"], 2)
                 self.assertEqual(data2["remaining_count"], 0)
                 self.assertTrue(data2["is_finished"])
+                self.assertIn("composition_summary", data2)
+                self.assertGreater(len(data2["composition_summary"]["alliances"]), 0)
+                self.assertGreater(len(data2["composition_summary"]["corporations"]), 0)
                 self.assertGreater(data2["blops_drop_chance"], 0)
                 self.assertEqual(data2["activity_profile"]["primary_timezone"], "EUTZ")
                 self.assertEqual(data2["activity_profile"]["tz_breakdown"]["EUTZ"], 350)

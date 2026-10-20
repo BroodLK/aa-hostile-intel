@@ -9,6 +9,10 @@
     </div>
     <div class="d-flex gap-2">
         {% if perms.hostile.manage_intel %}
+        <button type="button" class="btn btn-outline-info btn-sm fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#suspectedDuplicatesModal" title="{% translate 'Review potential duplicate structures and merge them' %}">
+            <i class="fas fa-layer-group me-1"></i>{% translate "Suspected Duplicates" %}
+            {% if suspected_count %}<span class="badge bg-warning text-dark ms-1">{{ suspected_count }}</span>{% endif %}
+        </button>
         <form action="{% url 'hostile:structure_auto_deduplicate' %}" method="post" class="d-inline" onsubmit="return confirm('{% translate "Are you sure you want to scan and merge all duplicate structures across all systems?" %}');">
             {% csrf_token %}
             <button type="submit" class="btn btn-outline-warning btn-sm fw-bold shadow-sm" title="{% translate 'Scan and merge duplicate structures (Ansiblex variants, generic timer syncs, etc.)' %}">
@@ -362,6 +366,110 @@
         </div>
     </div>
 </div>
+
+{% if perms.hostile.manage_intel %}
+<!-- Suspected Duplicates Review Queue Modal -->
+<div class="modal fade" id="suspectedDuplicatesModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content bg-dark text-white border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">
+                    <i class="fas fa-layer-group text-info me-2"></i>{% translate "Suspected Duplicate Structures Review Queue" %}
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3">
+                {% if suspected_duplicates %}
+                    <p class="text-muted small mb-3">
+                        {% translate "The following structure clusters have high similarity or matching characteristics in the same solar system. Review candidates and merge them into the verified primary structure." %}
+                    </p>
+                    <div class="d-flex flex-column gap-3">
+                        {% for group in suspected_duplicates %}
+                        <div class="card bg-black bg-opacity-50 border-secondary">
+                            <div class="card-header bg-dark border-secondary d-flex justify-content-between align-items-center py-2">
+                                <div>
+                                    <span class="badge bg-primary me-2"><i class="fas fa-solar-panel me-1"></i>{{ group.system.name }}</span>
+                                    <span class="text-light small fw-bold">{{ group.reason }}</span>
+                                </div>
+                                <div>
+                                    <span class="badge {% if group.confidence == 'HIGH' %}bg-danger{% else %}bg-warning text-dark{% endif %} me-2">
+                                        {{ group.confidence }} {% translate "CONFIDENCE" %}
+                                    </span>
+                                    <form action="{% url 'hostile:structure_merge' %}" method="post" class="d-inline" onsubmit="return confirm('{% translate "Merge these candidate structures into the primary structure?" %}');">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="primary_structure_id" value="{{ group.primary.id }}">
+                                        {% for d in group.duplicates %}
+                                            <input type="hidden" name="duplicate_structure_ids" value="{{ d.id }}">
+                                        {% endfor %}
+                                        <button type="submit" class="btn btn-warning btn-sm fw-bold">
+                                            <i class="fas fa-compress-alt me-1"></i>{% translate "Merge Cluster" %}
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                            <div class="card-body p-2">
+                                <div class="table-responsive">
+                                    <table class="table table-dark table-sm table-bordered mb-0 align-middle">
+                                        <thead>
+                                            <tr class="text-muted small">
+                                                <th style="width: 15%;">{% translate "Role" %}</th>
+                                                <th style="width: 35%;">{% translate "Structure Name" %}</th>
+                                                <th style="width: 25%;">{% translate "Type" %}</th>
+                                                <th style="width: 15%;">{% translate "Owner" %}</th>
+                                                <th style="width: 10%;">{% translate "Status" %}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr class="table-success bg-opacity-25">
+                                                <td><span class="badge bg-success">{% translate "PRIMARY TARGET" %}</span></td>
+                                                <td class="fw-bold text-info">{{ group.primary.name }}</td>
+                                                <td>{{ group.primary.structure_type.name|default:"Unknown Type" }}</td>
+                                                <td>{{ group.primary.owner_ticker|default:group.primary.owner_name|default:"-" }}</td>
+                                                <td>
+                                                    {% if group.primary.is_verified %}
+                                                        <span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>{% translate "Verified" %}</span>
+                                                    {% else %}
+                                                        <span class="badge bg-secondary">{% translate "Unverified" %}</span>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                            {% for d in group.duplicates %}
+                                            <tr class="table-secondary bg-opacity-10 text-muted">
+                                                <td><span class="badge bg-secondary">{% translate "DUPLICATE CANDIDATE" %}</span></td>
+                                                <td>{{ d.name }}</td>
+                                                <td>{{ d.structure_type.name|default:"Unknown Type" }}</td>
+                                                <td>{{ d.owner_ticker|default:d.owner_name|default:"-" }}</td>
+                                                <td>
+                                                    {% if d.is_verified %}
+                                                        <span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>{% translate "Verified" %}</span>
+                                                    {% else %}
+                                                        <span class="badge bg-secondary">{% translate "Unverified" %}</span>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-5 text-muted">
+                        <i class="fas fa-check-circle fa-3x text-success mb-3 d-block"></i>
+                        <h5 class="text-white">{% translate "No Suspected Duplicate Structures" %}</h5>
+                        <p class="small mb-0">{% translate "All tracked structure records in the database appear unique and consistent." %}</p>
+                    </div>
+                {% endif %}
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">{% translate "Close" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 
 <!-- Add Structure Modal -->
 <div class="modal fade" id="addStructureModal" tabindex="-1" aria-hidden="true">

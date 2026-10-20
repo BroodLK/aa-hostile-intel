@@ -15,6 +15,7 @@
     <div class="card mb-4 bg-dark text-white border-secondary hostile-card">
         <div class="card-body p-2 d-flex flex-wrap justify-content-between align-items-center">
             <ul class="nav nav-pills gap-1">
+                {% if perms.hostile.basic_access %}
                 <li class="nav-item">
                     <a class="nav-link {% if request.resolver_match.url_name == 'index' %}active{% endif %}" href="{% url 'hostile:index' %}" data-hostile-loading="{% translate 'Loading Dashboard' %}" data-hostile-loading-detail="{% translate 'Gathering hostile intelligence metrics and active timers...' %}">
                         <i class="fas fa-tachometer-alt me-1"></i> {% translate "Dashboard" %}
@@ -55,16 +56,19 @@
                         <i class="fas fa-user-secret me-1"></i> {% translate "Pilot Dossiers" %}
                     </a>
                 </li>
+                {% endif %}
                 <li class="nav-item">
-                    <a class="nav-link {% if 'threat_scan' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'hostile:threat_scans' %}" data-hostile-loading="{% translate 'Loading Threat Scanner' %}" data-hostile-loading-detail="{% translate 'Fetching recent threat profiles and parser...' %}">
-                        <i class="fas fa-radar me-1"></i> {% translate "Local Threat Scan" %}
+                    <a class="nav-link {% if 'threat_scan' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'hostile:threat_scans' %}" data-hostile-loading="{% translate 'Loading Intel Scanner' %}" data-hostile-loading-detail="{% translate 'Fetching recent threat profiles and parser...' %}">
+                        <i class="fas fa-radar me-1"></i> {% translate "Intel Scanner" %}
                     </a>
                 </li>
+                {% if perms.hostile.basic_access %}
                 <li class="nav-item">
                     <a class="nav-link {% if request.resolver_match.url_name == 'alliances' %}active{% endif %}" href="{% url 'hostile:alliances' %}" data-hostile-loading="{% translate 'Loading Alliances & Sov' %}" data-hostile-loading-detail="{% translate 'Loading tracked hostile alliances, corporations, and sovereignty data...' %}">
                         <i class="fas fa-globe-americas me-1"></i> {% translate "Alliances & Sov" %}
                     </a>
                 </li>
+                {% endif %}
                 {% if perms.hostile.manage_intel %}
                 <li class="nav-item">
                     <a class="nav-link {% if request.resolver_match.url_name == 'audit_logs' %}active{% endif %}" href="{% url 'hostile:audit_logs' %}" data-hostile-loading="{% translate 'Loading Audit Logs' %}" data-hostile-loading-detail="{% translate 'Retrieving intelligence audit records...' %}">
@@ -73,11 +77,13 @@
                 </li>
                 {% endif %}
             </ul>
+            {% if perms.hostile.basic_access %}
             <div>
                 <button type="button" class="btn btn-sm btn-outline-info px-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#smartPasteModal">
                     <i class="fas fa-paste me-1"></i> {% translate "Smart Ingest" %}
                 </button>
             </div>
+            {% endif %}
         </div>
     </div>
 

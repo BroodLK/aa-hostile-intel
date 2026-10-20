@@ -4,9 +4,12 @@ Prioritizes internal Alliance Auth and Hostile database records before falling b
 """
 
 # Standard Library
+import hashlib
+import re
 from typing import Any
 
 # Django
+from django.core.cache import cache
 from django.db import models
 
 # Alliance Auth
@@ -18,10 +21,19 @@ from allianceauth.eveonline.models import (
 from allianceauth.services.hooks import get_extension_logger
 
 # AA Hostile Intel
+from hostile.app_settings import HOSTILE_CACHE_TTL_CORP, HOSTILE_CACHE_TTL_PILOT
 from hostile.models import HostileAlliance, HostileCorporation, HostilePilotDossier
 from hostile.services.esi_client import esi_client
 
 logger = get_extension_logger(__name__)
+
+
+def _make_cache_key(prefix: str, query: str) -> str:
+    """Generates a safe cache key without illegal characters or whitespace"""
+    cleaned = re.sub(r"[^\w\d]", "_", str(query).strip().lower())
+    if len(cleaned) > 50:
+        cleaned = hashlib.md5(str(query).encode("utf-8")).hexdigest()
+    return f"{prefix}_{cleaned}"
 
 
 def _get_val(obj: Any, key: str, default: Any = None) -> Any:
@@ -58,11 +70,17 @@ class EntityResolver:
         """
         Resolves a character by Character Name OR Character ID.
         Auto-fills in-game corporation and alliance details while rejecting non-character entities.
+        Caches results for high performance.
         """
         if not query:
             return None
 
         query_str = str(query).strip()
+        cache_key = _make_cache_key("hostile_resolved_char", query_str)
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
+
         is_id = query_str.isdigit()
         char_id = int(query_str) if is_id else None
 
@@ -106,7 +124,7 @@ class EntityResolver:
                 ).first()
 
         if eve_char:
-            return {
+            res = {
                 "character_id": eve_char.character_id,
                 "character_name": eve_char.character_name,
                 "corporation_id": eve_char.corporation_id,
@@ -117,6 +135,8 @@ class EntityResolver:
                 "alliance_ticker": eve_char.alliance_ticker or "",
                 "source": "internal_evecharacter",
             }
+            cache.set(cache_key, res, timeout=HOSTILE_CACHE_TTL_PILOT)
+            return res
 
         # 2. Check internal HostilePilotDossier model
         dossier = None
@@ -157,7 +177,7 @@ class EntityResolver:
             except Exception:
                 pass
 
-            return {
+            res = {
                 "character_id": dossier.character_id,
                 "character_name": dossier.character_name,
                 "corporation_id": None,
@@ -170,6 +190,8 @@ class EntityResolver:
                 "is_out_of_corp": dossier.is_out_of_corp,
                 "source": "internal_dossier",
             }
+            cache.set(cache_key, res, timeout=HOSTILE_CACHE_TTL_PILOT)
+            return res
 
         # 3. Fallback to ESI API
         try:
@@ -222,7 +244,7 @@ class EntityResolver:
                     if alliance_id:
                         alliance_name = names_map.get(alliance_id, "")
 
-                return {
+                res = {
                     "character_id": resolved_id,
                     "character_name": resolved_name or f"Character {resolved_id}",
                     "corporation_id": corp_id,
@@ -233,6 +255,8 @@ class EntityResolver:
                     "alliance_ticker": "",
                     "source": "esi",
                 }
+                cache.set(cache_key, res, timeout=HOSTILE_CACHE_TTL_PILOT)
+                return res
         except Exception as exc:
             logger.warning(
                 "Failed to resolve character '%s' via ESI: %s", query_str, exc
@@ -488,6 +512,11 @@ class EntityResolver:
             return None
 
         query_str = str(query).strip()
+        cache_key = _make_cache_key("hostile_resolved_alliance", query_str)
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
+
         is_id = query_str.isdigit()
         alliance_id = int(query_str) if is_id else None
 
@@ -507,12 +536,14 @@ class EntityResolver:
                 ).first()
 
         if hostile_alliance:
-            return {
+            res = {
                 "alliance_id": hostile_alliance.alliance_id,
                 "alliance_name": hostile_alliance.alliance_name,
                 "ticker": hostile_alliance.ticker or "",
                 "source": "internal_hostile_alliance",
             }
+            cache.set(cache_key, res, timeout=HOSTILE_CACHE_TTL_CORP)
+            return res
 
         # 2. Check internal EveAllianceInfo model
         eve_alliance = None
@@ -530,12 +561,14 @@ class EntityResolver:
                 ).first()
 
         if eve_alliance:
-            return {
+            res = {
                 "alliance_id": eve_alliance.alliance_id,
                 "alliance_name": eve_alliance.alliance_name,
                 "ticker": eve_alliance.alliance_ticker or "",
                 "source": "internal_eve_alliance",
             }
+            cache.set(cache_key, res, timeout=HOSTILE_CACHE_TTL_CORP)
+            return res
 
         # 3. Check internal EveCharacter alliance records
         eve_char = None
@@ -547,12 +580,14 @@ class EntityResolver:
             ).first()
 
         if eve_char and eve_char.alliance_id:
-            return {
+            res = {
                 "alliance_id": eve_char.alliance_id,
                 "alliance_name": eve_char.alliance_name or query_str,
                 "ticker": eve_char.alliance_ticker or "",
                 "source": "internal_eve_character",
             }
+            cache.set(cache_key, res, timeout=HOSTILE_CACHE_TTL_CORP)
+            return res
 
         # 4. Fallback to ESI API
         try:
@@ -574,12 +609,14 @@ class EntityResolver:
                             names_res[0], "name", f"Alliance {resolved_id}"
                         )
 
-                return {
+                res = {
                     "alliance_id": resolved_id,
                     "alliance_name": resolved_name or f"Alliance {resolved_id}",
                     "ticker": "",
                     "source": "esi",
                 }
+                cache.set(cache_key, res, timeout=HOSTILE_CACHE_TTL_CORP)
+                return res
         except Exception as exc:
             logger.warning(
                 "Failed to resolve alliance '%s' via ESI: %s", query_str, exc
@@ -596,6 +633,11 @@ class EntityResolver:
             return None
 
         query_str = str(query).strip()
+        cache_key = _make_cache_key("hostile_resolved_corp", query_str)
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
+
         is_id = query_str.isdigit()
         corp_id = int(query_str) if is_id else None
 
@@ -611,12 +653,14 @@ class EntityResolver:
             ).first()
 
         if hostile_corp:
-            return {
+            res = {
                 "corporation_id": hostile_corp.corporation_id,
                 "corporation_name": hostile_corp.corporation_name,
                 "ticker": hostile_corp.ticker or "",
                 "source": "internal_hostile_corp",
             }
+            cache.set(cache_key, res, timeout=HOSTILE_CACHE_TTL_CORP)
+            return res
 
         # 2. Check internal EveCorporationInfo model
         eve_corp = None
@@ -628,12 +672,14 @@ class EntityResolver:
             ).first()
 
         if eve_corp:
-            return {
+            res = {
                 "corporation_id": eve_corp.corporation_id,
                 "corporation_name": eve_corp.corporation_name,
                 "ticker": eve_corp.corporation_ticker or "",
                 "source": "internal_eve_corp",
             }
+            cache.set(cache_key, res, timeout=HOSTILE_CACHE_TTL_CORP)
+            return res
 
         # 3. Fallback to ESI
         try:
@@ -655,12 +701,14 @@ class EntityResolver:
                             names_res[0], "name", f"Corporation {resolved_id}"
                         )
 
-                return {
+                res = {
                     "corporation_id": resolved_id,
                     "corporation_name": resolved_name or f"Corporation {resolved_id}",
                     "ticker": "",
                     "source": "esi",
                 }
+                cache.set(cache_key, res, timeout=HOSTILE_CACHE_TTL_CORP)
+                return res
         except Exception as exc:
             logger.warning(
                 "Failed to resolve corporation '%s' via ESI: %s", query_str, exc

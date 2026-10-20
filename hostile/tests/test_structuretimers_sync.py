@@ -3,19 +3,28 @@ Tests for bidirectional synchronization between Hostile Intel Structure Timers a
 """
 
 # Standard Library
+import unittest
 from datetime import timedelta
 
 # Third Party
 from eve_sde.models import ItemCategory, ItemGroup, ItemType, SolarSystem
-from eveuniverse.models import (
-    EveCategory,
-    EveConstellation,
-    EveGroup,
-    EveRegion,
-    EveSolarSystem,
-    EveType,
-)
-from structuretimers.models import Timer as StructureTimersTimer
+
+try:
+    # Third Party
+    from eveuniverse.models import (
+        EveCategory,
+        EveConstellation,
+        EveGroup,
+        EveRegion,
+        EveSolarSystem,
+        EveType,
+    )
+    from structuretimers.models import Timer as StructureTimersTimer
+
+    HAS_STRUCTURETIMERS = True
+except ImportError:
+    HAS_STRUCTURETIMERS = False
+    StructureTimersTimer = None
 
 # Django
 from django.test import Client, TestCase
@@ -35,6 +44,10 @@ from hostile.services.timer_sync import TimerSyncService
 from hostile.signals import connect_all_timer_signals
 
 
+@unittest.skipUnless(
+    HAS_STRUCTURETIMERS,
+    "aa-structuretimers and django-eveuniverse required for timer sync tests",
+)
 class TestStructureTimersSynchronization(TestCase):
     @classmethod
     def setUpTestData(cls):

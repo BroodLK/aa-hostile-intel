@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 from eve_sde.models import SolarSystem
 
 # Django
+from django.core.cache import cache
 from django.test import Client, TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -24,6 +25,10 @@ from hostile.models import (
     HostilePilotDossier,
     StructureTimer,
 )
+from hostile.services.circuit_breaker import (
+    esi_circuit_breaker,
+    zkill_circuit_breaker,
+)
 from hostile.services.zkill_client import ZKillClient, zkill_client
 from hostile.tasks import sync_alliance_zkill_stats, update_all_zkill_stats
 
@@ -32,6 +37,9 @@ class ZKillClientTestCase(TestCase):
     """Tests for ZKillClient statistics parsing and model updates"""
 
     def setUp(self):
+        cache.clear()
+        esi_circuit_breaker.reset()
+        zkill_circuit_breaker.reset()
         self.alliance = HostileAlliance.objects.create(
             alliance_id=99005338,
             alliance_name="Pandemic Horde",
@@ -57,6 +65,11 @@ class ZKillClientTestCase(TestCase):
             },
             "hasSupers": True,
         }
+
+    def tearDown(self):
+        cache.clear()
+        esi_circuit_breaker.reset()
+        zkill_circuit_breaker.reset()
 
     @patch("requests.Session.get")
     def test_fetch_alliance_stats_success(self, mock_get):
