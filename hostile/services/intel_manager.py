@@ -4,7 +4,7 @@ Trust management, intel verification, auditing, and pilot dossier role tagging
 
 # Standard Library
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 # Third Party
 from eve_sde.models import ItemType, SolarSystem
@@ -15,16 +15,12 @@ from django.db import transaction
 
 # AA Hostile Intel
 from hostile.models import (
-    DoctrineFit,
-    HostileAlliance,
-    HostileCorporation,
     HostileDoctrine,
     HostilePilotDossier,
     HostileStagingSystem,
     HostileStructure,
     IntelAuditLog,
     StructureFitting,
-    StructureModule,
     StructureTimer,
     SystemObservation,
     normalize_structure_name,
@@ -37,7 +33,7 @@ class IntelManager:
     @classmethod
     def record_audit(
         cls,
-        user: Optional[User],
+        user: User | None,
         action: str,
         target: Any,
         details: str = "",
@@ -58,29 +54,45 @@ class IntelManager:
         )
 
     @classmethod
-    def verify_structure(cls, structure: HostileStructure, user: User) -> HostileStructure:
+    def verify_structure(
+        cls, structure: HostileStructure, user: User
+    ) -> HostileStructure:
         """Marks a structure report as verified by an intelligence officer"""
         structure.is_verified = True
         structure.save(update_fields=["is_verified", "updated_at"])
-        cls.record_audit(user, "VERIFY", structure, f"Structure '{structure.name}' verified.")
+        cls.record_audit(
+            user, "VERIFY", structure, f"Structure '{structure.name}' verified."
+        )
         return structure
 
     @classmethod
-    def verify_observation(cls, observation: SystemObservation, user: User) -> SystemObservation:
+    def verify_observation(
+        cls, observation: SystemObservation, user: User
+    ) -> SystemObservation:
         """Marks a system observation / gate camp report as verified"""
         observation.is_verified = True
         observation.save(update_fields=["is_verified", "updated_at"])
-        cls.record_audit(user, "VERIFY", observation, f"Observation in {observation.solar_system.name} verified.")
+        cls.record_audit(
+            user,
+            "VERIFY",
+            observation,
+            f"Observation in {observation.solar_system.name} verified.",
+        )
         return observation
 
     @classmethod
-    def toggle_pin_observation(cls, observation: SystemObservation, user: User) -> SystemObservation:
+    def toggle_pin_observation(
+        cls, observation: SystemObservation, user: User
+    ) -> SystemObservation:
         """Pins or unpins an observation to the intel dashboard summary"""
         observation.is_pinned = not observation.is_pinned
         observation.save(update_fields=["is_pinned", "updated_at"])
         action = "PIN" if observation.is_pinned else "UNPIN"
         cls.record_audit(
-            user, action, observation, f"Observation in {observation.solar_system.name} pin state changed."
+            user,
+            action,
+            observation,
+            f"Observation in {observation.solar_system.name} pin state changed.",
         )
         return observation
 
@@ -93,19 +105,30 @@ class IntelManager:
         return timer
 
     @classmethod
-    def verify_pilot(cls, pilot: HostilePilotDossier, user: User) -> HostilePilotDossier:
+    def verify_pilot(
+        cls, pilot: HostilePilotDossier, user: User
+    ) -> HostilePilotDossier:
         """Marks a hostile pilot dossier as verified"""
         pilot.is_verified = True
         pilot.save(update_fields=["is_verified", "updated_at"])
-        cls.record_audit(user, "VERIFY", pilot, f"Pilot dossier {pilot.character_name} verified.")
+        cls.record_audit(
+            user, "VERIFY", pilot, f"Pilot dossier {pilot.character_name} verified."
+        )
         return pilot
 
     @classmethod
-    def verify_staging(cls, staging: HostileStagingSystem, user: User) -> HostileStagingSystem:
+    def verify_staging(
+        cls, staging: HostileStagingSystem, user: User
+    ) -> HostileStagingSystem:
         """Marks a hostile staging system report as verified"""
         staging.is_verified = True
         staging.save(update_fields=["is_verified", "updated_at"])
-        cls.record_audit(user, "VERIFY", staging, f"Staging system {staging.solar_system.name} verified.")
+        cls.record_audit(
+            user,
+            "VERIFY",
+            staging,
+            f"Staging system {staging.solar_system.name} verified.",
+        )
         return staging
 
     @classmethod
@@ -113,7 +136,9 @@ class IntelManager:
         """Marks a hostile doctrine report as verified"""
         doctrine.is_verified = True
         doctrine.save(update_fields=["is_verified", "updated_at"])
-        cls.record_audit(user, "VERIFY", doctrine, f"Doctrine '{doctrine.name}' verified.")
+        cls.record_audit(
+            user, "VERIFY", doctrine, f"Doctrine '{doctrine.name}' verified."
+        )
         return doctrine
 
     @classmethod
@@ -126,19 +151,46 @@ class IntelManager:
             pilot.is_cyno_alt = True
 
         # Black Ops / Hunter heuristics
-        blops_keywords = ["blops", "black ops", "panther", "redeemer", "widow", "sin", "hunter", "covert cyno", "stealth bomber"]
+        blops_keywords = [
+            "blops",
+            "black ops",
+            "panther",
+            "redeemer",
+            "widow",
+            "sin",
+            "hunter",
+            "covert cyno",
+            "stealth bomber",
+        ]
         if any(re.search(rf"\b{kw}\b", notes_lower) for kw in blops_keywords):
             pilot.is_blops_pilot = True
 
         # Titan heuristics
-        titan_ships = ["avatar", "erebus", "ragnarok", "leviathan", "komodo", "vanquisher", "molok", "titan"]
+        titan_ships = [
+            "avatar",
+            "erebus",
+            "ragnarok",
+            "leviathan",
+            "komodo",
+            "vanquisher",
+            "molok",
+            "titan",
+        ]
         if any(re.search(rf"\b{ship}\b", notes_lower) for ship in titan_ships):
             pilot.is_titan_pilot = True
             pilot.is_super_pilot = True
             pilot.is_capital_pilot = True
 
         # Supercarrier heuristics
-        super_ships = ["aeon", "hel", "nyx", "wyvern", "revenant", "supercarrier", "super pilot"]
+        super_ships = [
+            "aeon",
+            "hel",
+            "nyx",
+            "wyvern",
+            "revenant",
+            "supercarrier",
+            "super pilot",
+        ]
         if any(re.search(rf"\b{ship}\b", notes_lower) for ship in super_ships):
             pilot.is_super_pilot = True
             pilot.is_capital_pilot = True
@@ -276,12 +328,12 @@ class IntelManager:
     def get_or_create_structure(
         cls,
         name: str,
-        solar_system: Optional[SolarSystem] = None,
-        structure_type: Optional[ItemType] = None,
-        structure_id: Optional[int] = None,
-        defaults: Optional[Dict[str, Any]] = None,
-        user: Optional[User] = None,
-    ) -> Tuple[HostileStructure, bool]:
+        solar_system: SolarSystem | None = None,
+        structure_type: ItemType | None = None,
+        structure_id: int | None = None,
+        defaults: dict[str, Any] | None = None,
+        user: User | None = None,
+    ) -> tuple[HostileStructure, bool]:
         """
         Gets an existing structure using intelligent deduplication or creates a new one.
         """
@@ -371,8 +423,8 @@ class IntelManager:
     def merge_structures(
         cls,
         primary: HostileStructure,
-        duplicates: List[HostileStructure],
-        user: Optional[User] = None,
+        duplicates: list[HostileStructure],
+        user: User | None = None,
     ) -> int:
         """
         Merges duplicate HostileStructure objects into primary HostileStructure.
@@ -428,8 +480,12 @@ class IntelManager:
             primary.save(update_fields=list(set(update_fields)) + ["updated_at"])
 
         # Re-link child records
-        StructureFitting.objects.filter(structure_id__in=dup_ids).update(structure=primary)
-        StructureTimer.objects.filter(structure_id__in=dup_ids).update(structure=primary)
+        StructureFitting.objects.filter(structure_id__in=dup_ids).update(
+            structure=primary
+        )
+        StructureTimer.objects.filter(structure_id__in=dup_ids).update(
+            structure=primary
+        )
         IntelAuditLog.objects.filter(
             target_model="HostileStructure", target_id__in=[str(i) for i in dup_ids]
         ).update(target_id=str(primary.id))
@@ -448,7 +504,7 @@ class IntelManager:
         return merged_count
 
     @classmethod
-    def auto_deduplicate_all(cls, user: Optional[User] = None) -> Dict[str, int]:
+    def auto_deduplicate_all(cls, user: User | None = None) -> dict[str, int]:
         """
         Scans all solar systems and merges duplicate structure records.
         """
@@ -496,8 +552,16 @@ class IntelManager:
                         is_dup = True
                     # Ansiblex matching
                     elif "»" in norm1 and "»" in norm2:
-                        parts1 = [p.strip().split()[0] for p in norm1.split("»") if p.strip().split()]
-                        parts2 = [p.strip().split()[0] for p in norm2.split("»") if p.strip().split()]
+                        parts1 = [
+                            p.strip().split()[0]
+                            for p in norm1.split("»")
+                            if p.strip().split()
+                        ]
+                        parts2 = [
+                            p.strip().split()[0]
+                            for p in norm2.split("»")
+                            if p.strip().split()
+                        ]
                         if len(parts1) >= 2 and len(parts2) >= 2:
                             if (parts1[0] == parts2[0] and parts1[1] == parts2[1]) or (
                                 parts1[0] == parts2[1] and parts1[1] == parts2[0]
@@ -506,11 +570,20 @@ class IntelManager:
                     # Generic name vs System-suffixed name
                     elif system:
                         s_name = system.name.lower()
-                        if norm1 == f"{norm2} ({s_name})" or norm2 == f"{norm1} ({s_name})":
+                        if (
+                            norm1 == f"{norm2} ({s_name})"
+                            or norm2 == f"{norm1} ({s_name})"
+                        ):
                             is_dup = True
-                        elif s1.structure_type and s2.structure_type and s1.structure_type == s2.structure_type:
+                        elif (
+                            s1.structure_type
+                            and s2.structure_type
+                            and s1.structure_type == s2.structure_type
+                        ):
                             type_low = s1.structure_type.name.lower()
-                            if (norm1 == type_low or norm1 == f"{type_low} ({s_name})") or (
+                            if (
+                                norm1 == type_low or norm1 == f"{type_low} ({s_name})"
+                            ) or (
                                 norm2 == type_low or norm2 == f"{type_low} ({s_name})"
                             ):
                                 is_dup = True
@@ -520,7 +593,6 @@ class IntelManager:
                         processed_ids.add(s2.id)
 
                 if dups_for_s1:
-                    primary = s1
                     candidates = [s1] + dups_for_s1
 
                     def struct_score(st):
@@ -540,8 +612,12 @@ class IntelManager:
                         return score
 
                     best_candidate = max(candidates, key=struct_score)
-                    other_candidates = [c for c in candidates if c.id != best_candidate.id]
-                    count = cls.merge_structures(best_candidate, other_candidates, user=user)
+                    other_candidates = [
+                        c for c in candidates if c.id != best_candidate.id
+                    ]
+                    count = cls.merge_structures(
+                        best_candidate, other_candidates, user=user
+                    )
                     total_merged += count
                     system_merged_any = True
                     processed_ids.add(best_candidate.id)
@@ -555,9 +631,7 @@ class IntelManager:
         }
 
     @classmethod
-    def run_alt_detection(
-        cls, pilots: Optional[Any] = None
-    ) -> int:
+    def run_alt_detection(cls, pilots: Any | None = None) -> int:
         """
         Executes automated alt detection across pilot dossiers.
         Correlates names, stems, suffix tokens, roman numerals, tactical cyno/cap roles,
@@ -759,7 +833,7 @@ class AltDetectionEngine:
     @classmethod
     def evaluate_pair(
         cls, p1: HostilePilotDossier, p2: HostilePilotDossier
-    ) -> Optional[dict]:
+    ) -> dict | None:
         """
         Evaluates whether p1 and p2 form an Alt-Main relationship.
         Returns dict with main, alt, reason, confidence, or None.
@@ -839,12 +913,14 @@ class AltDetectionEngine:
         return None
 
     @classmethod
-    def run_detection(cls, pilots: Optional[Any] = None) -> int:
+    def run_detection(cls, pilots: Any | None = None) -> int:
         """
         Runs alt detection over provided pilots or all pilots in database.
         Resolves main/alt linkages and updates models.
         """
-        all_pilots = list(HostilePilotDossier.objects.all().select_related("main_character"))
+        all_pilots = list(
+            HostilePilotDossier.objects.all().select_related("main_character")
+        )
         if not all_pilots:
             return 0
 
@@ -906,7 +982,9 @@ class AltDetectionEngine:
                 if main_obj.is_alt and main_obj.main_character_id == alt_obj.id:
                     main_obj.is_alt = False
                     main_obj.main_character = None
-                    main_obj.save(update_fields=["is_alt", "main_character", "updated_at"])
+                    main_obj.save(
+                        update_fields=["is_alt", "main_character", "updated_at"]
+                    )
 
                 if changed:
                     alt_obj.save(

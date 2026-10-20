@@ -4,14 +4,17 @@ Prioritizes internal Alliance Auth and Hostile database records before falling b
 """
 
 # Standard Library
-import logging
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 # Django
 from django.db import models
 
 # Alliance Auth
-from allianceauth.eveonline.models import EveAllianceInfo, EveCharacter, EveCorporationInfo
+from allianceauth.eveonline.models import (
+    EveAllianceInfo,
+    EveCharacter,
+    EveCorporationInfo,
+)
 from allianceauth.services.hooks import get_extension_logger
 
 # AA Hostile Intel
@@ -25,7 +28,11 @@ def _get_val(obj: Any, key: str, default: Any = None) -> Any:
     """Safely extracts a value from a dict, list, Pydantic model, Bravado object, or generic class instance."""
     if obj is None:
         return default
-    if isinstance(obj, (list, tuple)) and len(obj) > 0 and isinstance(obj[0], (dict, object)):
+    if (
+        isinstance(obj, (list, tuple))
+        and len(obj) > 0
+        and isinstance(obj[0], (dict, object))
+    ):
         obj = obj[0]
     if isinstance(obj, dict):
         return obj.get(key, default)
@@ -47,7 +54,7 @@ class EntityResolver:
     """
 
     @classmethod
-    def resolve_character(cls, query: Union[str, int]) -> Optional[Dict[str, Any]]:
+    def resolve_character(cls, query: str | int) -> dict[str, Any] | None:
         """
         Resolves a character by Character Name OR Character ID.
         Auto-fills in-game corporation and alliance details while rejecting non-character entities.
@@ -63,6 +70,7 @@ class EntityResolver:
             if 10000000 <= char_id < 70000000:
                 return None
             try:
+                # Third Party
                 from eve_sde.models import ItemType, SolarSystem
 
                 if ItemType.objects.filter(id=char_id).exists():
@@ -76,7 +84,9 @@ class EntityResolver:
                     return None
                 if (
                     HostileCorporation.objects.filter(corporation_id=char_id).exists()
-                    or EveCorporationInfo.objects.filter(corporation_id=char_id).exists()
+                    or EveCorporationInfo.objects.filter(
+                        corporation_id=char_id
+                    ).exists()
                 ):
                     return None
             except Exception:
@@ -87,9 +97,13 @@ class EntityResolver:
         if char_id:
             eve_char = EveCharacter.objects.filter(character_id=char_id).first()
         else:
-            eve_char = EveCharacter.objects.filter(character_name__iexact=query_str).first()
+            eve_char = EveCharacter.objects.filter(
+                character_name__iexact=query_str
+            ).first()
             if not eve_char:
-                eve_char = EveCharacter.objects.filter(character_name__icontains=query_str).first()
+                eve_char = EveCharacter.objects.filter(
+                    character_name__icontains=query_str
+                ).first()
 
         if eve_char:
             return {
@@ -109,19 +123,34 @@ class EntityResolver:
         if char_id:
             dossier = HostilePilotDossier.objects.filter(character_id=char_id).first()
         else:
-            dossier = HostilePilotDossier.objects.filter(character_name__iexact=query_str).first()
+            dossier = HostilePilotDossier.objects.filter(
+                character_name__iexact=query_str
+            ).first()
 
         if dossier:
             try:
+                # Third Party
                 from eve_sde.models import ItemType, SolarSystem
 
                 if (
                     ItemType.objects.filter(id=dossier.character_id).exists()
                     or SolarSystem.objects.filter(id=dossier.character_id).exists()
-                    or HostileAlliance.objects.filter(alliance_id=dossier.character_id).exists()
-                    or HostileCorporation.objects.filter(corporation_id=dossier.character_id).exists()
+                    or HostileAlliance.objects.filter(
+                        alliance_id=dossier.character_id
+                    ).exists()
+                    or HostileCorporation.objects.filter(
+                        corporation_id=dossier.character_id
+                    ).exists()
                     or dossier.character_name.startswith(
-                        ("Stargate (", "Moon ", "Planet ", "Sun ", "Asteroid ", "Station ", "Customs Office")
+                        (
+                            "Stargate (",
+                            "Moon ",
+                            "Planet ",
+                            "Sun ",
+                            "Asteroid ",
+                            "Station ",
+                            "Customs Office",
+                        )
                     )
                 ):
                     return None
@@ -165,7 +194,9 @@ class EntityResolver:
                     if cat and cat != "character":
                         return None
                     if not resolved_name:
-                        resolved_name = _get_val(names_res[0], "name", f"Character {resolved_id}")
+                        resolved_name = _get_val(
+                            names_res[0], "name", f"Character {resolved_id}"
+                        )
 
                 # Fetch character affiliation (corp, alliance)
                 corp_id = None
@@ -203,14 +234,16 @@ class EntityResolver:
                     "source": "esi",
                 }
         except Exception as exc:
-            logger.warning("Failed to resolve character '%s' via ESI: %s", query_str, exc)
+            logger.warning(
+                "Failed to resolve character '%s' via ESI: %s", query_str, exc
+            )
 
         return None
 
     @classmethod
     def resolve_bulk_characters(
-        cls, queries: List[Union[str, int]]
-    ) -> Dict[str, Dict[str, Any]]:
+        cls, queries: list[str | int]
+    ) -> dict[str, dict[str, Any]]:
         """
         Bulk resolves a collection of character names or IDs with maximum performance.
         Checks internal DB (EveCharacter, HostilePilotDossier) first, then calls ESI
@@ -220,8 +253,10 @@ class EntityResolver:
         if not queries:
             return {}
 
-        results: Dict[str, Dict[str, Any]] = {}
-        clean_queries = list(dict.fromkeys(str(q).strip() for q in queries if str(q).strip()))
+        results: dict[str, dict[str, Any]] = {}
+        clean_queries = list(
+            dict.fromkeys(str(q).strip() for q in queries if str(q).strip())
+        )
         if not clean_queries:
             return {}
 
@@ -270,7 +305,9 @@ class EntityResolver:
         unresolved_ids = [q for q in id_queries if str(q) not in results]
 
         if unresolved_names:
-            for d in HostilePilotDossier.objects.filter(character_name__in=unresolved_names):
+            for d in HostilePilotDossier.objects.filter(
+                character_name__in=unresolved_names
+            ):
                 entry = {
                     "character_id": d.character_id,
                     "character_name": d.character_name,
@@ -289,7 +326,9 @@ class EntityResolver:
                     results[str(d.character_id)] = entry
 
         if unresolved_ids:
-            for d in HostilePilotDossier.objects.filter(character_id__in=unresolved_ids):
+            for d in HostilePilotDossier.objects.filter(
+                character_id__in=unresolved_ids
+            ):
                 entry = {
                     "character_id": d.character_id,
                     "character_name": d.character_name,
@@ -344,7 +383,9 @@ class EntityResolver:
 
         if char_ids_to_affil:
             try:
-                affil_list = esi_client.post_characters_affiliation(list(char_ids_to_affil))
+                affil_list = esi_client.post_characters_affiliation(
+                    list(char_ids_to_affil)
+                )
                 if isinstance(affil_list, list):
                     corp_ids_to_resolve = set()
                     alliance_ids_to_resolve = set()
@@ -363,28 +404,52 @@ class EntityResolver:
 
                     # Resolve corp and alliance names
                     names_map = {}
-                    all_ids_to_resolve = list(corp_ids_to_resolve.union(alliance_ids_to_resolve))
+                    all_ids_to_resolve = list(
+                        corp_ids_to_resolve.union(alliance_ids_to_resolve)
+                    )
                     if all_ids_to_resolve:
                         # Check internal DB first
                         for corpid in list(corp_ids_to_resolve):
-                            h_corp = HostileCorporation.objects.filter(corporation_id=corpid).first()
+                            h_corp = HostileCorporation.objects.filter(
+                                corporation_id=corpid
+                            ).first()
                             if h_corp:
-                                names_map[corpid] = (h_corp.corporation_name, h_corp.ticker or "")
+                                names_map[corpid] = (
+                                    h_corp.corporation_name,
+                                    h_corp.ticker or "",
+                                )
                             else:
-                                eve_c = EveCorporationInfo.objects.filter(corporation_id=corpid).first()
+                                eve_c = EveCorporationInfo.objects.filter(
+                                    corporation_id=corpid
+                                ).first()
                                 if eve_c:
-                                    names_map[corpid] = (eve_c.corporation_name, eve_c.corporation_ticker or "")
+                                    names_map[corpid] = (
+                                        eve_c.corporation_name,
+                                        eve_c.corporation_ticker or "",
+                                    )
 
                         for allid in list(alliance_ids_to_resolve):
-                            h_all = HostileAlliance.objects.filter(alliance_id=allid).first()
+                            h_all = HostileAlliance.objects.filter(
+                                alliance_id=allid
+                            ).first()
                             if h_all:
-                                names_map[allid] = (h_all.alliance_name, h_all.ticker or "")
+                                names_map[allid] = (
+                                    h_all.alliance_name,
+                                    h_all.ticker or "",
+                                )
                             else:
-                                eve_a = EveAllianceInfo.objects.filter(alliance_id=allid).first()
+                                eve_a = EveAllianceInfo.objects.filter(
+                                    alliance_id=allid
+                                ).first()
                                 if eve_a:
-                                    names_map[allid] = (eve_a.alliance_name, eve_a.alliance_ticker or "")
+                                    names_map[allid] = (
+                                        eve_a.alliance_name,
+                                        eve_a.alliance_ticker or "",
+                                    )
 
-                        missing_ids = [i for i in all_ids_to_resolve if i not in names_map]
+                        missing_ids = [
+                            i for i in all_ids_to_resolve if i not in names_map
+                        ]
                         if missing_ids:
                             names_res = esi_client.post_universe_names(missing_ids)
                             if isinstance(names_res, list):
@@ -415,7 +480,7 @@ class EntityResolver:
         return results
 
     @classmethod
-    def resolve_alliance(cls, query: Union[str, int]) -> Optional[Dict[str, Any]]:
+    def resolve_alliance(cls, query: str | int) -> dict[str, Any] | None:
         """
         Resolves an alliance by Alliance Name OR Alliance ID.
         """
@@ -429,11 +494,17 @@ class EntityResolver:
         # 1. Check internal HostileAlliance model
         hostile_alliance = None
         if alliance_id:
-            hostile_alliance = HostileAlliance.objects.filter(alliance_id=alliance_id).first()
+            hostile_alliance = HostileAlliance.objects.filter(
+                alliance_id=alliance_id
+            ).first()
         else:
-            hostile_alliance = HostileAlliance.objects.filter(alliance_name__iexact=query_str).first()
+            hostile_alliance = HostileAlliance.objects.filter(
+                alliance_name__iexact=query_str
+            ).first()
             if not hostile_alliance:
-                hostile_alliance = HostileAlliance.objects.filter(alliance_name__icontains=query_str).first()
+                hostile_alliance = HostileAlliance.objects.filter(
+                    alliance_name__icontains=query_str
+                ).first()
 
         if hostile_alliance:
             return {
@@ -446,11 +517,17 @@ class EntityResolver:
         # 2. Check internal EveAllianceInfo model
         eve_alliance = None
         if alliance_id:
-            eve_alliance = EveAllianceInfo.objects.filter(alliance_id=alliance_id).first()
+            eve_alliance = EveAllianceInfo.objects.filter(
+                alliance_id=alliance_id
+            ).first()
         else:
-            eve_alliance = EveAllianceInfo.objects.filter(alliance_name__iexact=query_str).first()
+            eve_alliance = EveAllianceInfo.objects.filter(
+                alliance_name__iexact=query_str
+            ).first()
             if not eve_alliance:
-                eve_alliance = EveAllianceInfo.objects.filter(alliance_name__icontains=query_str).first()
+                eve_alliance = EveAllianceInfo.objects.filter(
+                    alliance_name__icontains=query_str
+                ).first()
 
         if eve_alliance:
             return {
@@ -465,7 +542,9 @@ class EntityResolver:
         if alliance_id:
             eve_char = EveCharacter.objects.filter(alliance_id=alliance_id).first()
         else:
-            eve_char = EveCharacter.objects.filter(alliance_name__iexact=query_str).first()
+            eve_char = EveCharacter.objects.filter(
+                alliance_name__iexact=query_str
+            ).first()
 
         if eve_char and eve_char.alliance_id:
             return {
@@ -491,7 +570,9 @@ class EntityResolver:
                 if not resolved_name:
                     names_res = esi_client.post_universe_names([resolved_id])
                     if names_res and isinstance(names_res, (list, tuple)):
-                        resolved_name = _get_val(names_res[0], "name", f"Alliance {resolved_id}")
+                        resolved_name = _get_val(
+                            names_res[0], "name", f"Alliance {resolved_id}"
+                        )
 
                 return {
                     "alliance_id": resolved_id,
@@ -500,12 +581,14 @@ class EntityResolver:
                     "source": "esi",
                 }
         except Exception as exc:
-            logger.warning("Failed to resolve alliance '%s' via ESI: %s", query_str, exc)
+            logger.warning(
+                "Failed to resolve alliance '%s' via ESI: %s", query_str, exc
+            )
 
         return None
 
     @classmethod
-    def resolve_corporation(cls, query: Union[str, int]) -> Optional[Dict[str, Any]]:
+    def resolve_corporation(cls, query: str | int) -> dict[str, Any] | None:
         """
         Resolves a corporation by Corporation Name OR Corporation ID.
         """
@@ -519,9 +602,13 @@ class EntityResolver:
         # 1. Check internal HostileCorporation model
         hostile_corp = None
         if corp_id:
-            hostile_corp = HostileCorporation.objects.filter(corporation_id=corp_id).first()
+            hostile_corp = HostileCorporation.objects.filter(
+                corporation_id=corp_id
+            ).first()
         else:
-            hostile_corp = HostileCorporation.objects.filter(corporation_name__iexact=query_str).first()
+            hostile_corp = HostileCorporation.objects.filter(
+                corporation_name__iexact=query_str
+            ).first()
 
         if hostile_corp:
             return {
@@ -536,7 +623,9 @@ class EntityResolver:
         if corp_id:
             eve_corp = EveCorporationInfo.objects.filter(corporation_id=corp_id).first()
         else:
-            eve_corp = EveCorporationInfo.objects.filter(corporation_name__iexact=query_str).first()
+            eve_corp = EveCorporationInfo.objects.filter(
+                corporation_name__iexact=query_str
+            ).first()
 
         if eve_corp:
             return {
@@ -562,7 +651,9 @@ class EntityResolver:
                 if not resolved_name:
                     names_res = esi_client.post_universe_names([resolved_id])
                     if names_res and isinstance(names_res, (list, tuple)):
-                        resolved_name = _get_val(names_res[0], "name", f"Corporation {resolved_id}")
+                        resolved_name = _get_val(
+                            names_res[0], "name", f"Corporation {resolved_id}"
+                        )
 
                 return {
                     "corporation_id": resolved_id,
@@ -571,12 +662,14 @@ class EntityResolver:
                     "source": "esi",
                 }
         except Exception as exc:
-            logger.warning("Failed to resolve corporation '%s' via ESI: %s", query_str, exc)
+            logger.warning(
+                "Failed to resolve corporation '%s' via ESI: %s", query_str, exc
+            )
 
         return None
 
     @classmethod
-    def search_characters(cls, query: str, limit: int = 15) -> List[Dict[str, Any]]:
+    def search_characters(cls, query: str, limit: int = 15) -> list[dict[str, Any]]:
         """
         Fast autocomplete search for characters by name or ID.
         """
@@ -603,7 +696,9 @@ class EntityResolver:
 
         # 2. Search internal HostilePilotDossier
         if len(results) < limit:
-            dossier_qs = HostilePilotDossier.objects.filter(character_name__icontains=q)[: limit - len(results)]
+            dossier_qs = HostilePilotDossier.objects.filter(
+                character_name__icontains=q
+            )[: limit - len(results)]
             for d in dossier_qs:
                 if d.character_id not in seen_ids:
                     seen_ids.add(d.character_id)
@@ -613,7 +708,8 @@ class EntityResolver:
                             "character_name": d.character_name,
                             "corporation_name": d.corporation_name or "",
                             "alliance_name": d.alliance_name or "",
-                            "associated_alliance_name": d.associated_alliance_name or "",
+                            "associated_alliance_name": d.associated_alliance_name
+                            or "",
                             "source": "dossier",
                         }
                     )
@@ -621,7 +717,7 @@ class EntityResolver:
         return results[:limit]
 
     @classmethod
-    def search_alliances(cls, query: str, limit: int = 15) -> List[Dict[str, Any]]:
+    def search_alliances(cls, query: str, limit: int = 15) -> list[dict[str, Any]]:
         """
         Fast autocomplete search for alliances by name, ticker, or ID.
         """
@@ -647,7 +743,9 @@ class EntityResolver:
 
         # 2. Search EveAllianceInfo
         if len(results) < limit:
-            ea_qs = EveAllianceInfo.objects.filter(alliance_name__icontains=q)[: limit - len(results)]
+            ea_qs = EveAllianceInfo.objects.filter(alliance_name__icontains=q)[
+                : limit - len(results)
+            ]
             for ea in ea_qs:
                 if ea.alliance_id not in seen_ids:
                     seen_ids.add(ea.alliance_id)
@@ -663,7 +761,7 @@ class EntityResolver:
         return results[:limit]
 
     @classmethod
-    def search_corporations(cls, query: str, limit: int = 15) -> List[Dict[str, Any]]:
+    def search_corporations(cls, query: str, limit: int = 15) -> list[dict[str, Any]]:
         """
         Fast autocomplete search for corporations by name, ticker, or ID.
         """
@@ -694,7 +792,8 @@ class EntityResolver:
         # 2. Search EveCorporationInfo
         if len(results) < limit:
             ec_qs = EveCorporationInfo.objects.filter(
-                models.Q(corporation_name__icontains=q) | models.Q(corporation_ticker__icontains=q)
+                models.Q(corporation_name__icontains=q)
+                | models.Q(corporation_ticker__icontains=q)
             )[: limit - len(results)]
             for ec in ec_qs:
                 if ec.corporation_id not in seen_ids:
@@ -713,7 +812,9 @@ class EntityResolver:
         return results[:limit]
 
     @classmethod
-    def get_or_create_alliance(cls, query: Union[str, int, HostileAlliance]) -> Optional[HostileAlliance]:
+    def get_or_create_alliance(
+        cls, query: str | int | HostileAlliance
+    ) -> HostileAlliance | None:
         """
         Finds or resolves and creates a HostileAlliance instance from a name, ID, or query.
         """
@@ -732,7 +833,9 @@ class EntityResolver:
             if obj:
                 return obj
         else:
-            obj = HostileAlliance.objects.filter(alliance_name__iexact=query_str).first()
+            obj = HostileAlliance.objects.filter(
+                alliance_name__iexact=query_str
+            ).first()
             if obj:
                 return obj
             obj = HostileAlliance.objects.filter(ticker__iexact=query_str).first()
@@ -755,7 +858,9 @@ class EntityResolver:
             return alliance_obj
 
         # If unresolved but name provided, create custom untracked alliance
+        # Standard Library
         import random
+
         synthetic_id = random.randint(2000000000, 2147483647)
         while HostileAlliance.objects.filter(alliance_id=synthetic_id).exists():
             synthetic_id = random.randint(2000000000, 2147483647)
@@ -768,8 +873,10 @@ class EntityResolver:
 
     @classmethod
     def get_or_create_corporation(
-        cls, query: Union[str, int, HostileCorporation], alliance: Optional[HostileAlliance] = None
-    ) -> Optional[HostileCorporation]:
+        cls,
+        query: str | int | HostileCorporation,
+        alliance: HostileAlliance | None = None,
+    ) -> HostileCorporation | None:
         """
         Finds or resolves and creates a HostileCorporation instance from a name, ID, or query.
         """
@@ -784,11 +891,15 @@ class EntityResolver:
 
         # Check existing HostileCorporation by ID or Name
         if query_str.isdigit():
-            obj = HostileCorporation.objects.filter(corporation_id=int(query_str)).first()
+            obj = HostileCorporation.objects.filter(
+                corporation_id=int(query_str)
+            ).first()
             if obj:
                 return obj
         else:
-            obj = HostileCorporation.objects.filter(corporation_name__iexact=query_str).first()
+            obj = HostileCorporation.objects.filter(
+                corporation_name__iexact=query_str
+            ).first()
             if obj:
                 return obj
             obj = HostileCorporation.objects.filter(ticker__iexact=query_str).first()
@@ -815,7 +926,9 @@ class EntityResolver:
             return corp_obj
 
         # If unresolved but name provided, create custom untracked corporation
+        # Standard Library
         import random
+
         synthetic_id = random.randint(2000000000, 2147483647)
         while HostileCorporation.objects.filter(corporation_id=synthetic_id).exists():
             synthetic_id = random.randint(2000000000, 2147483647)

@@ -6,6 +6,9 @@ and click-to-edit inline cell editing.
 # Standard Library
 import json
 
+# Third Party
+from eve_sde.models import ItemCategory, ItemGroup, ItemType, SolarSystem
+
 # Django
 from django.test import Client, TestCase
 from django.urls import reverse
@@ -13,15 +16,11 @@ from django.urls import reverse
 # Alliance Auth
 from allianceauth.tests.auth_utils import AuthUtils
 
-# Third Party
-from eve_sde.models import ItemCategory, ItemGroup, ItemType, SolarSystem
-
 # AA Hostile Intel
 from hostile.models import (
     HostileAlliance,
     HostileCorporation,
     HostileStructure,
-    IntelAuditLog,
 )
 
 
@@ -85,8 +84,12 @@ class StructureInlineEditTests(TestCase):
 
         cls.user_officer = AuthUtils.create_user("officer_inline")
         AuthUtils.add_main_character(cls.user_officer, "Officer Inline Pilot", 21100091)
-        AuthUtils.add_permission_to_user_by_name("hostile.basic_access", cls.user_officer)
-        AuthUtils.add_permission_to_user_by_name("hostile.manage_intel", cls.user_officer)
+        AuthUtils.add_permission_to_user_by_name(
+            "hostile.basic_access", cls.user_officer
+        )
+        AuthUtils.add_permission_to_user_by_name(
+            "hostile.manage_intel", cls.user_officer
+        )
 
         cls.user_scout = AuthUtils.create_user("scout_inline")
         AuthUtils.add_main_character(cls.user_scout, "Scout Inline Pilot", 21100092)
@@ -137,15 +140,15 @@ class StructureInlineEditTests(TestCase):
         self.assertIn("structureVerifiedFilter", content)
         self.assertIn("sortable-th", content)
         self.assertIn("editable-cell", content)
-        self.assertIn("data-sort=\"name\"", content)
-        self.assertIn("data-sort=\"vulnerability\"", content)
-        self.assertIn("data-sort=\"core\"", content)
-        self.assertIn("data-sort=\"state\"", content)
-        self.assertIn("data-field=\"name\"", content)
-        self.assertIn("data-field=\"owner\"", content)
-        self.assertIn("data-field=\"vulnerability\"", content)
-        self.assertIn("data-field=\"state\"", content)
-        self.assertIn("data-field=\"core_status\"", content)
+        self.assertIn('data-sort="name"', content)
+        self.assertIn('data-sort="vulnerability"', content)
+        self.assertIn('data-sort="core"', content)
+        self.assertIn('data-sort="state"', content)
+        self.assertIn('data-field="name"', content)
+        self.assertIn('data-field="owner"', content)
+        self.assertIn('data-field="vulnerability"', content)
+        self.assertIn('data-field="state"', content)
+        self.assertIn('data-field="core_status"', content)
 
     def test_inline_update_name(self):
         """Test inline editing structure name with automatic Ansiblex normalization"""
@@ -323,8 +326,12 @@ class StructureInlineEditTests(TestCase):
 
     def test_inline_update_permissions(self):
         """Test permission checks for inline structure editing"""
-        url_struct1 = reverse("hostile:structure_inline_update", args=[self.struct_1.id])
-        url_scout = reverse("hostile:structure_inline_update", args=[self.struct_scout.id])
+        url_struct1 = reverse(
+            "hostile:structure_inline_update", args=[self.struct_1.id]
+        )
+        url_scout = reverse(
+            "hostile:structure_inline_update", args=[self.struct_scout.id]
+        )
 
         # Scout (author of struct_scout) can edit struct_scout
         self.client.force_login(self.user_scout)

@@ -2,15 +2,21 @@
 Unit tests for EVE Upwell Structure Reinforcement Exit Calculator.
 """
 
-from datetime import datetime, timezone as dt_timezone
+# Standard Library
+from datetime import datetime
+from datetime import timezone as dt_timezone
 
+# Third Party
+from eve_sde.models import ItemCategory, ItemGroup, ItemType, SolarSystem
+
+# Django
 from django.test import Client, TestCase
 from django.urls import reverse
-from django.utils import timezone
 
+# Alliance Auth
 from allianceauth.tests.auth_utils import AuthUtils
 
-from eve_sde.models import ItemCategory, ItemGroup, ItemType, SolarSystem
+# AA Hostile Intel
 from hostile.models import (
     HostileAlliance,
     HostileStructure,
@@ -33,7 +39,9 @@ class TestReinforcementCalculator(TestCase):
         AuthUtils.add_permission_to_user_by_name("hostile.basic_access", cls.user)
         AuthUtils.add_permission_to_user_by_name("hostile.manage_intel", cls.user)
 
-        cls.category = ItemCategory.objects.create(id=65, name="Structure", published=True)
+        cls.category = ItemCategory.objects.create(
+            id=65, name="Structure", published=True
+        )
         cls.group = ItemGroup.objects.create(
             id=1657, name="Citadel", category=cls.category, published=True
         )
@@ -154,9 +162,16 @@ class TestReinforcementCalculator(TestCase):
 
         # min_target_time = 2026-10-01 13:00 + 84h = 2026-10-05 01:00 UTC
         # Next 19:00 UTC is on 2026-10-05 19:00 UTC
-        self.assertEqual(result.nominal_exit, datetime(2026, 10, 5, 19, 0, 0, tzinfo=dt_timezone.utc))
-        self.assertEqual(result.earliest_exit, datetime(2026, 10, 5, 17, 30, 0, tzinfo=dt_timezone.utc))
-        self.assertEqual(result.latest_exit, datetime(2026, 10, 5, 20, 30, 0, tzinfo=dt_timezone.utc))
+        self.assertEqual(
+            result.nominal_exit, datetime(2026, 10, 5, 19, 0, 0, tzinfo=dt_timezone.utc)
+        )
+        self.assertEqual(
+            result.earliest_exit,
+            datetime(2026, 10, 5, 17, 30, 0, tzinfo=dt_timezone.utc),
+        )
+        self.assertEqual(
+            result.latest_exit, datetime(2026, 10, 5, 20, 30, 0, tzinfo=dt_timezone.utc)
+        )
 
     def test_medium_structure_wormhole_shield_reinforcement(self):
         # Wormhole Medium: 2.5 days (60h)
@@ -171,7 +186,9 @@ class TestReinforcementCalculator(TestCase):
         self.assertTrue(result.is_applicable)
         self.assertEqual(result.base_delay_hours, 60.0)  # 2.5 days
         # min_target_time = 2026-10-01 13:00 + 60h = 2026-10-04 01:00 UTC -> next 19:00 is 2026-10-04 19:00 UTC
-        self.assertEqual(result.nominal_exit, datetime(2026, 10, 4, 19, 0, 0, tzinfo=dt_timezone.utc))
+        self.assertEqual(
+            result.nominal_exit, datetime(2026, 10, 4, 19, 0, 0, tzinfo=dt_timezone.utc)
+        )
 
     def test_medium_structure_no_hull_timer(self):
         # Medium structures have NO hull timer
@@ -199,7 +216,10 @@ class TestReinforcementCalculator(TestCase):
         self.assertTrue(armor_result.is_applicable)
         self.assertEqual(armor_result.base_delay_hours, 24.0)
         self.assertEqual(armor_result.jitter_hours, 3.0)
-        self.assertEqual(armor_result.nominal_exit, datetime(2026, 10, 2, 19, 0, 0, tzinfo=dt_timezone.utc))
+        self.assertEqual(
+            armor_result.nominal_exit,
+            datetime(2026, 10, 2, 19, 0, 0, tzinfo=dt_timezone.utc),
+        )
 
         # Armor Reinforce -> Hull timer (2.5 days in Nullsec ±3h jitter)
         hull_result = ReinforcementCalculator.calculate_exit_timer(
@@ -211,7 +231,10 @@ class TestReinforcementCalculator(TestCase):
         )
         self.assertTrue(hull_result.is_applicable)
         self.assertEqual(hull_result.base_delay_hours, 60.0)  # 2.5 days
-        self.assertEqual(hull_result.nominal_exit, datetime(2026, 10, 4, 19, 0, 0, tzinfo=dt_timezone.utc))
+        self.assertEqual(
+            hull_result.nominal_exit,
+            datetime(2026, 10, 4, 19, 0, 0, tzinfo=dt_timezone.utc),
+        )
 
     def test_flex_structure_mechanics(self):
         reinforced_at = datetime(2026, 10, 1, 13, 0, 0, tzinfo=dt_timezone.utc)
@@ -260,7 +283,10 @@ class TestReinforcementCalculator(TestCase):
         )
         self.assertTrue(calc_res.is_applicable)
         self.assertEqual(calc_res.structure_size, StructureCategory.LARGE_XL)
-        self.assertEqual(calc_res.nominal_exit, datetime(2026, 10, 2, 20, 0, 0, tzinfo=dt_timezone.utc))
+        self.assertEqual(
+            calc_res.nominal_exit,
+            datetime(2026, 10, 2, 20, 0, 0, tzinfo=dt_timezone.utc),
+        )
 
     def test_calculator_view_get_and_post(self):
         struct = HostileStructure.objects.create(
@@ -297,29 +323,56 @@ class TestReinforcementCalculator(TestCase):
         self.assertRedirects(post_response, reverse("hostile:timers"))
 
         # Verify timer was created in database
-        timer = StructureTimer.objects.filter(structure=struct, timer_type=TimerStage.SHIELD_REINFORCE).first()
+        timer = StructureTimer.objects.filter(
+            structure=struct, timer_type=TimerStage.SHIELD_REINFORCE
+        ).first()
         self.assertIsNotNone(timer)
         self.assertEqual(timer.timer_datetime.hour, 18)
 
     def test_get_valid_stages(self):
         self.assertEqual(
-            [s[0] for s in ReinforcementCalculator.get_valid_stages(StructureCategory.MEDIUM)],
+            [
+                s[0]
+                for s in ReinforcementCalculator.get_valid_stages(
+                    StructureCategory.MEDIUM
+                )
+            ],
             [TimerStage.SHIELD_REINFORCE],
         )
         self.assertEqual(
-            [s[0] for s in ReinforcementCalculator.get_valid_stages(StructureCategory.POCO)],
+            [
+                s[0]
+                for s in ReinforcementCalculator.get_valid_stages(
+                    StructureCategory.POCO
+                )
+            ],
             [TimerStage.SHIELD_REINFORCE],
         )
         self.assertEqual(
-            [s[0] for s in ReinforcementCalculator.get_valid_stages(StructureCategory.FLEX)],
+            [
+                s[0]
+                for s in ReinforcementCalculator.get_valid_stages(
+                    StructureCategory.FLEX
+                )
+            ],
             [TimerStage.ARMOR_REINFORCE],
         )
         self.assertEqual(
-            [s[0] for s in ReinforcementCalculator.get_valid_stages(StructureCategory.LARGE_XL, is_low_power=False)],
+            [
+                s[0]
+                for s in ReinforcementCalculator.get_valid_stages(
+                    StructureCategory.LARGE_XL, is_low_power=False
+                )
+            ],
             [TimerStage.SHIELD_REINFORCE, TimerStage.ARMOR_REINFORCE],
         )
         self.assertEqual(
-            [s[0] for s in ReinforcementCalculator.get_valid_stages(StructureCategory.LARGE_XL, is_low_power=True)],
+            [
+                s[0]
+                for s in ReinforcementCalculator.get_valid_stages(
+                    StructureCategory.LARGE_XL, is_low_power=True
+                )
+            ],
             [TimerStage.ARMOR_REINFORCE],
         )
 
@@ -375,6 +428,7 @@ class TestReinforcementCalculator(TestCase):
         self.assertEqual(res_lp_hull.power_state, PowerState.LOW_POWER)
 
     def test_form_validation(self):
+        # AA Hostile Intel
         from hostile.forms import ReinforcementCalculatorForm
 
         # Verify chosen_day is not present in form fields
@@ -425,7 +479,9 @@ class TestReinforcementCalculator(TestCase):
             }
         )
         self.assertTrue(form_large_lp_hull.is_valid())
-        self.assertEqual(form_large_lp_hull.cleaned_data["power_state"], PowerState.LOW_POWER)
+        self.assertEqual(
+            form_large_lp_hull.cleaned_data["power_state"], PowerState.LOW_POWER
+        )
 
     def test_calculator_exit_timer_automatic_vulnerability_hour(self):
         """Verify exit calculation advances directly to next vulnerability hour without chosen day requirement"""
@@ -440,7 +496,9 @@ class TestReinforcementCalculator(TestCase):
             vulnerability_hour=18,
         )
         self.assertTrue(res.is_applicable)
-        self.assertEqual(res.nominal_exit, datetime(2026, 10, 4, 18, 0, 0, tzinfo=dt_timezone.utc))
+        self.assertEqual(
+            res.nominal_exit, datetime(2026, 10, 4, 18, 0, 0, tzinfo=dt_timezone.utc)
+        )
         self.assertFalse(hasattr(res, "chosen_day"))
 
     def test_api_timer_calculate(self):
@@ -459,7 +517,9 @@ class TestReinforcementCalculator(TestCase):
         self.assertEqual(json_data["base_delay_hours"], 84.0)
         self.assertIn("2026-10-05T19:00:00", json_data["nominal_exit"])
         self.assertEqual(len(json_data["valid_stages"]), 1)
-        self.assertEqual(json_data["valid_stages"][0]["value"], TimerStage.SHIELD_REINFORCE)
+        self.assertEqual(
+            json_data["valid_stages"][0]["value"], TimerStage.SHIELD_REINFORCE
+        )
 
     def test_calculator_preload_drill_structure(self):
         """When opening calculator with a drill structure, it must preload structure_size=FLEX and timer_stage=HULL"""
@@ -472,7 +532,9 @@ class TestReinforcementCalculator(TestCase):
             vulnerability_hour=18,
             state="ONLINE",
         )
-        response = self.client.get(f"{reverse('hostile:calculator')}?structure_id={drill_struct.id}")
+        response = self.client.get(
+            f"{reverse('hostile:calculator')}?structure_id={drill_struct.id}"
+        )
         self.assertEqual(response.status_code, 200)
         form = response.context["form"]
         self.assertEqual(form.initial.get("structure_size"), StructureCategory.FLEX)

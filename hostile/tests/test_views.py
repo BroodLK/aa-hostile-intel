@@ -6,6 +6,9 @@ Tests for Hostile Intelligence Views, Permissions, Ingestion, and Fitting Modals
 from datetime import timedelta
 from unittest.mock import patch
 
+# Third Party
+from eve_sde.models import ItemCategory, ItemGroup, ItemType, SolarSystem
+
 # Django
 from django.test import Client, TestCase
 from django.urls import reverse
@@ -13,9 +16,6 @@ from django.utils import timezone
 
 # Alliance Auth
 from allianceauth.tests.auth_utils import AuthUtils
-
-# Third Party
-from eve_sde.models import ItemCategory, ItemGroup, ItemType, SolarSystem
 
 # AA Hostile Intel
 from hostile.models import (
@@ -37,27 +37,84 @@ from hostile.models import (
 class TestHostileViews(TestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.category = ItemCategory.objects.create(id=65, name="Structure", published=True)
-        cls.category_module = ItemCategory.objects.create(id=7, name="Module", published=True)
-        cls.group = ItemGroup.objects.create(id=1657, name="Citadel", category=cls.category, published=True)
-        cls.group_service = ItemGroup.objects.create(id=1322, name="Structure Service Module", category=cls.category_module, published=True)
-        cls.keepstar = ItemType.objects.create(id=35834, name="Keepstar", group=cls.group, published=True)
+        cls.category = ItemCategory.objects.create(
+            id=65, name="Structure", published=True
+        )
+        cls.category_module = ItemCategory.objects.create(
+            id=7, name="Module", published=True
+        )
+        cls.group = ItemGroup.objects.create(
+            id=1657, name="Citadel", category=cls.category, published=True
+        )
+        cls.group_service = ItemGroup.objects.create(
+            id=1322,
+            name="Structure Service Module",
+            category=cls.category_module,
+            published=True,
+        )
+        cls.keepstar = ItemType.objects.create(
+            id=35834, name="Keepstar", group=cls.group, published=True
+        )
         cls.neut = ItemType.objects.create(
-            id=35920, name="Standup Heavy Energy Neutralizer I", group=cls.group, published=True
+            id=35920,
+            name="Standup Heavy Energy Neutralizer I",
+            group=cls.group,
+            published=True,
         )
 
         # Ship scanner test items
-        ItemType.objects.create(id=35930, name="Standup Anticapital Missile Launcher I", group=cls.group, published=True)
-        ItemType.objects.create(id=35931, name="Standup XL Energy Neutralizer I", group=cls.group, published=True)
-        ItemType.objects.create(id=35932, name="Standup Focused Warp Disruptor I", group=cls.group, published=True)
-        ItemType.objects.create(id=35933, name="Standup Target Painter I", group=cls.group, published=True)
-        ItemType.objects.create(id=35934, name="Standup Ballistic Control System I", group=cls.group, published=True)
-        ItemType.objects.create(id=35935, name="Standup Missile Guidance Enhancer I", group=cls.group, published=True)
-        ItemType.objects.create(id=35936, name="Standup Cloning Center I", group=cls.group_service, published=True)
-        ItemType.objects.create(id=35937, name="Standup Variable Spectrum ECM I", group=cls.group, published=True)
+        ItemType.objects.create(
+            id=35930,
+            name="Standup Anticapital Missile Launcher I",
+            group=cls.group,
+            published=True,
+        )
+        ItemType.objects.create(
+            id=35931,
+            name="Standup XL Energy Neutralizer I",
+            group=cls.group,
+            published=True,
+        )
+        ItemType.objects.create(
+            id=35932,
+            name="Standup Focused Warp Disruptor I",
+            group=cls.group,
+            published=True,
+        )
+        ItemType.objects.create(
+            id=35933, name="Standup Target Painter I", group=cls.group, published=True
+        )
+        ItemType.objects.create(
+            id=35934,
+            name="Standup Ballistic Control System I",
+            group=cls.group,
+            published=True,
+        )
+        ItemType.objects.create(
+            id=35935,
+            name="Standup Missile Guidance Enhancer I",
+            group=cls.group,
+            published=True,
+        )
+        ItemType.objects.create(
+            id=35936,
+            name="Standup Cloning Center I",
+            group=cls.group_service,
+            published=True,
+        )
+        ItemType.objects.create(
+            id=35937,
+            name="Standup Variable Spectrum ECM I",
+            group=cls.group,
+            published=True,
+        )
 
-        cls.system_1dq = SolarSystem.objects.create(id=30004759, name="1DQ1-A", security_status=-0.5)
-        cls.system_f9 = SolarSystem.objects.create(id=30001234, name="F9-FUV", security_status=-0.2)
+        cls.system_1dq = SolarSystem.objects.create(
+            id=30004759, name="1DQ1-A", security_status=-0.5
+        )
+        cls.system_f9 = SolarSystem.objects.create(
+            id=30001234, name="F9-FUV", security_status=-0.2
+        )
 
         cls.user_no_perms = AuthUtils.create_user(username="no_perm_user")
         AuthUtils.add_main_character(cls.user_no_perms, "No Perm Char", 21100001)
@@ -68,8 +125,12 @@ class TestHostileViews(TestCase):
 
         cls.user_officer = AuthUtils.create_user(username="officer_user")
         AuthUtils.add_main_character(cls.user_officer, "Officer User Char", 21100003)
-        AuthUtils.add_permission_to_user_by_name("hostile.basic_access", cls.user_officer)
-        AuthUtils.add_permission_to_user_by_name("hostile.manage_intel", cls.user_officer)
+        AuthUtils.add_permission_to_user_by_name(
+            "hostile.basic_access", cls.user_officer
+        )
+        AuthUtils.add_permission_to_user_by_name(
+            "hostile.manage_intel", cls.user_officer
+        )
 
         cls.client = Client()
 
@@ -108,7 +169,9 @@ class TestHostileViews(TestCase):
 
     def test_doctrines_and_stagings_workflow(self):
         self.client.force_login(self.user_basic)
-        alliance = HostileAlliance.objects.create(alliance_id=99000001, alliance_name="Test Hostiles", ticker="THOST")
+        alliance = HostileAlliance.objects.create(
+            alliance_id=99000001, alliance_name="Test Hostiles", ticker="THOST"
+        )
 
         # Create staging system
         staging = HostileStagingSystem.objects.create(
@@ -202,7 +265,9 @@ class TestHostileViews(TestCase):
         response = self.client.post(url, {"intel_text": dscan_text})
         self.assertEqual(response.status_code, 302)
 
-        struct = HostileStructure.objects.filter(name="1DQ1-A Staging Citadel [CONDI]").first()
+        struct = HostileStructure.objects.filter(
+            name="1DQ1-A Staging Citadel [CONDI]"
+        ).first()
         self.assertIsNotNone(struct)
         self.assertEqual(struct.owner_ticker, "CONDI")
 
@@ -221,7 +286,9 @@ class TestHostileViews(TestCase):
         response = self.client.post(url, {"intel_text": showinfo_text})
         self.assertEqual(response.status_code, 302)
 
-        struct = HostileStructure.objects.filter(name="1DQ1-A Super Palace [CONDI]").first()
+        struct = HostileStructure.objects.filter(
+            name="1DQ1-A Super Palace [CONDI]"
+        ).first()
         self.assertIsNotNone(struct)
         self.assertEqual(struct.core_status, "FITTED")
         self.assertIsNotNone(struct.latest_fitting)
@@ -309,6 +376,7 @@ class TestHostileViews(TestCase):
         self.assertIn(str(scan.id), resp.url)
 
     def test_alliances_list_zkill_sync_indicator(self):
+        # Django
         from django.core.cache import cache
 
         self.client.force_login(self.user_basic)
@@ -466,6 +534,7 @@ class TestHostileViews(TestCase):
 
     def test_api_threat_scan_pilot_intelligence_streaming(self):
         """Tests asynchronous dynamic pilot combat intelligence enrichment endpoint"""
+        # Standard Library
         from unittest.mock import patch
 
         self.client.force_login(self.user_basic)
@@ -563,8 +632,18 @@ class TestHostileViews(TestCase):
 
         api_url = reverse("hostile:api_threat_scan_pilot_intel", args=[scan.id])
 
-        with patch("hostile.services.entity_resolver.EntityResolver.resolve_character", side_effect=lambda q: mock_resolved.get(str(q).lower() if not isinstance(q, int) else ("april springtime" if q == 91001 else "cynodropper"))):
-            with patch("hostile.services.zkill_client.zkill_client.get_character_combat_intelligence", side_effect=mock_combat_intel):
+        with patch(
+            "hostile.services.entity_resolver.EntityResolver.resolve_character",
+            side_effect=lambda q: mock_resolved.get(
+                str(q).lower()
+                if not isinstance(q, int)
+                else ("april springtime" if q == 91001 else "cynodropper")
+            ),
+        ):
+            with patch(
+                "hostile.services.zkill_client.zkill_client.get_character_combat_intelligence",
+                side_effect=mock_combat_intel,
+            ):
                 # 1. First batch request for 1 pilot
                 resp = self.client.get(api_url, {"batch_size": 1})
                 self.assertEqual(resp.status_code, 200)
@@ -574,8 +653,12 @@ class TestHostileViews(TestCase):
                 self.assertEqual(data["remaining_count"], 1)
                 self.assertFalse(data["is_finished"])
                 self.assertEqual(len(data["pilots"]), 1)
-                self.assertEqual(data["pilots"][0]["character_name"], "April Springtime")
-                self.assertEqual(data["pilots"][0]["corporation_name"], "Springtime Corp")
+                self.assertEqual(
+                    data["pilots"][0]["character_name"], "April Springtime"
+                )
+                self.assertEqual(
+                    data["pilots"][0]["corporation_name"], "Springtime Corp"
+                )
                 self.assertEqual(data["pilots"][0]["alliance_name"], "Spring Alliance")
                 self.assertEqual(data["pilots"][0]["danger_ratio"], 92)
                 self.assertTrue(data["pilots"][0]["is_blops_pilot"])
@@ -688,8 +771,12 @@ class TestHostileViews(TestCase):
         self.assertEqual(len(data["expired_timers"]), 1)
 
         # Check serialized fields
-        first_upcoming = next(t for t in data["upcoming_timers"] if t["id"] == upcoming.id)
-        self.assertEqual(first_upcoming["structure_event_name"], "Infrastructure Hub (I-Hub)")
+        first_upcoming = next(
+            t for t in data["upcoming_timers"] if t["id"] == upcoming.id
+        )
+        self.assertEqual(
+            first_upcoming["structure_event_name"], "Infrastructure Hub (I-Hub)"
+        )
         self.assertEqual(first_upcoming["defender_percent"], 60)
         self.assertEqual(first_upcoming["attacker_percent"], 40)
         self.assertFalse(first_upcoming["has_started"])
@@ -710,12 +797,15 @@ class TestHostileViews(TestCase):
         self.assertEqual(resp_origin.status_code, 200)
         data_origin = resp_origin.json()
         self.assertEqual(data_origin["selected_origin_id"], self.system_1dq.id)
-        first_up_dist = next(t for t in data_origin["upcoming_timers"] if t["id"] == upcoming.id)
+        first_up_dist = next(
+            t for t in data_origin["upcoming_timers"] if t["id"] == upcoming.id
+        )
         self.assertIsNotNone(first_up_dist.get("distance_data"))
         self.assertEqual(first_up_dist["distance_data"]["ly"], 0.0)
 
     def test_api_sov_timers_esi_sync_and_change_detection(self):
         """Tests that api_sov_timers syncs campaigns from ESI and produces distinct hashes on changes"""
+        # Standard Library
         from unittest.mock import patch
 
         self.client.force_login(self.user_basic)
@@ -734,7 +824,10 @@ class TestHostileViews(TestCase):
             }
         ]
 
-        with patch("hostile.services.esi_client.esi_client.get_sovereignty_campaigns", return_value=mock_campaigns_initial):
+        with patch(
+            "hostile.services.esi_client.esi_client.get_sovereignty_campaigns",
+            return_value=mock_campaigns_initial,
+        ):
             resp1 = self.client.get(api_url, {"sync": "1"})
             self.assertEqual(resp1.status_code, 200)
             data1 = resp1.json()
@@ -756,7 +849,10 @@ class TestHostileViews(TestCase):
             }
         ]
 
-        with patch("hostile.services.esi_client.esi_client.get_sovereignty_campaigns", return_value=mock_campaigns_updated):
+        with patch(
+            "hostile.services.esi_client.esi_client.get_sovereignty_campaigns",
+            return_value=mock_campaigns_updated,
+        ):
             resp2 = self.client.get(api_url, {"sync": "1"})
             self.assertEqual(resp2.status_code, 200)
             data2 = resp2.json()
@@ -933,7 +1029,9 @@ class TestHostileViews(TestCase):
             corporation_name="Southern Cross Monopoly",
         )
 
-        with patch("hostile.services.zkill_client.zkill_client.sync_pilot_dossier_zkill") as mock_sync:
+        with patch(
+            "hostile.services.zkill_client.zkill_client.sync_pilot_dossier_zkill"
+        ) as mock_sync:
             mock_sync.return_value = True
             url = reverse("hostile:pilot_sync_zkill", args=[pilot.id])
             res = self.client.get(url, follow=True)
@@ -942,10 +1040,11 @@ class TestHostileViews(TestCase):
 
     def test_pilot_card_danger_meter_and_tickers_rendering(self):
         """Tests rendering of 3-box danger meter, sec status, age, tickers, and zKill badges on pilot list"""
+        # Standard Library
         from datetime import date
 
         self.client.force_login(self.user_basic)
-        pilot = HostilePilotDossier.objects.create(
+        HostilePilotDossier.objects.create(
             character_id=980888,
             character_name="Kixkahn Officer",
             corporation_name="Southern Cross Monopoly",
@@ -1001,7 +1100,7 @@ class TestHostileViews(TestCase):
         )
 
         # 1. Critical Timer (< 6h)
-        timer_6h = StructureTimer.objects.create(
+        StructureTimer.objects.create(
             solar_system=self.system_1dq,
             timer_type="ARMOR",
             timer_datetime=now + timedelta(hours=3),
@@ -1011,7 +1110,7 @@ class TestHostileViews(TestCase):
         )
 
         # 2. Timer (< 24h)
-        timer_24h = StructureTimer.objects.create(
+        StructureTimer.objects.create(
             solar_system=self.system_1dq,
             timer_type="HULL",
             timer_datetime=now + timedelta(hours=14),
@@ -1021,7 +1120,7 @@ class TestHostileViews(TestCase):
         )
 
         # 3. Active Gate Camp (< 24h)
-        camp = SystemObservation.objects.create(
+        SystemObservation.objects.create(
             solar_system=self.system_1dq,
             threat_level="EXTREME",
             observation_text="Interdictor bubble camp on gate with HICs and smartbombing Machariels",
@@ -1030,7 +1129,7 @@ class TestHostileViews(TestCase):
         )
 
         # 4. Sovereignty Campaign (Currently Contested - started 30m ago)
-        sov_timer = StructureTimer.objects.create(
+        StructureTimer.objects.create(
             solar_system=self.system_1dq,
             timer_type="SOV_IHUB",
             timer_datetime=now - timedelta(minutes=30),
@@ -1118,7 +1217,7 @@ class TestHostileViews(TestCase):
         )
 
         # Create primary staging system
-        staging = HostileStagingSystem.objects.create(
+        HostileStagingSystem.objects.create(
             solar_system=self.system_1dq,
             alliance=alliance,
             staging_type="PRIMARY",
@@ -1127,7 +1226,7 @@ class TestHostileViews(TestCase):
         )
 
         # Create active structure
-        struct = HostileStructure.objects.create(
+        HostileStructure.objects.create(
             name="Forward Staging Fortizar",
             solar_system=self.system_1dq,
             alliance=alliance,
@@ -1145,7 +1244,9 @@ class TestHostileViews(TestCase):
         self.assertTrue(any(h["system"].id == self.system_1dq.id for h in hotspots))
 
         # Verify session persistence of home staging
-        self.assertEqual(self.client.session.get("hostile_home_staging"), self.system_1dq.id)
+        self.assertEqual(
+            self.client.session.get("hostile_home_staging"), self.system_1dq.id
+        )
 
     def test_pilot_detail_view(self):
         """Test detailed pilot dossier view with character info, alts, and threat sightings"""
@@ -1162,7 +1263,7 @@ class TestHostileViews(TestCase):
             security_status=-5.5,
             notes="Primary cyno hunter for deployment fleet.",
         )
-        alt_pilot = HostilePilotDossier.objects.create(
+        HostilePilotDossier.objects.create(
             character_id=980992,
             character_name="Alt Scout",
             corporation_name="Scouting Corp",
@@ -1173,7 +1274,7 @@ class TestHostileViews(TestCase):
         )
 
         # Create linked observation / sitrep
-        obs = SystemObservation.objects.create(
+        SystemObservation.objects.create(
             solar_system=self.system_1dq,
             observation_text="Spotted Main Hunter lighting covert cyno near gate",
             threat_level="EXTREME",
@@ -1181,7 +1282,7 @@ class TestHostileViews(TestCase):
         )
 
         # Create scan sighting
-        scan = LocalThreatScan.objects.create(
+        LocalThreatScan.objects.create(
             solar_system=self.system_1dq,
             raw_local_text="Main Hunter\nAlt Scout",
             pilot_count=2,
@@ -1214,6 +1315,7 @@ class TestHostileViews(TestCase):
 
     def test_friendly_alliances_and_corporations_ignored_in_local_scanner(self):
         """Test marking alliances and corporations as friendly/ignored and verifying exclusion in local threat scanner"""
+        # AA Hostile Intel
         from hostile.parsers.local import LocalThreatParser
 
         # Create friendly alliance and corporation
@@ -1223,7 +1325,7 @@ class TestHostileViews(TestCase):
             ticker="BLUEA",
             is_friendly=True,
         )
-        friendly_corp = HostileCorporation.objects.create(
+        HostileCorporation.objects.create(
             corporation_id=98000999,
             corporation_name="Blue Friendly Corp",
             ticker="BLUEC",
@@ -1239,14 +1341,20 @@ class TestHostileViews(TestCase):
         )
 
         # Check is_ignored_entity
-        self.assertTrue(LocalThreatParser.is_ignored_entity(alliance_name="Blue Friendly Alliance"))
-        self.assertTrue(LocalThreatParser.is_ignored_entity(corp_name="Blue Friendly Corp"))
+        self.assertTrue(
+            LocalThreatParser.is_ignored_entity(alliance_name="Blue Friendly Alliance")
+        )
+        self.assertTrue(
+            LocalThreatParser.is_ignored_entity(corp_name="Blue Friendly Corp")
+        )
         self.assertTrue(LocalThreatParser.is_ignored_entity(alliance_id=99000999))
         self.assertTrue(LocalThreatParser.is_ignored_entity(corp_id=98000999))
         self.assertTrue(LocalThreatParser.is_ignored_entity(ticker="BLUEA"))
 
         # Red alliance is not ignored
-        self.assertFalse(LocalThreatParser.is_ignored_entity(alliance_name="Red Hostile Alliance"))
+        self.assertFalse(
+            LocalThreatParser.is_ignored_entity(alliance_name="Red Hostile Alliance")
+        )
         self.assertFalse(LocalThreatParser.is_ignored_entity(ticker="REDA"))
 
         # Verify AllianceQuerySet methods

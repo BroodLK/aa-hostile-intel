@@ -2,24 +2,35 @@
 Tests for IntelManager verification, audit logging, and auto role tagging
 """
 
+# Third Party
+from eve_sde.models import SolarSystem
+
 # Django
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-# Third Party
-from eve_sde.models import SolarSystem
-
 # AA Hostile Intel
-from hostile.models import HostilePilotDossier, HostileStructure, IntelAuditLog, SystemObservation
+from hostile.models import (
+    HostilePilotDossier,
+    HostileStructure,
+    IntelAuditLog,
+    SystemObservation,
+)
 from hostile.services.intel_manager import IntelManager
 
 
 class TestIntelManager(TestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.officer = User.objects.create_user(username="officer_alice", password="password")
-        cls.member = User.objects.create_user(username="member_bob", password="password")
-        cls.system = SolarSystem.objects.create(id=30000142, name="Jita", security_status=0.9)
+        cls.officer = User.objects.create_user(
+            username="officer_alice", password="password"
+        )
+        cls.member = User.objects.create_user(
+            username="member_bob", password="password"
+        )
+        cls.system = SolarSystem.objects.create(
+            id=30000142, name="Jita", security_status=0.9
+        )
 
     def test_verify_structure_and_audit(self):
         struct = HostileStructure.objects.create(
@@ -34,7 +45,9 @@ class TestIntelManager(TestCase):
         struct.refresh_from_db()
         self.assertTrue(struct.is_verified)
 
-        audit = IntelAuditLog.objects.filter(target_id=struct.id, action="VERIFY").first()
+        audit = IntelAuditLog.objects.filter(
+            target_id=struct.id, action="VERIFY"
+        ).first()
         self.assertIsNotNone(audit)
         self.assertEqual(audit.user, self.officer)
 

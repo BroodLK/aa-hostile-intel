@@ -2,13 +2,13 @@
 Forms for intelligence submissions, smart paste ingestion, and entity moderation
 """
 
+# Third Party
+from eve_sde.models import ItemType, SolarSystem
+
 # Django
 from django import forms
 from django.db import models
 from django.utils import timezone
-
-# Third Party
-from eve_sde.models import ItemType, SolarSystem
 
 # AA Hostile Intel
 from hostile.models import (
@@ -19,9 +19,6 @@ from hostile.models import (
     HostilePilotDossier,
     HostileStagingSystem,
     HostileStructure,
-    LocalThreatScan,
-    StructureFitting,
-    StructureModule,
     StructureTimer,
     SystemObservation,
     SystemTag,
@@ -266,6 +263,7 @@ class SystemObservationForm(forms.ModelForm):
         dscan_parsed = None
         if raw_dscan:
             try:
+                # AA Hostile Intel
                 from hostile.parsers.dscan import DScanParser
 
                 dscan_parsed = DScanParser.parse(
@@ -309,6 +307,7 @@ class SystemObservationForm(forms.ModelForm):
         # Process Local chat paste if provided
         if raw_local:
             try:
+                # AA Hostile Intel
                 from hostile.models import LocalThreatScan
                 from hostile.parsers.local import LocalThreatParser
 
@@ -372,10 +371,9 @@ class SystemObservationForm(forms.ModelForm):
                     )
                     instance.tags.add(tag_bubble)
 
-                if (
-                    instance.dscan_summary.get("total_ships", 0) >= 3
-                    and instance.threat_level in ["HIGH", "EXTREME"]
-                ):
+                if instance.dscan_summary.get(
+                    "total_ships", 0
+                ) >= 3 and instance.threat_level in ["HIGH", "EXTREME"]:
                     tag_camp, _ = SystemTag.objects.get_or_create(
                         name="Gate Camp", defaults={"color_class": "danger"}
                     )
@@ -649,24 +647,53 @@ class HostileStructureForm(forms.ModelForm):
             "notes",
         ]
         widgets = {
-            "name": forms.TextInput(attrs={"class": "form-control", "id": "id_structure_name"}),
-            "owner_ticker": forms.TextInput(attrs={"class": "form-control", "placeholder": "e.g. CONDI", "id": "id_owner_ticker"}),
-            "alliance": forms.Select(attrs={"class": "form-select", "id": "id_alliance"}),
-            "corporation": forms.Select(attrs={"class": "form-select", "id": "id_corporation"}),
+            "name": forms.TextInput(
+                attrs={"class": "form-control", "id": "id_structure_name"}
+            ),
+            "owner_ticker": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "e.g. CONDI",
+                    "id": "id_owner_ticker",
+                }
+            ),
+            "alliance": forms.Select(
+                attrs={"class": "form-select", "id": "id_alliance"}
+            ),
+            "corporation": forms.Select(
+                attrs={"class": "form-select", "id": "id_corporation"}
+            ),
             "vulnerability_window": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "e.g. 15:00 - 21:00 UTC (Auto-filled +-3h)", "id": "id_vulnerability_window"}
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "e.g. 15:00 - 21:00 UTC (Auto-filled +-3h)",
+                    "id": "id_vulnerability_window",
+                }
             ),
             "vulnerability_hour": forms.NumberInput(
-                attrs={"class": "form-control", "placeholder": "UTC Hour (0-23)", "min": 0, "max": 23, "id": "id_vulnerability_hour"}
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "UTC Hour (0-23)",
+                    "min": 0,
+                    "max": 23,
+                    "id": "id_vulnerability_hour",
+                }
             ),
             "location_details": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "Planet / Moon / Gate", "id": "id_location_details"}
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Planet / Moon / Gate",
+                    "id": "id_location_details",
+                }
             ),
-            "notes": forms.Textarea(attrs={"class": "form-control", "rows": 3, "id": "id_notes"}),
+            "notes": forms.Textarea(
+                attrs={"class": "form-control", "rows": 3, "id": "id_notes"}
+            ),
         }
 
     def clean(self):
         cleaned_data = super().clean()
+        # AA Hostile Intel
         from hostile.services.entity_resolver import EntityResolver
 
         if cleaned_data.get("name"):
@@ -705,7 +732,10 @@ class HostileStructureForm(forms.ModelForm):
             start_hour = (vulnerability_hour - 3) % 24
             end_hour = (vulnerability_hour + 3) % 24
             computed_window = f"{start_hour:02d}:00 - {end_hour:02d}:00 UTC"
-            if not cleaned_data.get("vulnerability_window") or cleaned_data.get("vulnerability_window") == "":
+            if (
+                not cleaned_data.get("vulnerability_window")
+                or cleaned_data.get("vulnerability_window") == ""
+            ):
                 cleaned_data["vulnerability_window"] = computed_window
 
         # Anchoring status: core status will always be not in (UNFITTED)
@@ -718,13 +748,17 @@ class HostileStructureForm(forms.ModelForm):
         timer_datetime = cleaned_data.get("timer_datetime")
         timer_stage = cleaned_data.get("timer_stage")
         if timer_datetime and structure_type and timer_stage:
+            # AA Hostile Intel
             from hostile.services.reinforcement_calculator import (
                 ReinforcementCalculator,
                 StructureCategory,
             )
 
             size = ReinforcementCalculator.infer_structure_size(structure_type)
-            if size in (StructureCategory.MEDIUM, StructureCategory.POCO) and timer_stage == "HULL":
+            if (
+                size in (StructureCategory.MEDIUM, StructureCategory.POCO)
+                and timer_stage == "HULL"
+            ):
                 self.add_error(
                     "timer_stage",
                     "Medium structures and POCOs do not have a hull reinforcement stage. Select 'Armor Reinforce Timer' or 'Anchoring Timer'.",
@@ -799,7 +833,9 @@ class HostilePilotDossierForm(forms.ModelForm):
     )
     last_seen_system = SolarSystemChoiceField(
         required=False,
-        widget=forms.Select(attrs={"class": "form-select", "id": "id_last_seen_system"}),
+        widget=forms.Select(
+            attrs={"class": "form-select", "id": "id_last_seen_system"}
+        ),
     )
 
     main_character = forms.ModelChoiceField(
@@ -971,7 +1007,10 @@ class HostilePilotDossierForm(forms.ModelForm):
                 }
             ),
             "alt_confidence": forms.Select(
-                attrs={"class": "form-select form-select-sm", "id": "id_alt_confidence"},
+                attrs={
+                    "class": "form-select form-select-sm",
+                    "id": "id_alt_confidence",
+                },
                 choices=[
                     ("", "None"),
                     ("HIGH", "High"),
@@ -992,7 +1031,9 @@ class HostilePilotDossierForm(forms.ModelForm):
             ),
             "is_dread_pilot": forms.CheckboxInput(attrs={"class": "form-check-input"}),
             "is_fax_pilot": forms.CheckboxInput(attrs={"class": "form-check-input"}),
-            "is_capital_pilot": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "is_capital_pilot": forms.CheckboxInput(
+                attrs={"class": "form-check-input"}
+            ),
             "capital_count": forms.NumberInput(
                 attrs={"class": "form-control form-control-sm", "min": 0}
             ),
@@ -1022,7 +1063,9 @@ class HostilePilotDossierForm(forms.ModelForm):
             "awox_count": forms.NumberInput(
                 attrs={"class": "form-control form-control-sm", "min": 0}
             ),
-            "is_alliance_awox": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "is_alliance_awox": forms.CheckboxInput(
+                attrs={"class": "form-check-input"}
+            ),
             "alliance_awox_count": forms.NumberInput(
                 attrs={"class": "form-control form-control-sm", "min": 0}
             ),
@@ -1061,8 +1104,11 @@ class HostilePilotDossierForm(forms.ModelForm):
         character_name = cleaned_data.get("character_name")
 
         if not character_id and not character_name:
-            raise forms.ValidationError("Please provide a Character Name OR Character ID.")
+            raise forms.ValidationError(
+                "Please provide a Character Name OR Character ID."
+            )
 
+        # AA Hostile Intel
         from hostile.services.entity_resolver import EntityResolver
 
         resolved = None
@@ -1086,7 +1132,9 @@ class HostilePilotDossierForm(forms.ModelForm):
 
         # Auto-fill corporation and alliance details if resolved and not provided
         if resolved:
-            if not cleaned_data.get("corporation_name") and resolved.get("corporation_name"):
+            if not cleaned_data.get("corporation_name") and resolved.get(
+                "corporation_name"
+            ):
                 cleaned_data["corporation_name"] = resolved["corporation_name"]
             if not cleaned_data.get("alliance_name") and resolved.get("alliance_name"):
                 cleaned_data["alliance_name"] = resolved["alliance_name"]
@@ -1262,7 +1310,11 @@ class StructureTimerForm(forms.ModelForm):
             "%Y-%m-%d",
         ],
         widget=forms.DateTimeInput(
-            attrs={"class": "form-control", "type": "datetime-local", "id": "id_timer_datetime"}
+            attrs={
+                "class": "form-control",
+                "type": "datetime-local",
+                "id": "id_timer_datetime",
+            }
         ),
         label="Timer Expiry Datetime (UTC)",
     )
@@ -1303,8 +1355,12 @@ class StructureTimerForm(forms.ModelForm):
                 cleaned_data["solar_system"] = structure.solar_system
         elif name:
             if not solar_system:
-                self.add_error("solar_system", "Solar System is required when adding a new structure.")
+                self.add_error(
+                    "solar_system",
+                    "Solar System is required when adding a new structure.",
+                )
 
+            # AA Hostile Intel
             from hostile.services.entity_resolver import EntityResolver
 
             untracked_alliance = cleaned_data.get("untracked_alliance")
@@ -1315,7 +1371,9 @@ class StructureTimerForm(forms.ModelForm):
 
             untracked_corporation = cleaned_data.get("untracked_corporation")
             if untracked_corporation and not cleaned_data.get("corporation"):
-                corp_obj = EntityResolver.get_or_create_corporation(untracked_corporation)
+                corp_obj = EntityResolver.get_or_create_corporation(
+                    untracked_corporation
+                )
                 if corp_obj:
                     cleaned_data["corporation"] = corp_obj
 
@@ -1330,7 +1388,9 @@ class StructureTimerForm(forms.ModelForm):
             if vuln_hour is not None and not cleaned_data.get("vulnerability_window"):
                 start_h = (vuln_hour - 3) % 24
                 end_h = (vuln_hour + 3) % 24
-                cleaned_data["vulnerability_window"] = f"{start_h:02d}:00 - {end_h:02d}:00 UTC"
+                cleaned_data["vulnerability_window"] = (
+                    f"{start_h:02d}:00 - {end_h:02d}:00 UTC"
+                )
         else:
             if not solar_system:
                 self.add_error("solar_system", "Solar System is required.")
@@ -1376,18 +1436,24 @@ class HostileAllianceForm(forms.ModelForm):
     )
     is_friendly = forms.BooleanField(
         required=False,
-        widget=forms.CheckboxInput(attrs={"class": "form-check-input", "id": "id_is_friendly"}),
+        widget=forms.CheckboxInput(
+            attrs={"class": "form-check-input", "id": "id_is_friendly"}
+        ),
         label="Is Friendly / Ignored Alliance",
         help_text="Flag as friendly entity to be ignored across hostile scans and timer boards.",
     )
     is_coalition_leader = forms.BooleanField(
         required=False,
-        widget=forms.CheckboxInput(attrs={"class": "form-check-input", "id": "id_is_coalition_leader"}),
+        widget=forms.CheckboxInput(
+            attrs={"class": "form-check-input", "id": "id_is_coalition_leader"}
+        ),
         label="Is Coalition Leader / Exec Alliance",
     )
     is_alt_alliance = forms.BooleanField(
         required=False,
-        widget=forms.CheckboxInput(attrs={"class": "form-check-input", "id": "id_is_alt_alliance"}),
+        widget=forms.CheckboxInput(
+            attrs={"class": "form-check-input", "id": "id_is_alt_alliance"}
+        ),
         label="Is Alt / Holding Alliance",
     )
     main_alliance = forms.ModelChoiceField(
@@ -1404,7 +1470,9 @@ class HostileAllianceForm(forms.ModelForm):
     )
     override_timezone = forms.BooleanField(
         required=False,
-        widget=forms.CheckboxInput(attrs={"class": "form-check-input", "id": "id_override_timezone"}),
+        widget=forms.CheckboxInput(
+            attrs={"class": "form-check-input", "id": "id_override_timezone"}
+        ),
         label="Override Auto-detected Timezone",
         help_text="Check to lock in a manual timezone instead of auto-detecting from zKillboard kills and structure timers.",
     )
@@ -1412,7 +1480,9 @@ class HostileAllianceForm(forms.ModelForm):
         choices=HostileAlliance.TIMEZONE_CHOICES,
         required=False,
         initial="UNKNOWN",
-        widget=forms.Select(attrs={"class": "form-select", "id": "id_primary_timezone"}),
+        widget=forms.Select(
+            attrs={"class": "form-select", "id": "id_primary_timezone"}
+        ),
         label="Operational Timezone (Manual Override)",
     )
     max_subcap_form = forms.IntegerField(
@@ -1457,7 +1527,11 @@ class HostileAllianceForm(forms.ModelForm):
         ]
         widgets = {
             "ticker": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "e.g. REKTD", "id": "id_ticker"}
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "e.g. REKTD",
+                    "id": "id_ticker",
+                }
             ),
         }
 
@@ -1467,8 +1541,11 @@ class HostileAllianceForm(forms.ModelForm):
         alliance_name = cleaned_data.get("alliance_name")
 
         if not alliance_id and not alliance_name:
-            raise forms.ValidationError("Please provide an Alliance Name OR Alliance ID.")
+            raise forms.ValidationError(
+                "Please provide an Alliance Name OR Alliance ID."
+            )
 
+        # AA Hostile Intel
         from hostile.services.entity_resolver import EntityResolver
 
         if not alliance_id and alliance_name:
@@ -1584,7 +1661,11 @@ class HostileCorporationForm(forms.ModelForm):
     ticker = forms.CharField(
         required=False,
         widget=forms.TextInput(
-            attrs={"class": "form-control", "placeholder": "e.g. D3RP", "id": "id_corp_ticker"}
+            attrs={
+                "class": "form-control",
+                "placeholder": "e.g. D3RP",
+                "id": "id_corp_ticker",
+            }
         ),
         label="Ticker",
     )
@@ -1607,25 +1688,33 @@ class HostileCorporationForm(forms.ModelForm):
     )
     is_friendly = forms.BooleanField(
         required=False,
-        widget=forms.CheckboxInput(attrs={"class": "form-check-input", "id": "id_is_friendly"}),
+        widget=forms.CheckboxInput(
+            attrs={"class": "form-check-input", "id": "id_is_friendly"}
+        ),
         label="Is Friendly / Ignored Corporation",
         help_text="Flag as friendly entity to be ignored across hostile scans and intel tracking.",
     )
     is_alt_corp = forms.BooleanField(
         required=False,
-        widget=forms.CheckboxInput(attrs={"class": "form-check-input", "id": "id_is_alt_corp"}),
+        widget=forms.CheckboxInput(
+            attrs={"class": "form-check-input", "id": "id_is_alt_corp"}
+        ),
         label="Is Alt / Holding / Cyno Corp",
     )
     main_alliance = forms.ModelChoiceField(
         queryset=HostileAlliance.objects.all().order_by("alliance_name"),
         required=False,
-        widget=forms.Select(attrs={"class": "form-select", "id": "id_corp_main_alliance"}),
+        widget=forms.Select(
+            attrs={"class": "form-select", "id": "id_corp_main_alliance"}
+        ),
         label="Main / Parent Alliance (if alt corp)",
     )
     main_corporation = forms.ModelChoiceField(
         queryset=HostileCorporation.objects.all().order_by("corporation_name"),
         required=False,
-        widget=forms.Select(attrs={"class": "form-select", "id": "id_main_corporation"}),
+        widget=forms.Select(
+            attrs={"class": "form-select", "id": "id_main_corporation"}
+        ),
         label="Main / Parent Corporation (if alt corp)",
     )
     max_subcap_form = forms.IntegerField(
@@ -1673,8 +1762,11 @@ class HostileCorporationForm(forms.ModelForm):
         corp_name = cleaned_data.get("corporation_name")
 
         if not corp_id and not corp_name:
-            raise forms.ValidationError("Please provide a Corporation Name OR Corporation ID.")
+            raise forms.ValidationError(
+                "Please provide a Corporation Name OR Corporation ID."
+            )
 
+        # AA Hostile Intel
         from hostile.services.entity_resolver import EntityResolver
 
         if not corp_id and corp_name:
@@ -1717,7 +1809,9 @@ class HostileStagingSystemForm(forms.ModelForm):
         widget=forms.Select(attrs={"class": "form-select"}),
     )
     structure = forms.ModelChoiceField(
-        queryset=HostileStructure.objects.select_related("solar_system", "structure_type", "alliance").all(),
+        queryset=HostileStructure.objects.select_related(
+            "solar_system", "structure_type", "alliance"
+        ).all(),
         required=False,
         empty_label="Unknown / Unassigned",
         widget=forms.Select(attrs={"class": "form-select"}),
@@ -1727,7 +1821,10 @@ class HostileStagingSystemForm(forms.ModelForm):
         required=False,
         initial=0,
         widget=forms.NumberInput(
-            attrs={"class": "form-control", "placeholder": "0 = Auto-estimate from entity zKill"}
+            attrs={
+                "class": "form-control",
+                "placeholder": "0 = Auto-estimate from entity zKill",
+            }
         ),
         label="Max Subcaps Formup (Manual Override)",
         help_text="Leave blank or 0 to automatically estimate from entity's 3-month rolling zKill capability.",
@@ -1736,7 +1833,10 @@ class HostileStagingSystemForm(forms.ModelForm):
         required=False,
         initial=0,
         widget=forms.NumberInput(
-            attrs={"class": "form-control", "placeholder": "0 = Auto-estimate from entity zKill"}
+            attrs={
+                "class": "form-control",
+                "placeholder": "0 = Auto-estimate from entity zKill",
+            }
         ),
         label="Max Capitals Formup (Manual Override)",
         help_text="Leave blank or 0 to automatically estimate from entity's 3-month rolling zKill capability.",
@@ -1745,7 +1845,10 @@ class HostileStagingSystemForm(forms.ModelForm):
         required=False,
         initial=0,
         widget=forms.NumberInput(
-            attrs={"class": "form-control", "placeholder": "0 = Auto-estimate from entity zKill"}
+            attrs={
+                "class": "form-control",
+                "placeholder": "0 = Auto-estimate from entity zKill",
+            }
         ),
         label="Max Supers Formup (Manual Override)",
         help_text="Leave blank or 0 to automatically estimate from entity's 3-month rolling zKill capability.",
@@ -1807,17 +1910,31 @@ class HostileDoctrineForm(forms.ModelForm):
             "description",
         ]
         widgets = {
-            "name": forms.TextInput(attrs={"class": "form-control", "placeholder": "e.g. TFIs (Armor Battleships), RLML Cerberus"}),
+            "name": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "e.g. TFIs (Armor Battleships), RLML Cerberus",
+                }
+            ),
             "alliance": forms.Select(attrs={"class": "form-select"}),
             "corporation": forms.Select(attrs={"class": "form-select"}),
             "role_type": forms.Select(attrs={"class": "form-select"}),
-            "is_general_doctrine": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "is_general_doctrine": forms.CheckboxInput(
+                attrs={"class": "form-check-input"}
+            ),
             "stagings": forms.SelectMultiple(attrs={"class": "form-select"}),
             "primary_ship_types": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "e.g. Tempest Fleet Issue, Guardian, Damnation, Huginn, Loki"}
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "e.g. Tempest Fleet Issue, Guardian, Damnation, Huginn, Loki",
+                }
             ),
             "description": forms.Textarea(
-                attrs={"class": "form-control", "rows": 3, "placeholder": "Tactical notes, engagement envelopes, counterplays..."}
+                attrs={
+                    "class": "form-control",
+                    "rows": 3,
+                    "placeholder": "Tactical notes, engagement envelopes, counterplays...",
+                }
             ),
         }
 
@@ -1827,14 +1944,43 @@ class DoctrineFitForm(forms.ModelForm):
 
     class Meta:
         model = DoctrineFit
-        fields = ["doctrine", "ship_type", "name", "role", "zkill_link", "eft_format", "notes"]
+        fields = [
+            "doctrine",
+            "ship_type",
+            "name",
+            "role",
+            "zkill_link",
+            "eft_format",
+            "notes",
+        ]
         widgets = {
             "doctrine": forms.Select(attrs={"class": "form-select"}),
             "ship_type": forms.Select(attrs={"class": "form-select"}),
-            "name": forms.TextInput(attrs={"class": "form-control", "placeholder": "e.g. Main DPS TFI, Armor Logi Guardian"}),
-            "role": forms.TextInput(attrs={"class": "form-control", "placeholder": "e.g. DPS, Logi, Tackle, Boosts"}),
-            "zkill_link": forms.URLInput(attrs={"class": "form-control", "placeholder": "https://zkillboard.com/kill/12345678/"}),
-            "eft_format": forms.Textarea(attrs={"class": "form-control font-monospace", "rows": 6, "placeholder": "Paste [Tempest Fleet Issue, Fit] EFT format here..."}),
+            "name": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "e.g. Main DPS TFI, Armor Logi Guardian",
+                }
+            ),
+            "role": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "e.g. DPS, Logi, Tackle, Boosts",
+                }
+            ),
+            "zkill_link": forms.URLInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "https://zkillboard.com/kill/12345678/",
+                }
+            ),
+            "eft_format": forms.Textarea(
+                attrs={
+                    "class": "form-control font-monospace",
+                    "rows": 6,
+                    "placeholder": "Paste [Tempest Fleet Issue, Fit] EFT format here...",
+                }
+            ),
             "notes": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
         }
 
@@ -1843,14 +1989,20 @@ class ReinforcementCalculatorForm(forms.Form):
     """Form for calculating guesstimated Upwell and POCO reinforce exit windows"""
 
     structure = forms.ModelChoiceField(
-        queryset=HostileStructure.objects.select_related("solar_system", "structure_type", "alliance").all(),
+        queryset=HostileStructure.objects.select_related(
+            "solar_system", "structure_type", "alliance"
+        ).all(),
         required=False,
-        widget=forms.Select(attrs={"class": "form-select", "id": "id_calculator_structure"}),
+        widget=forms.Select(
+            attrs={"class": "form-select", "id": "id_calculator_structure"}
+        ),
         help_text="Select a known hostile structure to automatically fill category, location, and scanned vulnerability hours.",
     )
     solar_system = SolarSystemChoiceField(
         required=False,
-        widget=forms.Select(attrs={"class": "form-select", "id": "id_calculator_system"}),
+        widget=forms.Select(
+            attrs={"class": "form-select", "id": "id_calculator_system"}
+        ),
         help_text="Select solar system to automatically infer Highsec / Lowsec / Nullsec / Wormhole.",
     )
     structure_size = forms.ChoiceField(
@@ -1861,30 +2013,42 @@ class ReinforcementCalculatorForm(forms.Form):
     location_type = forms.ChoiceField(
         choices=LocationSecurity.CHOICES,
         initial=LocationSecurity.NULLSEC_LOWSEC,
-        widget=forms.Select(attrs={"class": "form-select", "id": "id_calculator_location"}),
+        widget=forms.Select(
+            attrs={"class": "form-select", "id": "id_calculator_location"}
+        ),
     )
     is_low_power = forms.BooleanField(
         required=False,
         initial=False,
-        widget=forms.CheckboxInput(attrs={"class": "form-check-input", "id": "id_calculator_low_power"}),
+        widget=forms.CheckboxInput(
+            attrs={"class": "form-check-input", "id": "id_calculator_low_power"}
+        ),
         help_text="Structure is unfueled / in Low Power mode (no active service modules). Large/XL structures in Low Power skip armor reinforcement directly to vulnerable armor.",
     )
     timer_stage = forms.ChoiceField(
         choices=TimerStage.CHOICES,
         initial=TimerStage.SHIELD_REINFORCE,
-        widget=forms.Select(attrs={"class": "form-select", "id": "id_calculator_stage"}),
+        widget=forms.Select(
+            attrs={"class": "form-select", "id": "id_calculator_stage"}
+        ),
         help_text="Shield Depleted → Armor Timer Exit, or Armor Depleted → Hull / Final Timer Exit (availability depends on structure size and power state).",
     )
     power_state = forms.ChoiceField(
         choices=PowerState.CHOICES,
         initial=PowerState.FULL_POWER,
         required=False,
-        widget=forms.Select(attrs={"class": "form-select", "id": "id_calculator_power"}),
+        widget=forms.Select(
+            attrs={"class": "form-select", "id": "id_calculator_power"}
+        ),
     )
     reinforced_at = forms.DateTimeField(
         required=False,
         widget=forms.DateTimeInput(
-            attrs={"class": "form-control font-mono", "type": "datetime-local", "id": "id_calculator_reinforced_at"}
+            attrs={
+                "class": "form-control font-mono",
+                "type": "datetime-local",
+                "id": "id_calculator_reinforced_at",
+            }
         ),
         help_text="Timestamp when the structure entered reinforcement in UTC. Defaults to current time if blank.",
     )
@@ -1916,7 +2080,9 @@ class ReinforcementCalculatorForm(forms.Form):
     save_to_timers = forms.BooleanField(
         required=False,
         initial=False,
-        widget=forms.CheckboxInput(attrs={"class": "form-check-input", "id": "id_calculator_save_timer"}),
+        widget=forms.CheckboxInput(
+            attrs={"class": "form-check-input", "id": "id_calculator_save_timer"}
+        ),
         help_text="Check to automatically save this calculated exit time to the Active Timer Board.",
     )
     notes = forms.CharField(
@@ -1945,17 +2111,27 @@ class ReinforcementCalculatorForm(forms.Form):
         structure_size = cleaned_data.get("structure_size")
         timer_stage = cleaned_data.get("timer_stage")
 
-        if structure_size in (StructureCategory.MEDIUM, StructureCategory.POCO) and timer_stage == TimerStage.ARMOR_REINFORCE:
+        if (
+            structure_size in (StructureCategory.MEDIUM, StructureCategory.POCO)
+            and timer_stage == TimerStage.ARMOR_REINFORCE
+        ):
             self.add_error(
                 "timer_stage",
                 "Medium structures and POCOs do not have a hull reinforcement stage. Select 'Shield Depleted → Armor Timer Exit'.",
             )
-        elif structure_size == StructureCategory.FLEX and timer_stage == TimerStage.SHIELD_REINFORCE:
+        elif (
+            structure_size == StructureCategory.FLEX
+            and timer_stage == TimerStage.SHIELD_REINFORCE
+        ):
             self.add_error(
                 "timer_stage",
                 "FLEX structures do not have an armor reinforcement stage. Select 'Armor Depleted → Hull / Final Timer Exit'.",
             )
-        elif structure_size == StructureCategory.LARGE_XL and is_low_power and timer_stage == TimerStage.SHIELD_REINFORCE:
+        elif (
+            structure_size == StructureCategory.LARGE_XL
+            and is_low_power
+            and timer_stage == TimerStage.SHIELD_REINFORCE
+        ):
             self.add_error(
                 "timer_stage",
                 "Large/XL structures in Low Power mode skip armor reinforcement. Select 'Armor Depleted → Hull / Final Timer Exit'.",

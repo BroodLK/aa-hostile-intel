@@ -243,7 +243,7 @@
                 <div class="list-group list-group-flush bg-transparent">
                     {% for timer in upcoming_timers %}
                     <div class="list-group-item bg-transparent text-white border-secondary p-3 timer-item-row"
-                         data-search-text="{{ timer.target_name|lower }} {{ timer.solar_system.name|lower }} {{ timer.solar_system.constellation.region.name|lower }} {{ timer.timer_type|lower }} {{ timer.defender_display|lower }}">
+                        data-search-text="{{ timer.target_name|lower }} {{ timer.solar_system.name|lower }} {{ timer.solar_system.constellation.region.name|lower }} {{ timer.timer_type|lower }} {{ timer.defender_display|lower }}">
                         <div class="d-flex justify-content-between align-items-start mb-2 flex-wrap gap-2">
                             <div>
                                 <div class="d-flex align-items-center gap-2 flex-wrap">
@@ -307,7 +307,7 @@
                 <div class="list-group list-group-flush bg-transparent">
                     {% for obs in pinned_observations %}
                     <div class="list-group-item bg-transparent text-white border-secondary p-3 border-start border-4 border-warning sitrep-item-row"
-                         data-search-text="{{ obs.solar_system.name|lower }} {{ obs.threat_level|lower }} {{ obs.observation_text|lower }}">
+                        data-search-text="{{ obs.solar_system.name|lower }} {{ obs.threat_level|lower }} {{ obs.observation_text|lower }}">
                         <div class="d-flex justify-content-between align-items-start mb-2">
                             <div>
                                 <span class="fw-bold fs-6 text-warning">{{ obs.solar_system.name }}</span>
@@ -360,7 +360,7 @@
 
                     {% for obs in recent_observations %}
                     <div class="list-group-item bg-transparent text-white border-secondary p-3 {{ obs.decay_class }} sitrep-item-row"
-                         data-search-text="{{ obs.solar_system.name|lower }} {{ obs.threat_level|lower }} {{ obs.observation_text|lower }}">
+                        data-search-text="{{ obs.solar_system.name|lower }} {{ obs.threat_level|lower }} {{ obs.observation_text|lower }}">
                         <div class="d-flex justify-content-between align-items-start mb-2">
                             <div>
                                 <span class="fw-bold fs-6 text-warning">{{ obs.solar_system.name }}</span>
@@ -430,7 +430,7 @@
                 <div class="list-group list-group-flush bg-transparent">
                     {% for scan in recent_threat_scans %}
                     <div class="list-group-item bg-transparent text-white border-secondary p-3 scan-item-row"
-                         data-search-text="{{ scan.solar_system.name|lower }} {{ scan.threat_level|lower }}">
+                        data-search-text="{{ scan.solar_system.name|lower }} {{ scan.threat_level|lower }}">
                         <div class="d-flex justify-content-between align-items-center mb-1">
                             <div>
                                 <span class="fw-bold fs-6 text-light">{{ scan.solar_system.name|default:"Unknown System" }}</span>
@@ -541,7 +541,7 @@
                 <div class="list-group list-group-flush bg-transparent">
                     {% for sov in active_sov_campaigns %}
                     <div class="list-group-item bg-transparent text-white border-secondary p-3 sov-item-row"
-                         data-search-text="{{ sov.solar_system.name|lower }} {{ sov.structure_event_name|lower }} {{ sov.defender_display|lower }}">
+                        data-search-text="{{ sov.solar_system.name|lower }} {{ sov.structure_event_name|lower }} {{ sov.defender_display|lower }}">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <div>
                                 <span class="fw-bold text-light fs-6">{{ sov.structure_event_name|default:"Sovereignty Event" }}</span>
@@ -587,7 +587,7 @@
                 <div class="list-group list-group-flush bg-transparent">
                     {% for staging in recent_stagings %}
                     <div class="list-group-item bg-transparent text-white border-secondary p-3 staging-item-row"
-                         data-search-text="{{ staging.solar_system.name|lower }} {{ staging.owner_name|lower }}">
+                        data-search-text="{{ staging.solar_system.name|lower }} {{ staging.owner_name|lower }}">
                         <div class="d-flex justify-content-between align-items-center mb-1">
                             <div>
                                 <span class="fw-bold fs-6 text-light">{{ staging.solar_system.name }}</span>
@@ -625,7 +625,7 @@
                 <div class="list-group list-group-flush bg-transparent">
                     {% for doctrine in recent_doctrines %}
                     <div class="list-group-item bg-transparent text-white border-secondary p-3 doctrine-item-row"
-                         data-search-text="{{ doctrine.name|lower }} {{ doctrine.owner_name|lower }} {{ doctrine.primary_ship_types|lower }}">
+                        data-search-text="{{ doctrine.name|lower }} {{ doctrine.owner_name|lower }} {{ doctrine.primary_ship_types|lower }}">
                         <div class="d-flex justify-content-between align-items-center mb-1">
                             <strong class="text-light">{{ doctrine.name }}</strong>
                             <span class="badge badge-subtle-warning">{{ doctrine.get_role_type_display }}</span>

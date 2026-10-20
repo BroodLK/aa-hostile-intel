@@ -5,6 +5,9 @@ Tests for Ansiblex Jump Gate and FLEX structure timers visibility and management
 # Standard Library
 from datetime import timedelta
 
+# Third Party
+from eve_sde.models import ItemCategory, ItemGroup, ItemType, SolarSystem
+
 # Django
 from django.test import Client, TestCase
 from django.urls import reverse
@@ -13,12 +16,15 @@ from django.utils import timezone
 # Alliance Auth
 from allianceauth.tests.auth_utils import AuthUtils
 
-# Third Party
-from eve_sde.models import ItemCategory, ItemGroup, ItemType, SolarSystem
-
 # AA Hostile Intel
-from hostile.forms import HostileStructureForm, StructureTimerForm, StructureTypeChoiceField
-from hostile.models import HostileAlliance, HostileCorporation, HostileStructure, StructureTimer
+from hostile.forms import (
+    StructureTypeChoiceField,
+)
+from hostile.models import (
+    HostileAlliance,
+    HostileStructure,
+    StructureTimer,
+)
 
 
 class TestAnsiblexStructureTimers(TestCase):
@@ -141,9 +147,7 @@ class TestAnsiblexStructureTimers(TestCase):
         self.assertIsNotNone(created_struct)
         self.assertEqual(created_struct.structure_type, self.ansiblex_type)
 
-        created_timer = StructureTimer.objects.filter(
-            structure=created_struct
-        ).first()
+        created_timer = StructureTimer.objects.filter(structure=created_struct).first()
         self.assertIsNotNone(created_timer)
         self.assertEqual(created_timer.timer_type, "HULL")
         self.assertEqual(created_timer.notes, "Primary reinforcement exit timer")

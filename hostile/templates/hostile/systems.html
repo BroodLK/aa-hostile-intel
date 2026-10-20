@@ -46,10 +46,10 @@
 <!-- Sitrep Cards Grid -->
 <div class="row g-4" id="sitrepCardsGrid">
     {% for obs in observations %}
-    <div class="col-md-6 col-lg-4 sitrep-card-item" 
-         data-threat="{{ obs.threat_level }}" 
-         data-pinned="{% if obs.is_pinned %}true{% else %}false{% endif %}"
-         data-search-text="{{ obs.solar_system.name|lower }} {{ obs.threat_level|lower }} {{ obs.observation_text|lower }} {{ obs.created_by.username|default:''|lower }} {% for tag in obs.tags.all %}{{ tag.name|lower }} {% endfor %} {% if obs.local_scan %}{{ obs.local_scan.threat_level|lower }} scan pilots {% for p in obs.local_scan.pilots_data %}{{ p.character_name|lower }} {{ p.corporation_name|lower }} {{ p.alliance_name|lower }} {% endfor %}{% endif %} {% if obs.dscan_summary %}{% for s, c in obs.dscan_summary.ship_counts.items %}{{ s|lower }} {% endfor %}{% endif %}">
+    <div class="col-md-6 col-lg-4 sitrep-card-item"
+        data-threat="{{ obs.threat_level }}"
+        data-pinned="{% if obs.is_pinned %}true{% else %}false{% endif %}"
+        data-search-text="{{ obs.solar_system.name|lower }} {{ obs.threat_level|lower }} {{ obs.observation_text|lower }} {{ obs.created_by.username|default:''|lower }} {% for tag in obs.tags.all %}{{ tag.name|lower }} {% endfor %} {% if obs.local_scan %}{{ obs.local_scan.threat_level|lower }} scan pilots {% for p in obs.local_scan.pilots_data %}{{ p.character_name|lower }} {{ p.corporation_name|lower }} {{ p.alliance_name|lower }} {% endfor %}{% endif %} {% if obs.dscan_summary %}{% for s, c in obs.dscan_summary.ship_counts.items %}{{ s|lower }} {% endfor %}{% endif %}">
         <div class="card bg-dark text-white border-secondary hostile-card h-100 shadow-sm {% if obs.is_pinned %}border-warning border-2{% endif %}">
             <div class="card-header hostile-card-header d-flex justify-content-between align-items-center">
                 <div class="d-flex align-items-center gap-2">
@@ -77,7 +77,7 @@
             </div>
             <div class="card-body">
                 <p class="card-text text-light small mb-3">{{ obs.observation_text|linebreaksbr }}</p>
-                
+
                 {% if obs.tags.all %}
                 <div class="mb-3 d-flex flex-wrap gap-1">
                     {% for tag in obs.tags.all %}
@@ -144,7 +144,7 @@
                     {% endif %}
                 </div>
                 <div class="d-inline-flex gap-1">
-                    <button type="button" class="btn btn-outline-info btn-xs py-0 px-2 btn-copy-sitrep-ping" 
+                    <button type="button" class="btn btn-outline-info btn-xs py-0 px-2 btn-copy-sitrep-ping"
                             data-system="{{ obs.solar_system.name }}"
                             data-threat="{{ obs.threat_level }}"
                             data-tags="{% for tag in obs.tags.all %}{{ tag.name }}{% if not forloop.last %}, {% endif %}{% endfor %}"
@@ -213,33 +213,33 @@
                             <span class="text-muted small">{% translate "One-click auto-fill" %}</span>
                         </div>
                         <div class="d-flex flex-wrap gap-1">
-                            <button type="button" class="btn btn-xs btn-outline-danger py-1 px-2 btn-sitrep-preset" 
-                                    data-threat="HIGH" 
-                                    data-tags="Gate Camp,Bubbles on Gate" 
+                            <button type="button" class="btn btn-xs btn-outline-danger py-1 px-2 btn-sitrep-preset"
+                                    data-threat="HIGH"
+                                    data-tags="Gate Camp,Bubbles on Gate"
                                     data-text="Heavy Gate Camp active with warp disruption bubbles on gate. Interdictors and heavy tackle on grid.">
                                 <i class="fas fa-shield-virus me-1"></i>{% translate "Heavy Gate Camp" %}
                             </button>
-                            <button type="button" class="btn btn-xs btn-outline-danger py-1 px-2 btn-sitrep-preset" 
-                                    data-threat="HIGH" 
-                                    data-tags="Smartbombs,Gate Camp" 
+                            <button type="button" class="btn btn-xs btn-outline-danger py-1 px-2 btn-sitrep-preset"
+                                    data-threat="HIGH"
+                                    data-tags="Smartbombs,Gate Camp"
                                     data-text="Smartbombing Battleships positioned at gate warp-in. High risk for frigates and shuttles.">
                                 <i class="fas fa-bomb me-1"></i>{% translate "Smartbomb Trap" %}
                             </button>
-                            <button type="button" class="btn btn-xs btn-outline-danger py-1 px-2 btn-sitrep-preset" 
-                                    data-threat="EXTREME" 
-                                    data-tags="Cyno In System,Blops Hunter" 
+                            <button type="button" class="btn btn-xs btn-outline-danger py-1 px-2 btn-sitrep-preset"
+                                    data-threat="EXTREME"
+                                    data-tags="Cyno In System,Blops Hunter"
                                     data-text="Covert Cyno Hunter spotted in system. Black Ops drop standby alert.">
                                 <i class="fas fa-user-secret me-1"></i>{% translate "Cyno / Blops Hunter" %}
                             </button>
-                            <button type="button" class="btn btn-xs btn-outline-danger py-1 px-2 btn-sitrep-preset" 
-                                    data-threat="EXTREME" 
-                                    data-tags="Capital Fleet,Hostile Staging" 
+                            <button type="button" class="btn btn-xs btn-outline-danger py-1 px-2 btn-sitrep-preset"
+                                    data-threat="EXTREME"
+                                    data-tags="Capital Fleet,Hostile Staging"
                                     data-text="Hostile Capital fleet active in system (Dreadnoughts / Carriers / Force Auxiliaries spotted).">
                                 <i class="fas fa-space-shuttle me-1"></i>{% translate "Capital Fleet" %}
                             </button>
-                            <button type="button" class="btn btn-xs btn-outline-success py-1 px-2 btn-sitrep-preset" 
-                                    data-threat="LOW" 
-                                    data-tags="Roaming Gang" 
+                            <button type="button" class="btn btn-xs btn-outline-success py-1 px-2 btn-sitrep-preset"
+                                    data-threat="LOW"
+                                    data-tags="Roaming Gang"
                                     data-text="Camp dispersed. System gate grid is clear.">
                                 <i class="fas fa-check-circle me-1"></i>{% translate "System Clear" %}
                             </button>
@@ -302,9 +302,9 @@
                             <div class="p-2 rounded bg-black border border-secondary mb-2">
                                 <div class="d-flex flex-wrap gap-1" id="modalTagPillsContainer">
                                     {% for tag in available_tags %}
-                                        <button type="button" 
-                                                class="btn btn-xs btn-outline-{{ tag.color_class|default:'secondary' }} sitrep-tag-pill py-1 px-2 mb-1" 
-                                                data-tag-id="{{ tag.id }}" 
+                                        <button type="button"
+                                                class="btn btn-xs btn-outline-{{ tag.color_class|default:'secondary' }} sitrep-tag-pill py-1 px-2 mb-1"
+                                                data-tag-id="{{ tag.id }}"
                                                 data-tag-name="{{ tag.name }}">
                                             <i class="fas fa-tag me-1 small"></i>{{ tag.name }}
                                         </button>

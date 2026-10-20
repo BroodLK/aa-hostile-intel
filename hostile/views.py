@@ -3,14 +3,11 @@ Hostile Intelligence views, endpoints, and modals
 """
 
 # Standard Library
-from datetime import timedelta
 import hashlib
 import json
 import re
-from typing import Any, Dict, List, Optional
-
-# Alliance Auth
-from allianceauth.services.hooks import get_extension_logger
+from datetime import timedelta
+from typing import Any
 
 # Django
 from django.contrib import messages
@@ -24,6 +21,9 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
+
+# Alliance Auth
+from allianceauth.services.hooks import get_extension_logger
 
 # AA Hostile Intel
 from hostile.forms import (
@@ -96,14 +96,11 @@ def index(request: WSGIRequest) -> HttpResponse:
     now_plus_6h = now + timedelta(hours=6)
     now_plus_24h = now + timedelta(hours=24)
     past_7d = now - timedelta(days=7)
-    past_48h = now - timedelta(hours=48)
     past_24h = now - timedelta(hours=24)
 
     # 1. Resolve Home Staging / Origin Solar System
     origin_param = (
-        request.GET.get("origin")
-        or request.GET.get("staging")
-        or ""
+        request.GET.get("origin") or request.GET.get("staging") or ""
     ).strip()
 
     origin_system = None
@@ -131,9 +128,9 @@ def index(request: WSGIRequest) -> HttpResponse:
         if primary_staging and primary_staging.solar_system:
             origin_system = primary_staging.solar_system
         else:
-            first_staging = (
-                HostileStagingSystem.objects.select_related("solar_system").first()
-            )
+            first_staging = HostileStagingSystem.objects.select_related(
+                "solar_system"
+            ).first()
             if first_staging and first_staging.solar_system:
                 origin_system = first_staging.solar_system
 
@@ -174,7 +171,9 @@ def index(request: WSGIRequest) -> HttpResponse:
         .filter(Q(is_pinned=True) | Q(threat_level__in=["HIGH", "EXTREME"]))
         .count(),
         "active_sov_contests_count": StructureTimer.objects.sov_campaigns()
-        .filter(is_concluded=False, timer_datetime__lte=now, timer_datetime__gte=past_24h)
+        .filter(
+            is_concluded=False, timer_datetime__lte=now, timer_datetime__gte=past_24h
+        )
         .count(),
         "hostile_hotspots_count": SystemObservation.objects.filter(
             created_at__gte=past_7d
@@ -205,13 +204,17 @@ def index(request: WSGIRequest) -> HttpResponse:
 
     pinned_observations = list(
         SystemObservation.objects.pinned()
-        .select_related("solar_system__constellation__region", "created_by", "local_scan")
+        .select_related(
+            "solar_system__constellation__region", "created_by", "local_scan"
+        )
         .prefetch_related("tags")
     )
     recent_observations = list(
         SystemObservation.objects.active_recent(hours=48)
         .exclude(is_pinned=True)
-        .select_related("solar_system__constellation__region", "created_by", "local_scan")
+        .select_related(
+            "solar_system__constellation__region", "created_by", "local_scan"
+        )
         .prefetch_related("tags")[:6]
     )
 
@@ -245,9 +248,9 @@ def index(request: WSGIRequest) -> HttpResponse:
         if struct.alliance and struct.alliance.ticker:
             hotspot_systems_dict[sys.id]["alliances"].add(struct.alliance.ticker)
 
-    for obs in SystemObservation.objects.filter(
-        created_at__gte=past_7d
-    ).select_related("solar_system__constellation__region"):
+    for obs in SystemObservation.objects.filter(created_at__gte=past_7d).select_related(
+        "solar_system__constellation__region"
+    ):
         sys = obs.solar_system
         if not sys:
             continue
@@ -292,7 +295,9 @@ def index(request: WSGIRequest) -> HttpResponse:
 
     active_sov_campaigns = list(
         StructureTimer.objects.sov_campaigns()
-        .filter(is_concluded=False, timer_datetime__lte=now, timer_datetime__gte=past_24h)
+        .filter(
+            is_concluded=False, timer_datetime__lte=now, timer_datetime__gte=past_24h
+        )
         .select_related("solar_system__constellation__region", "structure__alliance")
         .order_by("-timer_datetime")[:4]
     )
@@ -367,11 +372,9 @@ def index(request: WSGIRequest) -> HttpResponse:
 
     # 7. Unified Real-Time Intel Stream Feed
     intel_feed = []
-    for obs in (
-        SystemObservation.objects.select_related("solar_system", "created_by").order_by(
-            "-created_at"
-        )[:10]
-    ):
+    for obs in SystemObservation.objects.select_related(
+        "solar_system", "created_by"
+    ).order_by("-created_at")[:10]:
         intel_feed.append(
             {
                 "type": "OBSERVATION",
@@ -391,21 +394,19 @@ def index(request: WSGIRequest) -> HttpResponse:
             }
         )
 
-    for struct in (
-        HostileStructure.objects.select_related(
-            "solar_system", "structure_type", "created_by"
-        ).order_by("-updated_at")[:8]
-    ):
+    for struct in HostileStructure.objects.select_related(
+        "solar_system", "structure_type", "created_by"
+    ).order_by("-updated_at")[:8]:
         intel_feed.append(
             {
                 "type": "STRUCTURE",
                 "icon": "fa-monument text-info",
                 "title": f"Structure {struct.state.title()}: {struct.name}",
-                "system": struct.solar_system.name if struct.solar_system else "Unknown",
+                "system": (
+                    struct.solar_system.name if struct.solar_system else "Unknown"
+                ),
                 "badge": (
-                    struct.structure_type.name
-                    if struct.structure_type
-                    else "Structure"
+                    struct.structure_type.name if struct.structure_type else "Structure"
                 ),
                 "badge_class": "badge-subtle-info",
                 "text": f"Owner: {struct.owner_name} | Core: {struct.core_status}",
@@ -415,11 +416,9 @@ def index(request: WSGIRequest) -> HttpResponse:
             }
         )
 
-    for scan in (
-        LocalThreatScan.objects.select_related("solar_system", "created_by").order_by(
-            "-created_at"
-        )[:6]
-    ):
+    for scan in LocalThreatScan.objects.select_related(
+        "solar_system", "created_by"
+    ).order_by("-created_at")[:6]:
         intel_feed.append(
             {
                 "type": "LOCAL_SCAN",
@@ -435,7 +434,9 @@ def index(request: WSGIRequest) -> HttpResponse:
                 "text": f"Blops Drop: {scan.blops_drop_chance}% | Cap Drop: {scan.cap_drop_chance}%",
                 "user": scan.created_by.username if scan.created_by else "Scout",
                 "timestamp": scan.created_at,
-                "link": reverse("hostile:threat_scan_detail", kwargs={"scan_id": scan.id}),
+                "link": reverse(
+                    "hostile:threat_scan_detail", kwargs={"scan_id": scan.id}
+                ),
             }
         )
 
@@ -823,16 +824,23 @@ def structure_set_state(request: WSGIRequest, structure_id: int) -> HttpResponse
 def structure_inline_update(request: WSGIRequest, structure_id: int) -> JsonResponse:
     """AJAX endpoint for inline cell editing of hostile structure properties (name, owner, vulnerability, state, quantum core)"""
     if request.method != "POST":
-        return JsonResponse({"success": False, "error": "Invalid HTTP method."}, status=405)
+        return JsonResponse(
+            {"success": False, "error": "Invalid HTTP method."}, status=405
+        )
 
     structure = get_object_or_404(
-        HostileStructure.objects.select_related("alliance", "corporation", "solar_system", "structure_type"),
+        HostileStructure.objects.select_related(
+            "alliance", "corporation", "solar_system", "structure_type"
+        ),
         id=structure_id,
     )
 
     if not user_can_edit_object(request.user, structure):
         return JsonResponse(
-            {"success": False, "error": "You do not have permission to edit this structure."},
+            {
+                "success": False,
+                "error": "You do not have permission to edit this structure.",
+            },
             status=403,
         )
 
@@ -854,10 +862,16 @@ def structure_inline_update(request: WSGIRequest, structure_id: int) -> JsonResp
 
     if field == "name":
         if not value:
-            return JsonResponse({"success": False, "error": "Structure name cannot be empty."}, status=400)
+            return JsonResponse(
+                {"success": False, "error": "Structure name cannot be empty."},
+                status=400,
+            )
         norm_name = normalize_structure_name(value)
         if not norm_name:
-            return JsonResponse({"success": False, "error": "Structure name cannot be empty."}, status=400)
+            return JsonResponse(
+                {"success": False, "error": "Structure name cannot be empty."},
+                status=400,
+            )
         old_name = structure.name
         structure.name = norm_name
         structure.save(update_fields=["name", "updated_at"])
@@ -892,10 +906,14 @@ def structure_inline_update(request: WSGIRequest, structure_id: int) -> JsonResp
         else:
             structure.owner_ticker = cleaned_ticker[:32]
 
-        structure.save(update_fields=["alliance", "corporation", "owner_ticker", "updated_at"])
+        structure.save(
+            update_fields=["alliance", "corporation", "owner_ticker", "updated_at"]
+        )
 
         if structure.alliance:
-            SovAnalysisEngine.aggregate_alliance_vulnerability_windows(structure.alliance)
+            SovAnalysisEngine.aggregate_alliance_vulnerability_windows(
+                structure.alliance
+            )
         if old_alliance and old_alliance != structure.alliance:
             SovAnalysisEngine.aggregate_alliance_vulnerability_windows(old_alliance)
 
@@ -912,29 +930,45 @@ def structure_inline_update(request: WSGIRequest, structure_id: int) -> JsonResp
             structure.vulnerability_window = ""
         else:
             hour_match = re.match(r"^(\d{1,2})(?::00)?$", value)
-            range_match = re.search(r"(\d{1,2})(?::\d{2})?\s*-\s*(\d{1,2})(?::\d{2})?", value)
+            range_match = re.search(
+                r"(\d{1,2})(?::\d{2})?\s*-\s*(\d{1,2})(?::\d{2})?", value
+            )
             if hour_match:
                 h = int(hour_match.group(1))
                 if 0 <= h <= 23:
                     structure.vulnerability_hour = h
                     start_h = (h - 3 + 24) % 24
                     end_h = (h + 3) % 24
-                    structure.vulnerability_window = f"{start_h:02d}:00 - {end_h:02d}:00 UTC"
+                    structure.vulnerability_window = (
+                        f"{start_h:02d}:00 - {end_h:02d}:00 UTC"
+                    )
                 else:
-                    return JsonResponse({"success": False, "error": "Vulnerability hour must be between 0 and 23."}, status=400)
+                    return JsonResponse(
+                        {
+                            "success": False,
+                            "error": "Vulnerability hour must be between 0 and 23.",
+                        },
+                        status=400,
+                    )
             elif range_match:
                 start_h = int(range_match.group(1)) % 24
                 end_h = int(range_match.group(2)) % 24
                 mid_h = (start_h + 3) % 24
                 structure.vulnerability_hour = mid_h
-                structure.vulnerability_window = f"{start_h:02d}:00 - {end_h:02d}:00 UTC"
+                structure.vulnerability_window = (
+                    f"{start_h:02d}:00 - {end_h:02d}:00 UTC"
+                )
             else:
                 structure.vulnerability_window = value[:64]
 
-        structure.save(update_fields=["vulnerability_hour", "vulnerability_window", "updated_at"])
+        structure.save(
+            update_fields=["vulnerability_hour", "vulnerability_window", "updated_at"]
+        )
 
         if structure.alliance:
-            SovAnalysisEngine.aggregate_alliance_vulnerability_windows(structure.alliance)
+            SovAnalysisEngine.aggregate_alliance_vulnerability_windows(
+                structure.alliance
+            )
 
         IntelManager.record_audit(
             request.user,
@@ -949,7 +983,9 @@ def structure_inline_update(request: WSGIRequest, structure_id: int) -> JsonResp
             new_state = "LOW_POWER"
         valid_states = dict(HostileStructure.STATE_CHOICES)
         if new_state not in valid_states:
-            return JsonResponse({"success": False, "error": f"Invalid state '{value}'."}, status=400)
+            return JsonResponse(
+                {"success": False, "error": f"Invalid state '{value}'."}, status=400
+            )
 
         old_state_display = structure.get_state_display()
         structure.state = new_state
@@ -970,7 +1006,10 @@ def structure_inline_update(request: WSGIRequest, structure_id: int) -> JsonResp
         new_core = value.upper()
         valid_cores = dict(HostileStructure.CORE_CHOICES)
         if new_core not in valid_cores:
-            return JsonResponse({"success": False, "error": f"Invalid core status '{value}'."}, status=400)
+            return JsonResponse(
+                {"success": False, "error": f"Invalid core status '{value}'."},
+                status=400,
+            )
 
         old_core_display = structure.get_core_status_display()
         structure.core_status = new_core
@@ -983,34 +1022,44 @@ def structure_inline_update(request: WSGIRequest, structure_id: int) -> JsonResp
         )
 
     else:
-        return JsonResponse({"success": False, "error": f"Unsupported field '{field}'."}, status=400)
+        return JsonResponse(
+            {"success": False, "error": f"Unsupported field '{field}'."}, status=400
+        )
 
     vuln_display = structure.vulnerability_window or (
-        f"{structure.vulnerability_hour}:00 UTC" if structure.vulnerability_hour is not None else "Unknown"
+        f"{structure.vulnerability_hour}:00 UTC"
+        if structure.vulnerability_hour is not None
+        else "Unknown"
     )
 
-    return JsonResponse({
-        "success": True,
-        "structure_id": structure.id,
-        "field": field,
-        "name": structure.name,
-        "location_details": structure.location_details or "",
-        "owner_name": structure.owner_name,
-        "owner_ticker": structure.owner_ticker or "",
-        "alliance_id": structure.alliance_id,
-        "alliance_name": structure.alliance.alliance_name if structure.alliance else "",
-        "corporation_id": structure.corporation_id,
-        "corporation_name": structure.corporation.corporation_name if structure.corporation else "",
-        "vulnerability_hour": structure.vulnerability_hour,
-        "vulnerability_window": structure.vulnerability_window or "",
-        "vulnerability_display": vuln_display,
-        "state": structure.state,
-        "state_display": structure.get_state_display(),
-        "core_status": structure.core_status,
-        "core_status_display": structure.get_core_status_display(),
-        "updated_at": structure.updated_at.isoformat(),
-        "updated_at_display": naturaltime(structure.updated_at),
-    })
+    return JsonResponse(
+        {
+            "success": True,
+            "structure_id": structure.id,
+            "field": field,
+            "name": structure.name,
+            "location_details": structure.location_details or "",
+            "owner_name": structure.owner_name,
+            "owner_ticker": structure.owner_ticker or "",
+            "alliance_id": structure.alliance_id,
+            "alliance_name": (
+                structure.alliance.alliance_name if structure.alliance else ""
+            ),
+            "corporation_id": structure.corporation_id,
+            "corporation_name": (
+                structure.corporation.corporation_name if structure.corporation else ""
+            ),
+            "vulnerability_hour": structure.vulnerability_hour,
+            "vulnerability_window": structure.vulnerability_window or "",
+            "vulnerability_display": vuln_display,
+            "state": structure.state,
+            "state_display": structure.get_state_display(),
+            "core_status": structure.core_status,
+            "core_status_display": structure.get_core_status_display(),
+            "updated_at": structure.updated_at.isoformat(),
+            "updated_at_display": naturaltime(structure.updated_at),
+        }
+    )
 
 
 @login_required
@@ -1047,17 +1096,24 @@ def structure_merge(request: WSGIRequest) -> HttpResponse:
                     )
                 )
                 if duplicates:
-                    count = IntelManager.merge_structures(primary, duplicates, user=request.user)
+                    count = IntelManager.merge_structures(
+                        primary, duplicates, user=request.user
+                    )
                     messages.success(
                         request,
                         f"Merged {count} structure(s) into '{primary.name}'.",
                     )
                 else:
-                    messages.warning(request, "No valid duplicate structures selected for merge.")
+                    messages.warning(
+                        request, "No valid duplicate structures selected for merge."
+                    )
             except (HostileStructure.DoesNotExist, ValueError) as e:
                 messages.error(request, f"Error merging structures: {e}")
         else:
-            messages.warning(request, "Please specify a primary structure and at least one duplicate.")
+            messages.warning(
+                request,
+                "Please specify a primary structure and at least one duplicate.",
+            )
     return redirect("hostile:structures")
 
 
@@ -1245,12 +1301,18 @@ def timer_add(request: WSGIRequest) -> HttpResponse:
                         "owner_ticker": owner_ticker,
                         "alliance": alliance,
                         "corporation": corporation,
-                        "core_status": form.cleaned_data.get("core_status") or "UNKNOWN",
+                        "core_status": form.cleaned_data.get("core_status")
+                        or "UNKNOWN",
                         "state": form.cleaned_data.get("state") or "ONLINE",
-                        "vulnerability_hour": form.cleaned_data.get("vulnerability_hour"),
-                        "vulnerability_window": form.cleaned_data.get("vulnerability_window")
+                        "vulnerability_hour": form.cleaned_data.get(
+                            "vulnerability_hour"
+                        ),
+                        "vulnerability_window": form.cleaned_data.get(
+                            "vulnerability_window"
+                        )
                         or "",
-                        "location_details": form.cleaned_data.get("location_details") or "",
+                        "location_details": form.cleaned_data.get("location_details")
+                        or "",
                         "notes": form.cleaned_data.get("notes") or "",
                         "is_verified": request.user.has_perm("hostile.manage_intel"),
                     },
@@ -1309,6 +1371,7 @@ def timer_verify(request: WSGIRequest, timer_id: int) -> HttpResponse:
 @permission_required("hostile.manage_intel")
 def timerboard_sync(request: WSGIRequest) -> HttpResponse:
     """Manual on-demand bidirectional synchronization with external timerboards (aa-structuretimers & Timerboard)"""
+    # AA Hostile Intel
     from hostile.services.timer_sync import TimerSyncService
 
     if not TimerSyncService.is_sync_enabled():
@@ -1480,9 +1543,9 @@ def system_observation_pin(request: WSGIRequest, obs_id: int) -> HttpResponse:
 def system_observation_edit(request: WSGIRequest, obs_id: int) -> HttpResponse:
     """Edits an existing system observation / threat report"""
     obs = get_object_or_404(
-        SystemObservation.objects.select_related("solar_system", "local_scan").prefetch_related(
-            "tags"
-        ),
+        SystemObservation.objects.select_related(
+            "solar_system", "local_scan"
+        ).prefetch_related("tags"),
         id=obs_id,
     )
     if not user_can_edit_object(request.user, obs):
@@ -1548,11 +1611,7 @@ def pilots_list(request: WSGIRequest) -> HttpResponse:
     )
     total_pilots_count = pilots.count()
 
-    search_query = (
-        request.GET.get("q")
-        or request.GET.get("search")
-        or ""
-    ).strip()
+    search_query = (request.GET.get("q") or request.GET.get("search") or "").strip()
     tag_filter = request.GET.get("tag", "").lower().strip()
     role_filter = request.GET.get("role", "").lower().strip()
 
@@ -1594,9 +1653,7 @@ def pilots_list(request: WSGIRequest) -> HttpResponse:
             )
         if "awox" in sq_lower:
             tag_q |= (
-                Q(is_awox=True)
-                | Q(is_alliance_awox=True)
-                | Q(is_faction_awox=True)
+                Q(is_awox=True) | Q(is_alliance_awox=True) | Q(is_faction_awox=True)
             )
         if "bait" in sq_lower:
             tag_q |= Q(is_bait=True)
@@ -1651,9 +1708,7 @@ def pilots_list(request: WSGIRequest) -> HttpResponse:
             pilots = pilots.filter(is_faction_awox=True)
         elif tag_filter in ["all_awox", "awoxs"]:
             pilots = pilots.filter(
-                Q(is_awox=True)
-                | Q(is_alliance_awox=True)
-                | Q(is_faction_awox=True)
+                Q(is_awox=True) | Q(is_alliance_awox=True) | Q(is_faction_awox=True)
             )
         elif tag_filter in ["bait"]:
             pilots = pilots.filter(is_bait=True)
@@ -1843,7 +1898,9 @@ def pilot_edit(request: WSGIRequest, pilot_id: int) -> HttpResponse:
         id=pilot_id,
     )
     if not user_can_edit_object(request.user, pilot):
-        messages.error(request, "You do not have permission to edit this pilot dossier.")
+        messages.error(
+            request, "You do not have permission to edit this pilot dossier."
+        )
         return redirect("hostile:pilots")
     if request.method == "POST":
         form = HostilePilotDossierForm(request.POST, instance=pilot)
@@ -1899,9 +1956,9 @@ def pilot_detail(request: WSGIRequest, pilot_id: int) -> HttpResponse:
 
     # 2. Local Threat Scan sightings
     scan_sightings = list(
-        LocalThreatScan.objects.filter(
-            raw_local_text__icontains=pilot.character_name
-        ).select_related("solar_system").order_by("-created_at")[:15]
+        LocalThreatScan.objects.filter(raw_local_text__icontains=pilot.character_name)
+        .select_related("solar_system")
+        .order_by("-created_at")[:15]
     )
 
     # 3. System observations / sitreps mentioning this character
@@ -1968,6 +2025,7 @@ def pilot_sync_zkill(request: WSGIRequest, pilot_id: int) -> HttpResponse:
     """Syncs a specific pilot dossier with zKillboard combat intelligence and behavioral tags"""
     pilot = get_object_or_404(HostilePilotDossier, id=pilot_id)
     try:
+        # AA Hostile Intel
         from hostile.services.zkill_client import zkill_client
 
         updated = zkill_client.sync_pilot_dossier_zkill(pilot)
@@ -1999,6 +2057,7 @@ def pilot_sync_zkill(request: WSGIRequest, pilot_id: int) -> HttpResponse:
 @permission_required("hostile.basic_access")
 def pilot_detect_alts(request: WSGIRequest) -> HttpResponse:
     """Executes automated alt detection scan across all pilot dossiers and refreshes combat intel"""
+    # AA Hostile Intel
     from hostile.services.zkill_client import zkill_client
 
     all_pilots = list(HostilePilotDossier.objects.all())
@@ -3396,9 +3455,7 @@ def threat_scan_detail(request: WSGIRequest, scan_id) -> HttpResponse:
 
 @login_required
 @permission_required("hostile.basic_access")
-def api_threat_scan_pilot_intelligence(
-    request: WSGIRequest, scan_id
-) -> JsonResponse:
+def api_threat_scan_pilot_intelligence(request: WSGIRequest, scan_id) -> JsonResponse:
     """
     Asynchronously streams enriched pilot combat intelligence (corporations, alliances,
     top ships flown, cyno deaths, zKill tags, alt detection, and drop chances)
@@ -3413,11 +3470,10 @@ def api_threat_scan_pilot_intelligence(
 
     if request.method == "POST":
         try:
+            # Standard Library
             import json
 
-            body_data = (
-                json.loads(request.body.decode("utf-8")) if request.body else {}
-            )
+            body_data = json.loads(request.body.decode("utf-8")) if request.body else {}
             if "batch_size" in body_data:
                 batch_size = int(body_data["batch_size"])
             if "character_names" in body_data and isinstance(
@@ -3958,7 +4014,9 @@ def api_sov_timers(request: WSGIRequest) -> JsonResponse:
     Synchronizes new ESI contest campaigns periodically with throttled caching and calculates origin routes.
     """
     # Optional ESI sync check (throttled to at most once every 45s per cache key)
-    do_sync = request.GET.get("sync") == "1" or not cache.get("hostile_sov_campaigns_synced_recent")
+    do_sync = request.GET.get("sync") == "1" or not cache.get(
+        "hostile_sov_campaigns_synced_recent"
+    )
     if do_sync:
         try:
             campaigns = esi_client.get_sovereignty_campaigns()
@@ -3966,7 +4024,9 @@ def api_sov_timers(request: WSGIRequest) -> JsonResponse:
                 SovAnalysisEngine.process_sovereignty_campaigns(campaigns)
             cache.set("hostile_sov_campaigns_synced_recent", True, 45)
         except Exception as exc:
-            logger.debug("Failed on-demand ESI sovereignty campaigns sync in API: %s", exc)
+            logger.debug(
+                "Failed on-demand ESI sovereignty campaigns sync in API: %s", exc
+            )
 
     now = timezone.now()
     cutoff_24h = now - timedelta(hours=24)
@@ -4047,7 +4107,7 @@ def api_sov_timers(request: WSGIRequest) -> JsonResponse:
         upcoming_timers.sort(key=lambda t: t.timer_datetime)
         expired_timers.sort(key=lambda t: t.timer_datetime, reverse=True)
 
-    def serialize_timer(timer: StructureTimer) -> Dict[str, Any]:
+    def serialize_timer(timer: StructureTimer) -> dict[str, Any]:
         return {
             "id": timer.id,
             "campaign_id": timer.campaign_id,
@@ -4055,7 +4115,9 @@ def api_sov_timers(request: WSGIRequest) -> JsonResponse:
             "structure_event_name": timer.structure_event_name,
             "is_tracked_hostile": timer.is_tracked_hostile,
             "solar_system_id": timer.solar_system.id if timer.solar_system else None,
-            "solar_system_name": timer.solar_system.name if timer.solar_system else "Unknown",
+            "solar_system_name": (
+                timer.solar_system.name if timer.solar_system else "Unknown"
+            ),
             "region_name": timer.region_name,
             "solar_system_x": timer.solar_system.x if timer.solar_system else None,
             "solar_system_y": timer.solar_system.y if timer.solar_system else None,
@@ -4072,7 +4134,10 @@ def api_sov_timers(request: WSGIRequest) -> JsonResponse:
             "is_concluded": timer.is_concluded,
             "outcome_display": timer.outcome_display,
             "timer_datetime": timer.timer_datetime.isoformat(),
-            "timer_datetime_formatted": timer.timer_datetime.strftime("%Y-%m-%d %H:%M:%S") + " UTC",
+            "timer_datetime_formatted": timer.timer_datetime.strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+            + " UTC",
             "timestamp": int(timer.timer_datetime.timestamp()),
             "distance_data": getattr(timer, "distance_data", None),
             "notes": timer.notes or "",
@@ -4084,7 +4149,13 @@ def api_sov_timers(request: WSGIRequest) -> JsonResponse:
     # Fingerprint hash for quick change detection on client
     fingerprint_raw = json.dumps(
         [
-            (t["id"], t["defender_percent"], t["has_started"], t["is_concluded"], t["timestamp"])
+            (
+                t["id"],
+                t["defender_percent"],
+                t["has_started"],
+                t["is_concluded"],
+                t["timestamp"],
+            )
             for t in (serialized_upcoming + serialized_expired)
         ],
         sort_keys=True,

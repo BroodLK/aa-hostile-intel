@@ -5,9 +5,10 @@ ESI Client Provider and error handling wrapper modeled after Corptools
 # Standard Library
 import hashlib
 import json
-import logging
+import re
 import time
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from typing import Any
 
 # Django
 from django.core.cache import cache
@@ -67,13 +68,17 @@ def _get_esi_op_identifier(op_func: Any) -> str:
         return "none"
     op_obj = getattr(op_func, "operation", None)
     if op_obj:
-        op_id = getattr(op_obj, "operationId", None) or getattr(op_obj, "operation_id", None)
+        op_id = getattr(op_obj, "operationId", None) or getattr(
+            op_obj, "operation_id", None
+        )
         if op_id:
             return str(op_id)
         path = getattr(op_obj, "path", None)
         if path:
             return str(path)
-    op_id = getattr(op_func, "operation_id", None) or getattr(op_func, "operationId", None)
+    op_id = getattr(op_func, "operation_id", None) or getattr(
+        op_func, "operationId", None
+    )
     if op_id:
         return str(op_id)
     url = getattr(op_func, "url", None)
@@ -96,9 +101,13 @@ def _get_esi_cache_key(op_func: Callable, args: tuple, kwargs: dict) -> str:
     """Generates a unique deterministic cache key for an ESI operation and arguments"""
     func_name = _get_esi_op_identifier(op_func)
     try:
-        clean_kwargs = {str(k): str(v) for k, v in sorted(kwargs.items(), key=lambda x: str(x[0]))}
+        clean_kwargs = {
+            str(k): str(v) for k, v in sorted(kwargs.items(), key=lambda x: str(x[0]))
+        }
         clean_args = [str(a) for a in args]
-        serialized = json.dumps({"f": func_name, "a": clean_args, "k": clean_kwargs}, sort_keys=True)
+        serialized = json.dumps(
+            {"f": func_name, "a": clean_args, "k": clean_kwargs}, sort_keys=True
+        )
     except Exception:
         serialized = f"{func_name}:{args}:{kwargs}"
     h = hashlib.sha256(serialized.encode("utf-8")).hexdigest()[:24]
@@ -109,7 +118,10 @@ class HostileESIClientProvider(ESIClientProvider):
     """ESI Client Provider for Hostile Intel with rate limiting backoff, error resilience, and 304 cache activation"""
 
     def __init__(self, **kwargs):
-        kwargs.setdefault("compatibility_date", getattr(esi, "__esi_compatibility_date__", "2026-08-18"))
+        kwargs.setdefault(
+            "compatibility_date",
+            getattr(esi, "__esi_compatibility_date__", "2026-08-18"),
+        )
         kwargs.setdefault("ua_appname", __appname__)
         kwargs.setdefault("ua_version", __version__)
         kwargs.setdefault("ua_url", __url__)
@@ -140,7 +152,7 @@ class HostileESIClientProvider(ESIClientProvider):
         max_retries: int = 3,
         backoff_base: float = 2.0,
         **kwargs,
-    ) -> Optional[Any]:
+    ) -> Any | None:
         """Executes an ESI operation with retry on 420 rate limit, transient 5xx errors, and 304 cache retrieval with force-refresh fallback"""
         cache_key = _get_esi_cache_key(op_func, args, kwargs)
         for attempt in range(1, max_retries + 1):
@@ -155,17 +167,27 @@ class HostileESIClientProvider(ESIClientProvider):
                     try:
                         cache.set(cache_key, normalized, timeout=86400)
                     except Exception as c_exc:
-                        logger.debug("Failed to store ESI payload in cache (%s): %s", cache_key, c_exc)
+                        logger.debug(
+                            "Failed to store ESI payload in cache (%s): %s",
+                            cache_key,
+                            c_exc,
+                        )
                 return normalized
             except HTTPNotModified:
-                logger.debug("ESI returned 304 Not Modified, retrieving cached payload from cache (%s)", cache_key)
+                logger.debug(
+                    "ESI returned 304 Not Modified, retrieving cached payload from cache (%s)",
+                    cache_key,
+                )
                 try:
                     cached = cache.get(cache_key)
                 except Exception:
                     cached = None
                 if cached is not None:
                     return cached
-                logger.info("Cache miss on 304 for %s, requesting force refresh from ESI...", cache_key)
+                logger.info(
+                    "Cache miss on 304 for %s, requesting force refresh from ESI...",
+                    cache_key,
+                )
                 try:
                     if hasattr(op_func, "results"):
                         res = op_func.results(force_refresh=True, *args, **kwargs)
@@ -196,14 +218,20 @@ class HostileESIClientProvider(ESIClientProvider):
             except (HTTPServerError, HTTPStatusError) as exc:
                 status_code = getattr(exc, "status_code", getattr(exc, "code", 500))
                 if status_code == 304:
-                    logger.debug("ESI returned 304 Not Modified status code, retrieving cached payload (%s)", cache_key)
+                    logger.debug(
+                        "ESI returned 304 Not Modified status code, retrieving cached payload (%s)",
+                        cache_key,
+                    )
                     try:
                         cached = cache.get(cache_key)
                     except Exception:
                         cached = None
                     if cached is not None:
                         return cached
-                    logger.info("Cache miss on 304 for %s, requesting force refresh from ESI...", cache_key)
+                    logger.info(
+                        "Cache miss on 304 for %s, requesting force refresh from ESI...",
+                        cache_key,
+                    )
                     try:
                         if hasattr(op_func, "results"):
                             res = op_func.results(force_refresh=True, *args, **kwargs)
@@ -244,15 +272,21 @@ class HostileESIClientProvider(ESIClientProvider):
                 time.sleep(backoff_base**attempt)
         return None
 
-    def get_sovereignty_systems(self) -> List[Dict[str, Any]]:
+    def get_sovereignty_systems(self) -> list[dict[str, Any]]:
         """Fetches public sovereignty systems data (Equinox ESI)"""
         try:
-            if hasattr(self.client, "Sovereignty") and hasattr(self.client.Sovereignty, "GetSovereigntySystems"):
+            if hasattr(self.client, "Sovereignty") and hasattr(
+                self.client.Sovereignty, "GetSovereigntySystems"
+            ):
                 raw = self.fetch_safely(self.client.Sovereignty.GetSovereigntySystems)
                 if not raw:
                     return []
                 if isinstance(raw, list):
-                    if len(raw) > 0 and isinstance(raw[0], dict) and "solar_systems" in raw[0]:
+                    if (
+                        len(raw) > 0
+                        and isinstance(raw[0], dict)
+                        and "solar_systems" in raw[0]
+                    ):
                         return raw[0]["solar_systems"] or []
                     return raw
                 elif isinstance(raw, dict) and "solar_systems" in raw:
@@ -262,9 +296,11 @@ class HostileESIClientProvider(ESIClientProvider):
             logger.error("Failed to fetch sovereignty systems: %s", exc)
             return []
 
-    def get_sovereignty_map(self) -> List[Dict[str, Any]]:
+    def get_sovereignty_map(self) -> list[dict[str, Any]]:
         """Fetches public sovereignty map. Uses GetSovereigntySystems (modern ESI) with fallback to GetSovereigntyMap (legacy)."""
-        if hasattr(self.client, "Sovereignty") and hasattr(self.client.Sovereignty, "GetSovereigntySystems"):
+        if hasattr(self.client, "Sovereignty") and hasattr(
+            self.client.Sovereignty, "GetSovereigntySystems"
+        ):
             systems = self.get_sovereignty_systems()
             if systems:
                 map_data = []
@@ -292,8 +328,12 @@ class HostileESIClientProvider(ESIClientProvider):
                 return map_data
 
         try:
-            if hasattr(self.client, "Sovereignty") and hasattr(self.client.Sovereignty, "GetSovereigntyMap"):
-                raw_map = self.fetch_safely(self.client.Sovereignty.GetSovereigntyMap) or []
+            if hasattr(self.client, "Sovereignty") and hasattr(
+                self.client.Sovereignty, "GetSovereigntyMap"
+            ):
+                raw_map = (
+                    self.fetch_safely(self.client.Sovereignty.GetSovereigntyMap) or []
+                )
                 if raw_map:
                     normalized_map = []
                     for item in raw_map:
@@ -310,7 +350,9 @@ class HostileESIClientProvider(ESIClientProvider):
                                 "alliance_id": aid,
                                 "corporation_id": cid,
                                 "faction_id": fid,
-                                "is_capital_system": item.get("is_capital_system", False),
+                                "is_capital_system": item.get(
+                                    "is_capital_system", False
+                                ),
                             }
                         )
                     return normalized_map
@@ -319,9 +361,11 @@ class HostileESIClientProvider(ESIClientProvider):
             logger.error("Failed to fetch legacy sovereignty map: %s", exc)
         return []
 
-    def get_sovereignty_structures(self) -> List[Dict[str, Any]]:
+    def get_sovereignty_structures(self) -> list[dict[str, Any]]:
         """Fetches public sovereignty structures (I-Hubs, TCUs, vulnerability times). Uses GetSovereigntySystems with fallback to GetSovereigntyStructures."""
-        if hasattr(self.client, "Sovereignty") and hasattr(self.client.Sovereignty, "GetSovereigntySystems"):
+        if hasattr(self.client, "Sovereignty") and hasattr(
+            self.client.Sovereignty, "GetSovereigntySystems"
+        ):
             systems = self.get_sovereignty_systems()
             if systems:
                 structures_data = []
@@ -354,38 +398,50 @@ class HostileESIClientProvider(ESIClientProvider):
                 return structures_data
 
         try:
-            if hasattr(self.client, "Sovereignty") and hasattr(self.client.Sovereignty, "GetSovereigntyStructures"):
-                return self.fetch_safely(self.client.Sovereignty.GetSovereigntyStructures) or []
+            if hasattr(self.client, "Sovereignty") and hasattr(
+                self.client.Sovereignty, "GetSovereigntyStructures"
+            ):
+                return (
+                    self.fetch_safely(self.client.Sovereignty.GetSovereigntyStructures)
+                    or []
+                )
         except Exception as exc:
             logger.error("Failed to fetch legacy sovereignty structures: %s", exc)
         return []
 
-    def get_sovereignty_campaigns(self) -> List[Dict[str, Any]]:
+    def get_sovereignty_campaigns(self) -> list[dict[str, Any]]:
         """Fetches active sovereignty contest campaigns"""
         try:
-            return self.fetch_safely(self.client.Sovereignty.GetSovereigntyCampaigns) or []
+            return (
+                self.fetch_safely(self.client.Sovereignty.GetSovereigntyCampaigns) or []
+            )
         except Exception as exc:
             logger.error("Failed to fetch sovereignty campaigns: %s", exc)
             return []
 
-    def post_universe_names(self, ids: List[int]) -> List[Dict[str, Any]]:
+    def post_universe_names(self, ids: list[int]) -> list[dict[str, Any]]:
         """Resolves entity IDs (Alliances, Corporations, Characters) to names and categories"""
         if not ids:
             return []
         try:
             ids_list = list(set(ids))
-            return self.fetch_safely(self.client.Universe.PostUniverseNames, body=ids_list) or []
+            return (
+                self.fetch_safely(self.client.Universe.PostUniverseNames, body=ids_list)
+                or []
+            )
         except Exception as exc:
             logger.error("Failed to resolve universe names: %s", exc)
             return []
 
-    def post_universe_ids(self, names: List[str]) -> Dict[str, Any]:
+    def post_universe_ids(self, names: list[str]) -> dict[str, Any]:
         """Resolves entity names (Alliances, Corporations, Characters) to IDs and categories"""
         if not names:
             return {}
         try:
             names_list = list(set(names))
-            res = self.fetch_safely(self.client.Universe.PostUniverseIds, body=names_list)
+            res = self.fetch_safely(
+                self.client.Universe.PostUniverseIds, body=names_list
+            )
             if isinstance(res, list) and len(res) > 0 and isinstance(res[0], dict):
                 return res[0]
             if isinstance(res, dict):
@@ -395,14 +451,20 @@ class HostileESIClientProvider(ESIClientProvider):
             logger.error("Failed to resolve universe IDs: %s", exc)
             return {}
 
-    def post_characters_affiliation(self, character_ids: List[int]) -> List[Dict[str, Any]]:
+    def post_characters_affiliation(
+        self, character_ids: list[int]
+    ) -> list[dict[str, Any]]:
         """Fetches character affiliations (corporation_id, alliance_id)"""
         if not character_ids:
             return []
         try:
             ids_list = list(set(character_ids))
-            if hasattr(self.client, "Character") and hasattr(self.client.Character, "PostCharactersAffiliation"):
-                res = self.fetch_safely(self.client.Character.PostCharactersAffiliation, body=ids_list)
+            if hasattr(self.client, "Character") and hasattr(
+                self.client.Character, "PostCharactersAffiliation"
+            ):
+                res = self.fetch_safely(
+                    self.client.Character.PostCharactersAffiliation, body=ids_list
+                )
                 if isinstance(res, list) and len(res) > 0 and isinstance(res[0], list):
                     return res[0]
                 return res or []
@@ -411,12 +473,14 @@ class HostileESIClientProvider(ESIClientProvider):
             logger.error("Failed to fetch character affiliations: %s", exc)
             return []
 
-    def get_alliance_corporations(self, alliance_id: int) -> List[int]:
+    def get_alliance_corporations(self, alliance_id: int) -> list[int]:
         """Fetches public member corporation IDs for an alliance"""
         if not alliance_id:
             return []
         try:
-            if hasattr(self.client, "Alliance") and hasattr(self.client.Alliance, "GetAlliancesAllianceIdCorporations"):
+            if hasattr(self.client, "Alliance") and hasattr(
+                self.client.Alliance, "GetAlliancesAllianceIdCorporations"
+            ):
                 res = self.fetch_safely(
                     self.client.Alliance.GetAlliancesAllianceIdCorporations,
                     alliance_id=int(alliance_id),
@@ -428,15 +492,19 @@ class HostileESIClientProvider(ESIClientProvider):
                 return res or []
             return []
         except Exception as exc:
-            logger.error("Failed to fetch alliance corporations for %s: %s", alliance_id, exc)
+            logger.error(
+                "Failed to fetch alliance corporations for %s: %s", alliance_id, exc
+            )
             return []
 
-    def get_corporation_info(self, corporation_id: int) -> Optional[Dict[str, Any]]:
+    def get_corporation_info(self, corporation_id: int) -> dict[str, Any] | None:
         """Fetches public corporation information including member_count, ticker, ceo_id, and name"""
         if not corporation_id:
             return None
         try:
-            if hasattr(self.client, "Corporation") and hasattr(self.client.Corporation, "GetCorporationsCorporationId"):
+            if hasattr(self.client, "Corporation") and hasattr(
+                self.client.Corporation, "GetCorporationsCorporationId"
+            ):
                 res = self.fetch_safely(
                     self.client.Corporation.GetCorporationsCorporationId,
                     corporation_id=int(corporation_id),
@@ -446,15 +514,19 @@ class HostileESIClientProvider(ESIClientProvider):
                 return res
             return None
         except Exception as exc:
-            logger.error("Failed to fetch corporation info for %s: %s", corporation_id, exc)
+            logger.error(
+                "Failed to fetch corporation info for %s: %s", corporation_id, exc
+            )
             return None
 
-    def get_alliance_info(self, alliance_id: int) -> Optional[Dict[str, Any]]:
+    def get_alliance_info(self, alliance_id: int) -> dict[str, Any] | None:
         """Fetches public alliance information"""
         if not alliance_id:
             return None
         try:
-            if hasattr(self.client, "Alliance") and hasattr(self.client.Alliance, "GetAlliancesAllianceId"):
+            if hasattr(self.client, "Alliance") and hasattr(
+                self.client.Alliance, "GetAlliancesAllianceId"
+            ):
                 res = self.fetch_safely(
                     self.client.Alliance.GetAlliancesAllianceId,
                     alliance_id=int(alliance_id),
@@ -472,9 +544,9 @@ class HostileESIClientProvider(ESIClientProvider):
         origin_system_id: int,
         destination_system_id: int,
         flag: str = "shortest",
-        avoid: Optional[List[int]] = None,
-        connections: Optional[List[List[int]]] = None,
-    ) -> Optional[List[int]]:
+        avoid: list[int] | None = None,
+        connections: list[list[int]] | None = None,
+    ) -> list[int] | None:
         """
         Fetches the solar system route from origin to destination via modern ESI PostRoute or legacy GetRouteOriginDestination.
         Flag options: 'shortest' / 'short' (Shorter), 'secure' / 'safest' (Safer), 'insecure' (LessSecure).
@@ -500,8 +572,10 @@ class HostileESIClientProvider(ESIClientProvider):
 
         # Modern OpenAPI 3 / Equinox PostRoute
         try:
-            if hasattr(self.client, "Routes") and hasattr(self.client.Routes, "PostRoute"):
-                body_payload: Dict[str, Any] = {"preference": preference}
+            if hasattr(self.client, "Routes") and hasattr(
+                self.client.Routes, "PostRoute"
+            ):
+                body_payload: dict[str, Any] = {"preference": preference}
                 if avoid:
                     body_payload["avoid_systems"] = [int(x) for x in avoid]
                 if connections:
@@ -515,7 +589,11 @@ class HostileESIClientProvider(ESIClientProvider):
                 )
                 if raw is not None:
                     if isinstance(raw, list):
-                        if len(raw) > 0 and isinstance(raw[0], dict) and "route" in raw[0]:
+                        if (
+                            len(raw) > 0
+                            and isinstance(raw[0], dict)
+                            and "route" in raw[0]
+                        ):
                             return [int(x) for x in raw[0]["route"] if str(x).isdigit()]
                         return [int(x) for x in raw if str(x).isdigit()]
                     elif isinstance(raw, dict) and "route" in raw:
@@ -524,14 +602,16 @@ class HostileESIClientProvider(ESIClientProvider):
                         return [raw]
                     return raw
         except Exception as exc:
-            logger.debug("PostRoute failed: %s, falling back to legacy route operation", exc)
+            logger.debug(
+                "PostRoute failed: %s, falling back to legacy route operation", exc
+            )
 
         # Legacy GetRouteOriginDestination
         try:
             if hasattr(self.client, "Routes") and hasattr(
                 self.client.Routes, "GetRouteOriginDestination"
             ):
-                kwargs: Dict[str, Any] = {
+                kwargs: dict[str, Any] = {
                     "origin": orig_id,
                     "destination": dest_id,
                     "flag": legacy_flag,
@@ -546,7 +626,11 @@ class HostileESIClientProvider(ESIClientProvider):
                 )
                 if raw is not None:
                     if isinstance(raw, list):
-                        if len(raw) > 0 and isinstance(raw[0], dict) and "route" in raw[0]:
+                        if (
+                            len(raw) > 0
+                            and isinstance(raw[0], dict)
+                            and "route" in raw[0]
+                        ):
                             return [int(x) for x in raw[0]["route"] if str(x).isdigit()]
                         return [int(x) for x in raw if str(x).isdigit()]
                     elif isinstance(raw, dict) and "route" in raw:

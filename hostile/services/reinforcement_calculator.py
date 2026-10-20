@@ -5,13 +5,16 @@ Based on CCP's official Upwell 2.0 vulnerability mechanics and support documenta
 https://support.eveonline.com/hc/en-us/articles/208289385-Upwell-Structures-Vulnerability-States
 """
 
+# Standard Library
 from dataclasses import dataclass
-from datetime import datetime, time, timedelta, timezone as dt_timezone
-from typing import Optional, Tuple
+from datetime import datetime, timedelta
+from datetime import timezone as dt_timezone
 
+# Django
 from django.utils import timezone
 
-from hostile.models import HostileStructure, SolarSystem, ItemType
+# AA Hostile Intel
+from hostile.models import HostileStructure, ItemType, SolarSystem
 
 
 class StructureCategory:
@@ -23,7 +26,10 @@ class StructureCategory:
 
     CHOICES = (
         (MEDIUM, "Medium Upwell (Astrahus, Raitaru, Athanor)"),
-        (LARGE_XL, "Large / Extra-Large Upwell (Fortizar, Azbel, Tatara, Keepstar, Sotiyo)"),
+        (
+            LARGE_XL,
+            "Large / Extra-Large Upwell (Fortizar, Azbel, Tatara, Keepstar, Sotiyo)",
+        ),
         (FLEX, "FLEX Structure (Ansiblex, Pharolux, Tenebrex, Metenox Moon Drill)"),
         (POCO, "Player Owned Customs Office (POCO)"),
     )
@@ -45,7 +51,7 @@ class LocationSecurity:
 
 class TimerStage:
     SHIELD_REINFORCE = "ARMOR"  # Shield dropped -> Armor timer
-    ARMOR_REINFORCE = "HULL"   # Armor dropped -> Hull / Final timer
+    ARMOR_REINFORCE = "HULL"  # Armor dropped -> Hull / Final timer
 
     CHOICES = (
         (SHIELD_REINFORCE, "Shield Depleted → Armor Timer Exit"),
@@ -74,18 +80,18 @@ class ReinforcementCalculationResult:
     timer_stage: str
     power_state: str
     reinforced_at: datetime
-    vulnerability_hour: Optional[int]
+    vulnerability_hour: int | None
     vulnerability_window: str
     base_delay_hours: float
     base_delay_days: float
     jitter_hours: float
-    earliest_exit: Optional[datetime]
-    nominal_exit: Optional[datetime]
-    latest_exit: Optional[datetime]
+    earliest_exit: datetime | None
+    nominal_exit: datetime | None
+    latest_exit: datetime | None
     exit_window_str: str
     duration_min_hours: float
     duration_max_hours: float
-    time_remaining_nominal: Optional[timedelta]
+    time_remaining_nominal: timedelta | None
     time_remaining_str: str
     notes: str
 
@@ -103,8 +109,12 @@ class ReinforcementCalculator:
         if not item_type_or_name:
             return StructureCategory.MEDIUM
 
-        if hasattr(item_type_or_name, "structure_type") and getattr(item_type_or_name, "structure_type"):
-            return cls.infer_structure_size(getattr(item_type_or_name, "structure_type"))
+        if hasattr(item_type_or_name, "structure_type") and getattr(
+            item_type_or_name, "structure_type"
+        ):
+            return cls.infer_structure_size(
+                getattr(item_type_or_name, "structure_type")
+            )
 
         name = ""
         group_name = ""
@@ -119,7 +129,9 @@ class ReinforcementCalculator:
             name = item_type_or_name
         elif hasattr(item_type_or_name, "name"):
             name = getattr(item_type_or_name, "name", "")
-            if hasattr(item_type_or_name, "group") and getattr(item_type_or_name, "group"):
+            if hasattr(item_type_or_name, "group") and getattr(
+                item_type_or_name, "group"
+            ):
                 group_obj = getattr(item_type_or_name, "group")
                 group_name = getattr(group_obj, "name", "")
                 group_id = getattr(group_obj, "id", None)
@@ -134,17 +146,42 @@ class ReinforcementCalculator:
             return StructureCategory.FLEX
 
         # Check Group Names for FLEX
-        if any(f in group_lower for f in ["moon drill", "jump gate", "cynosural jammer", "cynosural beacon", "cyno jammer", "cyno beacon", "flex"]):
+        if any(
+            f in group_lower
+            for f in [
+                "moon drill",
+                "jump gate",
+                "cynosural jammer",
+                "cynosural beacon",
+                "cyno jammer",
+                "cyno beacon",
+                "flex",
+            ]
+        ):
             return StructureCategory.FLEX
 
         # FLEX Structures by Name
-        if any(f in name_lower for f in ["ansiblex", "pharolux", "tenebrex", "metenox", "moon drill", "drill", "flex", "jump gate", "cyno beacon", "cyno jammer"]):
+        if any(
+            f in name_lower
+            for f in [
+                "ansiblex",
+                "pharolux",
+                "tenebrex",
+                "metenox",
+                "moon drill",
+                "drill",
+                "flex",
+                "jump gate",
+                "cyno beacon",
+                "cyno jammer",
+            ]
+        ):
             return StructureCategory.FLEX
 
         # Large / Extra-Large
         if any(
-            l in name_lower
-            for l in [
+            lg in name_lower
+            for lg in [
                 "fortizar",
                 "azbel",
                 "tatara",
@@ -159,18 +196,30 @@ class ReinforcementCalculator:
         # Medium
         if any(
             m in name_lower
-            for m in ["astrahus", "raitaru", "athanor", "citadel", "refinery", "engineering"]
+            for m in [
+                "astrahus",
+                "raitaru",
+                "athanor",
+                "citadel",
+                "refinery",
+                "engineering",
+            ]
         ):
             return StructureCategory.MEDIUM
 
         # POCO
-        if "customs office" in name_lower or "poco" in name_lower or group_id == 511 or "customs" in group_lower:
+        if (
+            "customs office" in name_lower
+            or "poco" in name_lower
+            or group_id == 511
+            or "customs" in group_lower
+        ):
             return StructureCategory.POCO
 
         return StructureCategory.MEDIUM
 
     @classmethod
-    def infer_location_type(cls, solar_system: Optional[SolarSystem]) -> str:
+    def infer_location_type(cls, solar_system: SolarSystem | None) -> str:
         """
         Determines location security classification from a SolarSystem object.
         """
@@ -181,9 +230,11 @@ class ReinforcementCalculator:
         name = solar_system.name or ""
 
         # Wormholes typically start with J followed by numbers or named w-space
-        if sec < -0.98 and (
-            name.startswith("J") and len(name) == 7 and name[1:].isdigit()
-        ) or "wormhole" in str(getattr(solar_system, "system_id", "")).lower():
+        if (
+            sec < -0.98
+            and (name.startswith("J") and len(name) == 7 and name[1:].isdigit())
+            or "wormhole" in str(getattr(solar_system, "system_id", "")).lower()
+        ):
             return LocationSecurity.WORMHOLE
 
         if sec >= 0.45:
@@ -204,27 +255,36 @@ class ReinforcementCalculator:
             ]
         elif structure_size == StructureCategory.FLEX:
             return [
-                (TimerStage.ARMOR_REINFORCE, "Armor Depleted → Hull / Final Timer Exit"),
+                (
+                    TimerStage.ARMOR_REINFORCE,
+                    "Armor Depleted → Hull / Final Timer Exit",
+                ),
             ]
         elif structure_size == StructureCategory.LARGE_XL:
             if is_low_power:
                 return [
-                    (TimerStage.ARMOR_REINFORCE, "Armor Depleted → Hull / Final Timer Exit (Low Power Skips Armor)"),
+                    (
+                        TimerStage.ARMOR_REINFORCE,
+                        "Armor Depleted → Hull / Final Timer Exit (Low Power Skips Armor)",
+                    ),
                 ]
             return [
                 (TimerStage.SHIELD_REINFORCE, "Shield Depleted → Armor Timer Exit"),
-                (TimerStage.ARMOR_REINFORCE, "Armor Depleted → Hull / Final Timer Exit"),
+                (
+                    TimerStage.ARMOR_REINFORCE,
+                    "Armor Depleted → Hull / Final Timer Exit",
+                ),
             ]
         return list(TimerStage.CHOICES)
 
     @classmethod
     def calculate_exit_timer(
         cls,
-        reinforced_at: Optional[datetime] = None,
+        reinforced_at: datetime | None = None,
         structure_size: str = StructureCategory.MEDIUM,
         location_type: str = LocationSecurity.NULLSEC_LOWSEC,
         timer_stage: str = TimerStage.SHIELD_REINFORCE,
-        vulnerability_hour: Optional[int] = None,
+        vulnerability_hour: int | None = None,
         vulnerability_window: str = "",
         power_state: str = PowerState.FULL_POWER,
         is_low_power: bool = False,
@@ -267,7 +327,10 @@ class ReinforcementCalculator:
             )
 
         # 2. Check Medium Structure Hull Stage (Mediums have NO hull timer!)
-        if structure_size == StructureCategory.MEDIUM and timer_stage == TimerStage.ARMOR_REINFORCE:
+        if (
+            structure_size == StructureCategory.MEDIUM
+            and timer_stage == TimerStage.ARMOR_REINFORCE
+        ):
             return ReinforcementCalculationResult(
                 is_applicable=False,
                 status_message="Medium Upwell structures (Astrahus, Raitaru, Athanor) do not have a hull reinforcement cycle. Once armor hitpoints are depleted, the hull becomes immediately vulnerable with a standard 15-minute repair timer.",
@@ -293,7 +356,10 @@ class ReinforcementCalculator:
             )
 
         # 3. Check FLEX Structure Shield Stage (FLEX structures have NO armor timer!)
-        if structure_size == StructureCategory.FLEX and timer_stage == TimerStage.SHIELD_REINFORCE:
+        if (
+            structure_size == StructureCategory.FLEX
+            and timer_stage == TimerStage.SHIELD_REINFORCE
+        ):
             return ReinforcementCalculationResult(
                 is_applicable=False,
                 status_message="FLEX structures (Ansiblex Jump Gates, Pharolux Cyno Beacons, Tenebrex Cyno Jammers) do not have armor reinforcement. Depleting shield makes armor immediately vulnerable.",
@@ -392,7 +458,11 @@ class ReinforcementCalculator:
 
         # 6. Target Hour and Candidate Exit Time Calculation
         # If vulnerability hour is unknown, default to reinforced_at.hour or 0
-        target_hour = vulnerability_hour if vulnerability_hour is not None else min_target_time.hour
+        target_hour = (
+            vulnerability_hour
+            if vulnerability_hour is not None
+            else min_target_time.hour
+        )
         jitter_delta = timedelta(hours=jitter_hours)
 
         # Find the next candidate datetime on or after min_target_time with target_hour
@@ -461,9 +531,9 @@ class ReinforcementCalculator:
     def calculate_from_structure(
         cls,
         structure: HostileStructure,
-        reinforced_at: Optional[datetime] = None,
+        reinforced_at: datetime | None = None,
         timer_stage: str = TimerStage.SHIELD_REINFORCE,
-        power_state: Optional[str] = None,
+        power_state: str | None = None,
     ) -> ReinforcementCalculationResult:
         """
         Convenience calculator automatically extracting structure attributes, location, and scanned vulnerability hours.

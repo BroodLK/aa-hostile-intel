@@ -4,14 +4,14 @@ Classifier and unified ingestion router for raw hostile intelligence text
 
 # Standard Library
 import re
-from typing import Any, Dict, Optional
+from typing import Any
 
 # Third Party
 from eve_sde.models import SolarSystem
 
 # AA Hostile Intel
 from hostile.parsers.dscan import DScanParser
-from hostile.parsers.eft import EFTParser, StructureFittingParser
+from hostile.parsers.eft import StructureFittingParser
 from hostile.parsers.local import LocalThreatParser
 from hostile.parsers.showinfo import StructureHackParser, StructureShowInfoParser
 
@@ -38,7 +38,9 @@ def classify_intel_text(text: str) -> str:
 
     # Check for EFT signature: starts with [Hull, Name] and contains modules
     first_line = lines[0]
-    eft_header_match = re.match(r"^\[([A-Za-z0-9\s\-'\(\)]+),\s*([A-Za-z0-9\s\-'\(\)]+)\]$", first_line)
+    eft_header_match = re.match(
+        r"^\[([A-Za-z0-9\s\-'\(\)]+),\s*([A-Za-z0-9\s\-'\(\)]+)\]$", first_line
+    )
     if eft_header_match and not StructureFittingParser.match_slot_header(first_line):
         return IntelFormat.EFT
 
@@ -51,21 +53,36 @@ def classify_intel_text(text: str) -> str:
         return IntelFormat.STRUCTURE_HACK
 
     # Check for Local chat log signature: [ 10:48:00 ] Name > msg or Channel Name: Local
-    if any(re.match(r"^\[\s*(\d{4}[.\-/]\d{2}[.\-/]\d{2}\s+)?(\d{1,2}:\d{2}(?::\d{2})?)\s*\]\s*([^>]+?)\s*>", l) for l in lines[:5]):
+    if any(
+        re.match(
+            r"^\[\s*(\d{4}[.\-/]\d{2}[.\-/]\d{2}\s+)?(\d{1,2}:\d{2}(?::\d{2})?)\s*\]\s*([^>]+?)\s*>",
+            line,
+        )
+        for line in lines[:5]
+    ):
         return IntelFormat.LOCAL
-    if any(l.lower().startswith("channel name:") and "local" in l.lower() for l in lines[:5]):
+    if any(
+        line.lower().startswith("channel name:") and "local" in line.lower()
+        for line in lines[:5]
+    ):
         return IntelFormat.LOCAL
 
     # Check for D-Scan signature: presence of tabs and distance indicators (km, m, AU)
     tab_count = sum(1 for line in lines if "\t" in line)
     if tab_count >= max(1, len(lines) // 2):
         # If tabs contain distance indicator -> DScan, else if names and corps -> could be local or dscan
-        dist_count = sum(1 for line in lines if re.search(r"\b(\d+[\d,\.]*\s*(km|m|AU))\b", line, re.I))
+        dist_count = sum(
+            1
+            for line in lines
+            if re.search(r"\b(\d+[\d,\.]*\s*(km|m|AU))\b", line, re.I)
+        )
         if dist_count > 0:
             return IntelFormat.DSCAN
 
     # Distance patterns in column format
-    distance_count = sum(1 for line in lines if re.search(r"\b(\d+[\d,\.]*\s*(km|m|AU))\b", line, re.I))
+    distance_count = sum(
+        1 for line in lines if re.search(r"\b(\d+[\d,\.]*\s*(km|m|AU))\b", line, re.I)
+    )
     if distance_count >= max(2, len(lines) // 3):
         return IntelFormat.DSCAN
 
@@ -85,7 +102,11 @@ def classify_intel_text(text: str) -> str:
     if matches >= 2:
         return IntelFormat.SHOWINFO
 
-    if lines[0].startswith("[") and ("]" in lines[0]) and ("core" in text_lower or "online" in text_lower):
+    if (
+        lines[0].startswith("[")
+        and ("]" in lines[0])
+        and ("core" in text_lower or "online" in text_lower)
+    ):
         return IntelFormat.SHOWINFO
 
     return IntelFormat.OBSERVATION
@@ -93,10 +114,10 @@ def classify_intel_text(text: str) -> str:
 
 def parse_intel_paste(
     text: str,
-    dscan_text: Optional[str] = None,
-    default_system: Optional[SolarSystem] = None,
+    dscan_text: str | None = None,
+    default_system: SolarSystem | None = None,
     fetch_zkill: bool = True,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Unified entry point for classifying and parsing raw intelligence text"""
     fmt = classify_intel_text(text)
 

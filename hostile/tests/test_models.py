@@ -5,14 +5,14 @@ Tests for Hostile Intelligence models and managers
 # Standard Library
 from datetime import timedelta
 
+# Third Party
+from eve_sde.models import ItemCategory, ItemGroup, ItemType, Region, SolarSystem
+
 # Django
 from django.contrib.admin.sites import site
 from django.contrib.auth.models import User
 from django.test import TestCase
 from django.utils import timezone
-
-# Third Party
-from eve_sde.models import ItemCategory, ItemGroup, ItemType, Region, SolarSystem
 
 # AA Hostile Intel
 from hostile.models import (
@@ -36,10 +36,16 @@ from hostile.services.sov_engine import SovAnalysisEngine
 class TestHostileModels(TestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.user = User.objects.create_user(username="intel_officer", password="password")
+        cls.user = User.objects.create_user(
+            username="intel_officer", password="password"
+        )
         cls.category = ItemCategory.objects.create(id=6, name="Ship", published=True)
-        cls.group = ItemGroup.objects.create(id=25, name="Frigate", category=cls.category, published=True)
-        cls.structure_group = ItemGroup.objects.create(id=1657, name="Citadel", category=cls.category, published=True)
+        cls.group = ItemGroup.objects.create(
+            id=25, name="Frigate", category=cls.category, published=True
+        )
+        cls.structure_group = ItemGroup.objects.create(
+            id=1657, name="Citadel", category=cls.category, published=True
+        )
         cls.module_group = ItemGroup.objects.create(
             id=1660, name="Structure Module", category=cls.category, published=True
         )
@@ -48,12 +54,19 @@ class TestHostileModels(TestCase):
             id=35834, name="Keepstar", group=cls.structure_group, published=True
         )
         cls.item_gun = ItemType.objects.create(
-            id=35920, name="Standup Heavy Energy Neutralizer I", group=cls.module_group, published=True
+            id=35920,
+            name="Standup Heavy Energy Neutralizer I",
+            group=cls.module_group,
+            published=True,
         )
 
         cls.region = Region.objects.create(id=10000002, name="The Forge")
-        cls.system_jita = SolarSystem.objects.create(id=30000142, name="Jita", security_status=0.9)
-        cls.system_perimeter = SolarSystem.objects.create(id=30000144, name="Perimeter", security_status=1.0)
+        cls.system_jita = SolarSystem.objects.create(
+            id=30000142, name="Jita", security_status=0.9
+        )
+        cls.system_perimeter = SolarSystem.objects.create(
+            id=30000144, name="Perimeter", security_status=1.0
+        )
 
         cls.alliance = HostileAlliance.objects.create(
             alliance_id=99000001,
@@ -91,7 +104,9 @@ class TestHostileModels(TestCase):
         self.assertIn("1DQ1-A 1-HQ - Imperial Palace", str(structure))
         self.assertEqual(HostileStructure.objects.verified().count(), 1)
         self.assertEqual(HostileStructure.objects.active().count(), 1)
-        self.assertEqual(HostileStructure.objects.in_system(self.system_jita).count(), 1)
+        self.assertEqual(
+            HostileStructure.objects.in_system(self.system_jita).count(), 1
+        )
         self.assertEqual(HostileStructure.objects.by_alliance(self.alliance).count(), 1)
 
         fitting = StructureFitting.objects.create(
@@ -228,7 +243,9 @@ class TestHostileModels(TestCase):
         self.assertEqual(staging.max_super_form, 12)
         self.assertEqual(HostileStagingSystem.objects.verified().count(), 1)
         self.assertEqual(HostileStagingSystem.objects.primary().count(), 1)
-        self.assertEqual(HostileStagingSystem.objects.by_alliance(self.alliance).count(), 1)
+        self.assertEqual(
+            HostileStagingSystem.objects.by_alliance(self.alliance).count(), 1
+        )
 
         doctrine = HostileDoctrine.objects.create(
             name="Armor Battleships (TFI)",

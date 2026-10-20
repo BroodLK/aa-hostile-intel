@@ -5,14 +5,6 @@ Tests for bidirectional synchronization between Hostile Intel Structure Timers a
 # Standard Library
 from datetime import timedelta
 
-# Django
-from django.test import Client, TestCase
-from django.utils import timezone
-
-# Alliance Auth
-from allianceauth.eveonline.models import EveAllianceInfo, EveCorporationInfo
-from allianceauth.tests.auth_utils import AuthUtils
-
 # Third Party
 from eve_sde.models import ItemCategory, ItemGroup, ItemType, SolarSystem
 from eveuniverse.models import (
@@ -25,9 +17,21 @@ from eveuniverse.models import (
 )
 from structuretimers.models import Timer as StructureTimersTimer
 
+# Django
+from django.test import Client, TestCase
+from django.utils import timezone
+
+# Alliance Auth
+from allianceauth.eveonline.models import EveAllianceInfo
+from allianceauth.tests.auth_utils import AuthUtils
+
 # AA Hostile Intel
-from hostile.models import HostileAlliance, HostileCorporation, HostileStructure, StructureTimer
-from hostile.services.timer_sync import TimerSyncService, compute_timer_hash
+from hostile.models import (
+    HostileAlliance,
+    HostileStructure,
+    StructureTimer,
+)
+from hostile.services.timer_sync import TimerSyncService
 from hostile.signals import connect_all_timer_signals
 
 
@@ -37,9 +41,7 @@ class TestStructureTimersSynchronization(TestCase):
         connect_all_timer_signals()
 
         # Setup universe data
-        cls.eve_region = EveRegion.objects.create(
-            id=10000002, name="The Forge"
-        )
+        cls.eve_region = EveRegion.objects.create(id=10000002, name="The Forge")
         cls.eve_constellation = EveConstellation.objects.create(
             id=20000020, name="Kimotoro", eve_region=cls.eve_region
         )
@@ -135,9 +137,7 @@ class TestStructureTimersSynchronization(TestCase):
         )
 
         cls.user_officer = AuthUtils.create_user(username="officer_user_st")
-        AuthUtils.add_main_character(
-            cls.user_officer, "Officer Pilot ST", 21100099
-        )
+        AuthUtils.add_main_character(cls.user_officer, "Officer Pilot ST", 21100099)
         AuthUtils.add_permission_to_user_by_name(
             "hostile.basic_access", cls.user_officer
         )
@@ -248,7 +248,9 @@ class TestStructureTimersSynchronization(TestCase):
         self.assertIsNotNone(linked_timer)
         self.assertEqual(linked_timer.timer_type, "ARMOR")
         self.assertEqual(linked_timer.solar_system, self.system_1dq)
-        self.assertEqual(linked_timer.notes, "Created via Discord bot into aa-structuretimers")
+        self.assertEqual(
+            linked_timer.notes, "Created via Discord bot into aa-structuretimers"
+        )
         self.assertIsNotNone(linked_timer.structure)
         self.assertEqual(linked_timer.structure.name, "1DQ1-A External Gate")
         self.assertEqual(linked_timer.structure.structure_type, self.ansiblex_type)
@@ -335,9 +337,7 @@ class TestStructureTimersSynchronization(TestCase):
         linked_timer_id = linked_timer.id
 
         st_timer.delete()
-        self.assertFalse(
-            StructureTimer.objects.filter(id=linked_timer_id).exists()
-        )
+        self.assertFalse(StructureTimer.objects.filter(id=linked_timer_id).exists())
 
     def test_sync_all_timers_self_correcting_reconciliation(self):
         """Periodic database check self-corrects any missing links or drifted data"""
@@ -437,7 +437,9 @@ class TestStructureTimersSynchronization(TestCase):
         self.assertTrue(linked_timer.structure.alliance.is_friendly)
         self.assertTrue(TimerSyncService.is_structure_timer_friendly(linked_timer))
 
-    def test_sync_structuretimers_hostile_timer_clears_erroneously_attached_friendly_alliance(self):
+    def test_sync_structuretimers_hostile_timer_clears_erroneously_attached_friendly_alliance(
+        self,
+    ):
         """Syncing hostile timer on a structure clears any erroneously attached friendly main alliance"""
         friendly_alliance = HostileAlliance.objects.create(
             alliance_id=99003344,
@@ -445,7 +447,7 @@ class TestStructureTimersSynchronization(TestCase):
             ticker="FRND",
             is_friendly=True,
         )
-        struct = HostileStructure.objects.create(
+        HostileStructure.objects.create(
             name="Contested Keepstar",
             structure_type=self.astrahus_type,
             solar_system=self.system_1dq,

@@ -4,13 +4,13 @@ EFT Fitting Parser and Exporter utilizing django-sde / eve_sde
 
 # Standard Library
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 # Third Party
 from eve_sde.models import ItemType, TypeEffect
 
 # AA Hostile Intel
-from hostile.models import HostileStructure, StructureFitting, StructureModule
+from hostile.models import StructureFitting, StructureModule
 
 SLOT_HIGH = "HIGH"
 SLOT_MED = "MED"
@@ -32,7 +32,8 @@ SLOT_HEADER_PATTERNS = {
         r"^\[?\s*(?:Hi|High)(?:\s*|-)?(?:Power\s+)?Slots?\s*\]?:?$", re.IGNORECASE
     ),
     SLOT_MED: re.compile(
-        r"^\[?\s*(?:Med|Medium|Mid)(?:\s*|-)?(?:Power\s+)?Slots?\s*\]?:?$", re.IGNORECASE
+        r"^\[?\s*(?:Med|Medium|Mid)(?:\s*|-)?(?:Power\s+)?Slots?\s*\]?:?$",
+        re.IGNORECASE,
     ),
     SLOT_LOW: re.compile(
         r"^\[?\s*(?:Lo|Low)(?:\s*|-)?(?:Power\s+)?Slots?\s*\]?:?$", re.IGNORECASE
@@ -52,7 +53,7 @@ SLOT_HEADER_PATTERNS = {
 }
 
 
-def match_slot_header(line: str) -> Optional[str]:
+def match_slot_header(line: str) -> str | None:
     """Matches a line against known slot section header patterns (e.g. 'High Power Slots')"""
     clean = line.strip()
     for slot_key, pattern in SLOT_HEADER_PATTERNS.items():
@@ -68,7 +69,7 @@ class StructureFittingParser:
     """
 
     @classmethod
-    def match_slot_header(cls, line: str) -> Optional[str]:
+    def match_slot_header(cls, line: str) -> str | None:
         return match_slot_header(line)
 
     @classmethod
@@ -76,15 +77,17 @@ class StructureFittingParser:
         """Determines if the text contains structure fitting slot headers or Standup modules"""
         if not text:
             return False
-        clean_lines = [l.strip() for l in text.strip().splitlines() if l.strip()]
+        clean_lines = [
+            line.strip() for line in text.strip().splitlines() if line.strip()
+        ]
         if not clean_lines:
             return False
 
-        header_matches = sum(1 for l in clean_lines if cls.match_slot_header(l))
+        header_matches = sum(1 for line in clean_lines if cls.match_slot_header(line))
         if header_matches >= 1:
             return True
 
-        standup_count = sum(1 for l in clean_lines if "standup" in l.lower())
+        standup_count = sum(1 for line in clean_lines if "standup" in line.lower())
         if standup_count >= 2:
             return True
 
@@ -99,7 +102,9 @@ class StructureFittingParser:
         # Check Dogma effects if available in SDE
         try:
             effects = set(
-                TypeEffect.objects.filter(item_type=item_type).values_list("dogma_effect_id", flat=True)
+                TypeEffect.objects.filter(item_type=item_type).values_list(
+                    "dogma_effect_id", flat=True
+                )
             )
             if DOGMA_EFFECT_SERVICE in effects:
                 return SLOT_SERVICE
@@ -122,7 +127,11 @@ class StructureFittingParser:
                 category_name = item_type.group.category.name or ""
 
         # Service module checks
-        if "Service" in group_name or "Service" in category_name or "Standup Service" in item_type.name:
+        if (
+            "Service" in group_name
+            or "Service" in category_name
+            or "Standup Service" in item_type.name
+        ):
             return SLOT_SERVICE
 
         # Rig checks
@@ -220,7 +229,7 @@ class StructureFittingParser:
         return SLOT_MED
 
     @classmethod
-    def parse(cls, text: str) -> Dict[str, Any]:
+    def parse(cls, text: str) -> dict[str, Any]:
         """
         Parses ship scanner structure fitting text or EFT text into structured fitting dictionary.
         Recognizes slot headers (High Power Slots, Medium Power Slots, Low Power Slots, Service Slots, Rig Slots).
@@ -263,7 +272,7 @@ class StructureFittingParser:
         if hull_name:
             hull_item_type = ItemType.objects.filter(name__iexact=hull_name).first()
 
-        slots: Dict[str, List[Dict[str, Any]]] = {
+        slots: dict[str, list[dict[str, Any]]] = {
             SLOT_HIGH: [],
             SLOT_MED: [],
             SLOT_LOW: [],
@@ -271,10 +280,10 @@ class StructureFittingParser:
             SLOT_SERVICE: [],
             SLOT_CHARGE: [],
         }
-        raw_items: List[str] = []
-        errors: List[str] = []
+        raw_items: list[str] = []
+        errors: list[str] = []
 
-        current_slot_header: Optional[str] = None
+        current_slot_header: str | None = None
 
         for line in module_lines:
             if not line or line.startswith("#"):
@@ -287,7 +296,9 @@ class StructureFittingParser:
                 continue
 
             # Skip placeholder empty slots (e.g. '[Empty High slot]', 'Empty', '-Empty-')
-            if re.match(r"^\[?Empty(?:\s+\w+)?(?:\s+slot)?\]?$", line, re.I) or line.lower() in ["empty", "-empty-", "none"]:
+            if re.match(
+                r"^\[?Empty(?:\s+\w+)?(?:\s+slot)?\]?$", line, re.I
+            ) or line.lower() in ["empty", "-empty-", "none"]:
                 continue
 
             # Strip quantity or charge loaded (e.g. 'Standup Anticapital Missile Launcher I x2' or 'Standup Guided Bomb Launcher I, Standup Guided Bomb')
@@ -356,7 +367,9 @@ class StructureFittingParser:
             if charge_raw:
                 charge_type = ItemType.objects.filter(name__iexact=charge_raw).first()
                 if not charge_type:
-                    charge_type = ItemType.objects.filter(name__icontains=charge_raw).first()
+                    charge_type = ItemType.objects.filter(
+                        name__icontains=charge_raw
+                    ).first()
                 slots[SLOT_CHARGE].append(
                     {
                         "module_name": charge_type.name if charge_type else charge_raw,
@@ -369,12 +382,22 @@ class StructureFittingParser:
 
         # Hull inference from modules if hull_name is absent
         if not hull_item_type and not hull_name:
-            if any(re.search(r"\b(Anticapital|XL|Superheavy|Doomsday|Burst Projector)\b", m, re.I) for m in raw_items):
+            if any(
+                re.search(
+                    r"\b(Anticapital|XL|Superheavy|Doomsday|Burst Projector)\b", m, re.I
+                )
+                for m in raw_items
+            ):
                 hull_name = "Keepstar"
-                hull_item_type = ItemType.objects.filter(name__iexact="Keepstar").first()
+                hull_item_type = ItemType.objects.filter(
+                    name__iexact="Keepstar"
+                ).first()
             elif any("standup" in m.lower() for m in raw_items):
                 hull_name = "Structure"
-                hull_item_type = ItemType.objects.filter(name__iexact="Citadel").first() or ItemType.objects.filter(name__iexact="Astrahus").first()
+                hull_item_type = (
+                    ItemType.objects.filter(name__iexact="Citadel").first()
+                    or ItemType.objects.filter(name__iexact="Astrahus").first()
+                )
 
         return {
             "hull_type_name": hull_name,
@@ -389,15 +412,26 @@ class StructureFittingParser:
     def export_eft(cls, fitting: StructureFitting) -> str:
         """Exports a StructureFitting model instance to an EFT string"""
         structure = fitting.structure
-        hull_name = structure.structure_type.name if structure.structure_type else "Structure"
+        hull_name = (
+            structure.structure_type.name if structure.structure_type else "Structure"
+        )
         fit_name = fitting.name or structure.name or "Intel Fit"
 
         lines = [f"[{hull_name}, {fit_name}]"]
 
-        modules = fitting.modules.select_related("module_type").order_by("slot_type", "slot_number")
+        modules = fitting.modules.select_related("module_type").order_by(
+            "slot_type", "slot_number"
+        )
 
-        slots_order = [SLOT_LOW, SLOT_MED, SLOT_HIGH, SLOT_RIG, SLOT_SERVICE, SLOT_CHARGE]
-        grouped: Dict[str, List[StructureModule]] = {s: [] for s in slots_order}
+        slots_order = [
+            SLOT_LOW,
+            SLOT_MED,
+            SLOT_HIGH,
+            SLOT_RIG,
+            SLOT_SERVICE,
+            SLOT_CHARGE,
+        ]
+        grouped: dict[str, list[StructureModule]] = {s: [] for s in slots_order}
 
         for mod in modules:
             if mod.slot_type in grouped:
@@ -415,4 +449,5 @@ class StructureFittingParser:
 
 class EFTParser(StructureFittingParser):
     """Alias for backwards compatibility and generic EFT parsing"""
+
     parse_eft = StructureFittingParser.parse

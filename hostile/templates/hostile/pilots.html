@@ -143,15 +143,15 @@
 <div class="row g-4" id="pilotCardsContainer">
     {% for pilot in pilots %}
     <div class="col-md-6 col-lg-4 pilot-card-col"
-         data-pilot-name="{{ pilot.character_name|lower }}"
-         data-pilot-corp="{{ pilot.display_corporation_name|lower }}"
-         data-pilot-alliance="{{ pilot.alliance_name|lower }} {{ pilot.associated_alliance_name|lower }}"
-         data-pilot-alts="{% for alt in pilot.known_alts.all %}{{ alt.character_name|lower }} {% endfor %}"
-         data-pilot-main="{% if pilot.main_character %}{{ pilot.main_character.character_name|lower }}{% endif %}"
-         data-pilot-tags="{% if pilot.is_fc %}fc fleet commander {{ pilot.fc_level|lower }} {% endif %}{% if pilot.is_cyno_alt %}cyno cyno alt dropper {% endif %}{% if pilot.is_blops_pilot %}blops black ops covert {% endif %}{% if pilot.is_titan_pilot %}titan {% endif %}{% if pilot.is_super_pilot %}super supercarrier {% endif %}{% if pilot.is_dread_pilot %}dread dreadnought {% endif %}{% if pilot.is_fax_pilot %}fax force auxiliary {% endif %}{% if pilot.is_capital_pilot %}capital carrier {% endif %}{% if pilot.is_awox %}awox corp awox {% endif %}{% if pilot.is_alliance_awox %}alliance awox {% endif %}{% if pilot.is_faction_awox %}faction awox {% endif %}{% if pilot.is_bait %}bait {{ pilot.bait_level|lower }} {% endif %}{% if pilot.is_ganker %}ganker gank {% endif %}{% if pilot.is_logi_pilot %}logi logistics {% endif %}{% if pilot.is_rookie %}rookie {% endif %}{% if pilot.is_alt %}alt {% endif %}{% if pilot.is_main %}main {% endif %}{% if pilot.is_out_of_corp %}out of corp ooc undercover {% endif %}{% if pilot.is_verified %}verified {% else %}unverified {% endif %}{{ pilot.zkill_labels|join:' '|lower }} {{ pilot.alt_inference_reason|lower }}"
-         data-pilot-system="{% if pilot.last_seen_system %}{{ pilot.last_seen_system.name|lower }}{% endif %}"
-         data-pilot-notes="{{ pilot.notes|lower }}"
-         data-pilot-verified="{% if pilot.is_verified %}verified{% else %}unverified{% endif %}">
+        data-pilot-name="{{ pilot.character_name|lower }}"
+        data-pilot-corp="{{ pilot.display_corporation_name|lower }}"
+        data-pilot-alliance="{{ pilot.alliance_name|lower }} {{ pilot.associated_alliance_name|lower }}"
+        data-pilot-alts="{% for alt in pilot.known_alts.all %}{{ alt.character_name|lower }} {% endfor %}"
+        data-pilot-main="{% if pilot.main_character %}{{ pilot.main_character.character_name|lower }}{% endif %}"
+        data-pilot-tags="{% if pilot.is_fc %}fc fleet commander {{ pilot.fc_level|lower }} {% endif %}{% if pilot.is_cyno_alt %}cyno cyno alt dropper {% endif %}{% if pilot.is_blops_pilot %}blops black ops covert {% endif %}{% if pilot.is_titan_pilot %}titan {% endif %}{% if pilot.is_super_pilot %}super supercarrier {% endif %}{% if pilot.is_dread_pilot %}dread dreadnought {% endif %}{% if pilot.is_fax_pilot %}fax force auxiliary {% endif %}{% if pilot.is_capital_pilot %}capital carrier {% endif %}{% if pilot.is_awox %}awox corp awox {% endif %}{% if pilot.is_alliance_awox %}alliance awox {% endif %}{% if pilot.is_faction_awox %}faction awox {% endif %}{% if pilot.is_bait %}bait {{ pilot.bait_level|lower }} {% endif %}{% if pilot.is_ganker %}ganker gank {% endif %}{% if pilot.is_logi_pilot %}logi logistics {% endif %}{% if pilot.is_rookie %}rookie {% endif %}{% if pilot.is_alt %}alt {% endif %}{% if pilot.is_main %}main {% endif %}{% if pilot.is_out_of_corp %}out of corp ooc undercover {% endif %}{% if pilot.is_verified %}verified {% else %}unverified {% endif %}{{ pilot.zkill_labels|join:' '|lower }} {{ pilot.alt_inference_reason|lower }}"
+        data-pilot-system="{% if pilot.last_seen_system %}{{ pilot.last_seen_system.name|lower }}{% endif %}"
+        data-pilot-notes="{{ pilot.notes|lower }}"
+        data-pilot-verified="{% if pilot.is_verified %}verified{% else %}unverified{% endif %}">
         <div class="card bg-dark text-white border-secondary hostile-card h-100 shadow-sm">
             <div class="card-body">
                 <div class="d-flex align-items-center mb-3">

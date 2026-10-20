@@ -126,6 +126,7 @@ DEFAULT_FROM_EMAIL = ""
 # Add any custom settings below here. #
 #######################################
 
+# Django
 from django.core.cache.backends.base import DEFAULT_TIMEOUT
 from django.core.cache.backends.locmem import LocMemCache
 
@@ -149,8 +150,12 @@ CELERY_ALWAYS_EAGER = True
 STRUCTURETIMERS_NOTIFICATIONS_ENABLED = False
 
 try:
-    import allianceauth.utils.cache
+    # Standard Library
     from unittest.mock import MagicMock
+
+    # Alliance Auth
+    import allianceauth.utils.cache
+
     try:
         allianceauth.utils.cache.get_redis_client().ping()
     except Exception:
@@ -159,7 +164,9 @@ try:
         mock_redis.ping.return_value = True
         allianceauth.utils.cache.get_redis_client = lambda: mock_redis
         try:
+            # Third Party
             import app_utils.allianceauth
+
             app_utils.allianceauth.get_redis_client = lambda: mock_redis
         except Exception:
             pass

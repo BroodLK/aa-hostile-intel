@@ -6,6 +6,9 @@ smart system-scoped matching, merge utilities, and management commands.
 # Standard Library
 from datetime import timedelta
 
+# Third Party
+from eve_sde.models import ItemCategory, ItemGroup, ItemType, SolarSystem
+
 # Django
 from django.core.management import call_command
 from django.test import Client, TestCase
@@ -14,9 +17,6 @@ from django.utils import timezone
 
 # Alliance Auth
 from allianceauth.tests.auth_utils import AuthUtils
-
-# Third Party
-from eve_sde.models import ItemCategory, ItemGroup, ItemType, SolarSystem
 
 # AA Hostile Intel
 from hostile.models import (
@@ -37,8 +37,12 @@ class TestStructureDeduplication(TestCase):
         # Permissions & users
         cls.user_officer = AuthUtils.create_user("officer_dedup")
         AuthUtils.add_main_character(cls.user_officer, "Officer Dedup Pilot", 21100099)
-        AuthUtils.add_permission_to_user_by_name("hostile.basic_access", cls.user_officer)
-        AuthUtils.add_permission_to_user_by_name("hostile.manage_intel", cls.user_officer)
+        AuthUtils.add_permission_to_user_by_name(
+            "hostile.basic_access", cls.user_officer
+        )
+        AuthUtils.add_permission_to_user_by_name(
+            "hostile.manage_intel", cls.user_officer
+        )
 
         cls.user_scout = AuthUtils.create_user("scout_dedup")
         AuthUtils.add_main_character(cls.user_scout, "Scout Dedup Pilot", 21100098)
@@ -52,7 +56,10 @@ class TestStructureDeduplication(TestCase):
             id=1657, name="Citadel", category=cls.category_structure, published=True
         )
         cls.group_nav = ItemGroup.objects.create(
-            id=1408, name="Navigation Structure", category=cls.category_structure, published=True
+            id=1408,
+            name="Navigation Structure",
+            category=cls.category_structure,
+            published=True,
         )
         cls.group_drill = ItemGroup.objects.create(
             id=4139, name="Moon Drill", category=cls.category_structure, published=True
@@ -208,7 +215,7 @@ class TestStructureDeduplication(TestCase):
 
     def test_smart_paste_dscan_deduplication(self):
         """Pasting D-Scan with Ansiblex or generic deployable links to existing structure rather than duplicating"""
-        existing_gate = HostileStructure.objects.create(
+        HostileStructure.objects.create(
             name="A-YB15 » ZS-PNI - 6 to 7 jumps",
             solar_system=self.system_ayb,
             structure_type=self.type_ansiblex,
@@ -225,7 +232,9 @@ class TestStructureDeduplication(TestCase):
         self.assertRedirects(response, reverse("hostile:structures"))
 
         # Verify no duplicate gate created in A-YB15
-        total_gates = HostileStructure.objects.filter(solar_system=self.system_ayb).count()
+        total_gates = HostileStructure.objects.filter(
+            solar_system=self.system_ayb
+        ).count()
         self.assertEqual(total_gates, 1)
 
     def test_merge_structures_utility(self):
@@ -264,7 +273,9 @@ class TestStructureDeduplication(TestCase):
             target_id=str(duplicate.id),
         )
 
-        merged_count = IntelManager.merge_structures(primary, [duplicate], user=self.user_officer)
+        merged_count = IntelManager.merge_structures(
+            primary, [duplicate], user=self.user_officer
+        )
         self.assertEqual(merged_count, 1)
 
         # Verify duplicate is deleted
@@ -315,13 +326,13 @@ class TestStructureDeduplication(TestCase):
     def test_structure_auto_deduplicate_and_merge_views(self):
         """POST to structure_auto_deduplicate and structure_merge views requires manage_intel permission and merges properly"""
         # Create duplicates
-        s1 = HostileStructure.objects.create(
+        HostileStructure.objects.create(
             name="A-YB15 » ZS-PNI",
             solar_system=self.system_ayb,
             structure_type=self.type_ansiblex,
             is_verified=True,
         )
-        s2 = HostileStructure.objects.create(
+        HostileStructure.objects.create(
             name="A-YB15 >> ZS-PNI - 6 to 7 jumps",
             solar_system=self.system_ayb,
             structure_type=self.type_ansiblex,
@@ -331,7 +342,9 @@ class TestStructureDeduplication(TestCase):
         # 1. Test auto-deduplicate view
         response = self.client.post(reverse("hostile:structure_auto_deduplicate"))
         self.assertRedirects(response, reverse("hostile:structures"))
-        self.assertEqual(HostileStructure.objects.filter(solar_system=self.system_ayb).count(), 1)
+        self.assertEqual(
+            HostileStructure.objects.filter(solar_system=self.system_ayb).count(), 1
+        )
 
         # Create another pair to test manual merge view
         m1 = HostileStructure.objects.create(

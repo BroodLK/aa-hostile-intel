@@ -146,6 +146,7 @@ def sync_timerboard_timers() -> str:
     logger.info(
         "Starting background bidirectional synchronization with external structure timerboards..."
     )
+    # AA Hostile Intel
     from hostile.services.timer_sync import TimerSyncService
 
     if not TimerSyncService.is_sync_enabled():

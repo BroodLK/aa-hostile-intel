@@ -49,6 +49,7 @@ class StructureQuerySet(models.QuerySet):
         - Generic vs System-specific fallback matching ('Mercenary Den' vs 'Mercenary Den (BNX-AS)')
         - Coordinate/celestial matching
         """
+        # AA Hostile Intel
         from hostile.models import normalize_structure_name
 
         if structure_id:
@@ -60,7 +61,9 @@ class StructureQuerySet(models.QuerySet):
             return None
 
         norm_name = normalize_structure_name(name) if name else ""
-        system_structures = self.filter(solar_system=solar_system) if solar_system else self.all()
+        system_structures = (
+            self.filter(solar_system=solar_system) if solar_system else self.all()
+        )
 
         # 1. Exact case-insensitive match on normalized name
         if norm_name:
@@ -122,15 +125,23 @@ class TimerQuerySet(models.QuerySet):
     def upcoming(self):
         cutoff_24h = timezone.now() - timedelta(hours=24)
         return self.filter(
-            models.Q(is_sov_campaign=True, is_concluded=False, timer_datetime__gte=cutoff_24h)
+            models.Q(
+                is_sov_campaign=True, is_concluded=False, timer_datetime__gte=cutoff_24h
+            )
             | models.Q(is_sov_campaign=False, timer_datetime__gte=timezone.now())
         ).order_by("timer_datetime")
 
     def expired(self, hours: int = 24):
         cutoff = timezone.now() - timedelta(hours=hours)
         return self.filter(
-            models.Q(is_sov_campaign=True, is_concluded=True, timer_datetime__gte=cutoff)
-            | models.Q(is_sov_campaign=False, timer_datetime__lt=timezone.now(), timer_datetime__gte=cutoff)
+            models.Q(
+                is_sov_campaign=True, is_concluded=True, timer_datetime__gte=cutoff
+            )
+            | models.Q(
+                is_sov_campaign=False,
+                timer_datetime__lt=timezone.now(),
+                timer_datetime__gte=cutoff,
+            )
             | models.Q(is_sov_campaign=False, timer_datetime__lt=timezone.now())
         ).order_by("-timer_datetime")
 
@@ -139,7 +150,8 @@ class TimerQuerySet(models.QuerySet):
 
     def sov_campaigns(self):
         return self.filter(
-            models.Q(is_sov_campaign=True) | models.Q(timer_type__in=["SOV_IHUB", "SOV_TCU"])
+            models.Q(is_sov_campaign=True)
+            | models.Q(timer_type__in=["SOV_IHUB", "SOV_TCU"])
         )
 
     def ongoing_sov_campaigns(self):
@@ -158,20 +170,46 @@ class TimerQuerySet(models.QuerySet):
 
     def hostile_only(self):
         """Filters to timers that belong to a known structure or a tracked hostile defender entity"""
+        # AA Hostile Intel
         from hostile.models import HostileAlliance, HostileCorporation
 
-        tracked_alliance_ids = list(HostileAlliance.objects.filter(is_friendly=False).values_list("alliance_id", flat=True))
-        tracked_corp_ids = list(HostileCorporation.objects.filter(is_friendly=False).values_list("corporation_id", flat=True))
-        tracked_alliance_names = list(HostileAlliance.objects.filter(is_friendly=False).values_list("alliance_name", flat=True))
-        tracked_corp_names = list(HostileCorporation.objects.filter(is_friendly=False).values_list("corporation_name", flat=True))
+        tracked_alliance_ids = list(
+            HostileAlliance.objects.filter(is_friendly=False).values_list(
+                "alliance_id", flat=True
+            )
+        )
+        tracked_corp_ids = list(
+            HostileCorporation.objects.filter(is_friendly=False).values_list(
+                "corporation_id", flat=True
+            )
+        )
+        tracked_alliance_names = list(
+            HostileAlliance.objects.filter(is_friendly=False).values_list(
+                "alliance_name", flat=True
+            )
+        )
+        tracked_corp_names = list(
+            HostileCorporation.objects.filter(is_friendly=False).values_list(
+                "corporation_name", flat=True
+            )
+        )
 
         q_filter = models.Q(structure__isnull=False) | models.Q(is_sov_campaign=False)
-        if tracked_alliance_ids or tracked_corp_ids or tracked_alliance_names or tracked_corp_names:
+        if (
+            tracked_alliance_ids
+            or tracked_corp_ids
+            or tracked_alliance_names
+            or tracked_corp_names
+        ):
             match_q = models.Q()
             if tracked_alliance_ids or tracked_corp_ids:
-                match_q |= models.Q(defender_id__in=tracked_alliance_ids + tracked_corp_ids)
+                match_q |= models.Q(
+                    defender_id__in=tracked_alliance_ids + tracked_corp_ids
+                )
             if tracked_alliance_names or tracked_corp_names:
-                match_q |= models.Q(defender_name__in=tracked_alliance_names + tracked_corp_names)
+                match_q |= models.Q(
+                    defender_name__in=tracked_alliance_names + tracked_corp_names
+                )
             q_filter |= match_q
         return self.filter(q_filter)
 
@@ -218,7 +256,9 @@ class PilotQuerySet(models.QuerySet):
         )
 
     def supers_and_titans(self):
-        return self.filter(models.Q(is_super_pilot=True) | models.Q(is_titan_pilot=True))
+        return self.filter(
+            models.Q(is_super_pilot=True) | models.Q(is_titan_pilot=True)
+        )
 
     def fcs(self):
         return self.filter(is_fc=True)

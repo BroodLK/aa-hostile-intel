@@ -319,11 +319,11 @@
             <div class="row g-2 mb-2">
                 {% for h in hourly_schedule %}
                     <div class="col-6 col-sm-4 col-md-3 col-lg-2">
-                        <button class="btn btn-outline-secondary w-100 p-2 text-start d-flex justify-content-between align-items-center h-100 hover-border-warning" 
-                                type="button" 
-                                data-bs-toggle="collapse" 
-                                data-bs-target="#hourCollapse-{{ h.hour }}" 
-                                aria-expanded="false" 
+                        <button class="btn btn-outline-secondary w-100 p-2 text-start d-flex justify-content-between align-items-center h-100 hover-border-warning"
+                                type="button"
+                                data-bs-toggle="collapse"
+                                data-bs-target="#hourCollapse-{{ h.hour }}"
+                                aria-expanded="false"
                                 aria-controls="hourCollapse-{{ h.hour }}"
                                 title="{% translate 'Click to view' %} {{ h.count }} {% translate 'structures/timers at' %} {{ h.hour_display }}">
                             <div>
@@ -706,12 +706,12 @@
                                         <div class="d-flex align-items-center gap-2" style="min-width: 140px;">
                                             <span class="fw-bold {% if sys.adm >= 4.0 %}text-adm-high{% elif sys.adm >= 2.5 %}text-adm-med{% else %}text-adm-low{% endif %}" style="width: 28px;">{{ sys.adm }}</span>
                                             <div class="progress flex-grow-1 hostile-adm-track" style="height: 6px;">
-                                                <div class="progress-bar {% if sys.adm >= 4.0 %}bg-adm-high{% elif sys.adm >= 2.5 %}bg-adm-med{% else %}bg-adm-low{% endif %}" 
-                                                     role="progressbar" 
-                                                     style="width: {{ sys.adm_percentage }}%;" 
-                                                     aria-valuenow="{{ sys.adm }}" 
-                                                     aria-valuemin="1" 
-                                                     aria-valuemax="6">
+                                                <div class="progress-bar {% if sys.adm >= 4.0 %}bg-adm-high{% elif sys.adm >= 2.5 %}bg-adm-med{% else %}bg-adm-low{% endif %}"
+                                                    role="progressbar"
+                                                    style="width: {{ sys.adm_percentage }}%;"
+                                                    aria-valuenow="{{ sys.adm }}"
+                                                    aria-valuemin="1"
+                                                    aria-valuemax="6">
                                                 </div>
                                             </div>
                                         </div>

@@ -4,25 +4,26 @@ Tests for bidirectional synchronization between Hostile Intel Structure Timers a
 
 # Standard Library
 from datetime import timedelta
-from unittest.mock import patch
+
+# Third Party
+from eve_sde.models import ItemCategory, ItemGroup, ItemType, SolarSystem
 
 # Django
-from django.apps import apps
 from django.test import Client, TestCase
 from django.urls import reverse
 from django.utils import timezone
 
 # Alliance Auth
-from allianceauth.eveonline.models import EveCharacter, EveCorporationInfo
+from allianceauth.eveonline.models import EveCorporationInfo
 from allianceauth.tests.auth_utils import AuthUtils
 from allianceauth.timerboard.models import Timer
 
-# Third Party
-from eve_sde.models import ItemCategory, ItemGroup, ItemType, SolarSystem
-
 # AA Hostile Intel
-from hostile.models import HostileAlliance, HostileCorporation, HostileStructure, StructureTimer
-from hostile.services.timer_sync import TimerboardSyncService
+from hostile.models import (
+    HostileAlliance,
+    HostileStructure,
+    StructureTimer,
+)
 from hostile.signals import connect_timerboard_signals
 from hostile.tasks import sync_timerboard_timers
 
@@ -305,5 +306,7 @@ class TestTimerboardSynchronization(TestCase):
 
         st = StructureTimer.objects.filter(timerboard_timer_id=tb_timer.id).first()
         self.assertIsNotNone(st)
-        self.assertEqual(st.structure.corporation.corporation_id, self.corp.corporation_id)
+        self.assertEqual(
+            st.structure.corporation.corporation_id, self.corp.corporation_id
+        )
         self.assertTrue(st.structure.corporation.is_friendly)

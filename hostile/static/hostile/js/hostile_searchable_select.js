@@ -17,7 +17,7 @@
         // Container wrapper
         const wrapper = document.createElement('div');
         wrapper.className = 'hostile-searchable-select dropdown position-relative';
-        
+
         // Preserve any custom width/class from select if applicable
         if (selectEl.classList.contains('w-100') || selectEl.style.width === '100%') {
             wrapper.classList.add('w-100');
@@ -164,7 +164,7 @@
         function selectOption(value, text) {
             selectEl.value = value;
             labelSpan.textContent = text || selectEl.options[selectEl.selectedIndex]?.text || '';
-            
+
             // Trigger standard change event on native select
             selectEl.dispatchEvent(new Event('change', { bubbles: true }));
             selectEl.dispatchEvent(new Event('input', { bubbles: true }));
@@ -182,7 +182,7 @@
         function updateLabelFromSelect() {
             const selectedOpt = selectEl.options[selectEl.selectedIndex];
             labelSpan.textContent = selectedOpt ? selectedOpt.text : (selectEl.getAttribute('placeholder') || 'Select option...');
-            
+
             // Update selected class in items
             listContainer.querySelectorAll('.hostile-searchable-item').forEach(item => {
                 if (item.dataset.value === selectEl.value) {

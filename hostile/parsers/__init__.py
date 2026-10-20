@@ -3,7 +3,11 @@ Hostile Intelligence parsers package
 """
 
 # AA Hostile Intel
-from hostile.parsers.classifier import IntelFormat, classify_intel_text, parse_intel_paste
+from hostile.parsers.classifier import (
+    IntelFormat,
+    classify_intel_text,
+    parse_intel_paste,
+)
 from hostile.parsers.dscan import DScanParser
 from hostile.parsers.eft import EFTParser
 from hostile.parsers.local import LocalThreatParser

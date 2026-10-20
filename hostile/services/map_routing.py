@@ -7,13 +7,13 @@ and stargate jump counts across New Eden.
 # Standard Library
 import logging
 import math
-from typing import Any, Dict, List, Optional
-
-# Django
-from django.core.cache import cache
+from typing import Any
 
 # Third Party
 from eve_sde.models import SolarSystem
+
+# Django
+from django.core.cache import cache
 
 # AA Hostile Intel
 from hostile.services.esi_client import esi_client
@@ -34,9 +34,9 @@ class MapRoutingService:
     @classmethod
     def calculate_ly_distance(
         cls,
-        origin: Optional[SolarSystem],
-        destination: Optional[SolarSystem],
-    ) -> Optional[float]:
+        origin: SolarSystem | None,
+        destination: SolarSystem | None,
+    ) -> float | None:
         """Calculates direct 3D jump drive distance in Light Years (LY)"""
         if not origin or not destination:
             return None
@@ -75,10 +75,10 @@ class MapRoutingService:
     @classmethod
     def calculate_stargate_jumps(
         cls,
-        origin: Optional[SolarSystem],
-        destination: Optional[SolarSystem],
+        origin: SolarSystem | None,
+        destination: SolarSystem | None,
         flag: str = "shortest",
-    ) -> Optional[int]:
+    ) -> int | None:
         """
         Calculates number of stargate jumps from origin to destination via ESI route API.
         Default flag is 'shortest' (shortest route).
@@ -126,11 +126,11 @@ class MapRoutingService:
     @classmethod
     def get_system_distance_summary(
         cls,
-        origin: Optional[SolarSystem],
-        destination: Optional[SolarSystem],
+        origin: SolarSystem | None,
+        destination: SolarSystem | None,
         flag: str = "shortest",
         include_jumps: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Returns structured distance data including light years and shortest stargate jumps"""
         ly_dist = cls.calculate_ly_distance(origin, destination)
         jumps = (
@@ -170,16 +170,16 @@ class MapRoutingService:
     def get_batch_routes_summary(
         cls,
         origin_id: int,
-        destination_ids: List[int],
+        destination_ids: list[int],
         flag: str = "shortest",
-    ) -> Dict[int, Dict[str, Any]]:
+    ) -> dict[int, dict[str, Any]]:
         """Calculates distance and shortest jump summaries for multiple destination solar systems"""
         origin = SolarSystem.objects.filter(id=origin_id).first()
         if not origin:
             return {}
 
         dests = {s.id: s for s in SolarSystem.objects.filter(id__in=destination_ids)}
-        results: Dict[int, Dict[str, Any]] = {}
+        results: dict[int, dict[str, Any]] = {}
 
         for dest_id in destination_ids:
             dest = dests.get(dest_id)

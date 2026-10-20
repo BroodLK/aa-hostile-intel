@@ -7,6 +7,9 @@ Fleet Doctrines, Example Fits, and Local Threat Scans.
 # Standard Library
 from datetime import timedelta
 
+# Third Party
+from eve_sde.models import ItemCategory, ItemGroup, ItemType, SolarSystem
+
 # Django
 from django.test import Client, TestCase
 from django.urls import reverse
@@ -14,9 +17,6 @@ from django.utils import timezone
 
 # Alliance Auth
 from allianceauth.tests.auth_utils import AuthUtils
-
-# Third Party
-from eve_sde.models import ItemCategory, ItemGroup, ItemType, SolarSystem
 
 # AA Hostile Intel
 from hostile.models import (
@@ -27,7 +27,6 @@ from hostile.models import (
     HostilePilotDossier,
     HostileStagingSystem,
     HostileStructure,
-    IntelAuditLog,
     LocalThreatScan,
     StructureTimer,
     SystemObservation,
@@ -37,15 +36,32 @@ from hostile.models import (
 class TestCrudOperations(TestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.category_structure = ItemCategory.objects.create(id=65, name="Structure", published=True)
-        cls.group_citadel = ItemGroup.objects.create(id=1657, name="Citadel", category=cls.category_structure, published=True)
-        cls.astrahus = ItemType.objects.create(id=35832, name="Astrahus", group=cls.group_citadel, published=True)
+        cls.category_structure = ItemCategory.objects.create(
+            id=65, name="Structure", published=True
+        )
+        cls.group_citadel = ItemGroup.objects.create(
+            id=1657, name="Citadel", category=cls.category_structure, published=True
+        )
+        cls.astrahus = ItemType.objects.create(
+            id=35832, name="Astrahus", group=cls.group_citadel, published=True
+        )
 
-        cls.category_ship = ItemCategory.objects.create(id=6, name="Ship", published=True)
-        cls.group_battleship = ItemGroup.objects.create(id=27, name="Battleship", category=cls.category_ship, published=True)
-        cls.tfi = ItemType.objects.create(id=33472, name="Tempest Fleet Issue", group=cls.group_battleship, published=True)
+        cls.category_ship = ItemCategory.objects.create(
+            id=6, name="Ship", published=True
+        )
+        cls.group_battleship = ItemGroup.objects.create(
+            id=27, name="Battleship", category=cls.category_ship, published=True
+        )
+        cls.tfi = ItemType.objects.create(
+            id=33472,
+            name="Tempest Fleet Issue",
+            group=cls.group_battleship,
+            published=True,
+        )
 
-        cls.system = SolarSystem.objects.create(id=30004759, name="1DQ1-A", security_status=-0.5)
+        cls.system = SolarSystem.objects.create(
+            id=30004759, name="1DQ1-A", security_status=-0.5
+        )
 
         cls.alliance = HostileAlliance.objects.create(
             alliance_id=99000099, alliance_name="Hostile Alliance", ticker="H-ALLI"
@@ -59,8 +75,12 @@ class TestCrudOperations(TestCase):
 
         cls.user_officer = AuthUtils.create_user(username="officer_user")
         AuthUtils.add_main_character(cls.user_officer, "Officer Pilot", 21100099)
-        AuthUtils.add_permission_to_user_by_name("hostile.basic_access", cls.user_officer)
-        AuthUtils.add_permission_to_user_by_name("hostile.manage_intel", cls.user_officer)
+        AuthUtils.add_permission_to_user_by_name(
+            "hostile.basic_access", cls.user_officer
+        )
+        AuthUtils.add_permission_to_user_by_name(
+            "hostile.manage_intel", cls.user_officer
+        )
 
         cls.client = Client()
 
@@ -83,7 +103,9 @@ class TestCrudOperations(TestCase):
         self.assertContains(res, "Edit Structure / Sovereignty Timer")
 
         # POST edit
-        future_time = (timezone.now() + timezone.timedelta(days=2)).strftime("%Y-%m-%d %H:%M:%S")
+        future_time = (timezone.now() + timezone.timedelta(days=2)).strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
         res_post = self.client.post(
             reverse("hostile:timer_edit", args=[timer.id]),
             data={
@@ -105,7 +127,9 @@ class TestCrudOperations(TestCase):
         self.assertContains(res_del_get, "Confirm Timer Deletion")
 
         # POST delete
-        res_del_post = self.client.post(reverse("hostile:timer_delete", args=[timer.id]), follow=True)
+        res_del_post = self.client.post(
+            reverse("hostile:timer_delete", args=[timer.id]), follow=True
+        )
         self.assertEqual(res_del_post.status_code, 200)
         self.assertFalse(StructureTimer.objects.filter(id=timer.id).exists())
 
@@ -140,12 +164,16 @@ class TestCrudOperations(TestCase):
         self.assertEqual(obs.active_hours, "18:00 - 22:00 UTC")
 
         # GET delete confirm
-        res_del_get = self.client.get(reverse("hostile:system_observation_delete", args=[obs.id]))
+        res_del_get = self.client.get(
+            reverse("hostile:system_observation_delete", args=[obs.id])
+        )
         self.assertEqual(res_del_get.status_code, 200)
         self.assertContains(res_del_get, "Confirm Observation Deletion")
 
         # POST delete
-        res_del_post = self.client.post(reverse("hostile:system_observation_delete", args=[obs.id]), follow=True)
+        res_del_post = self.client.post(
+            reverse("hostile:system_observation_delete", args=[obs.id]), follow=True
+        )
         self.assertEqual(res_del_post.status_code, 200)
         self.assertFalse(SystemObservation.objects.filter(id=obs.id).exists())
 
@@ -254,8 +282,7 @@ class TestCrudOperations(TestCase):
 
         # 2. Test editing observation updates linked scan and dscan summary
         updated_dscan = (
-            "12348\tMachariel\tMachariel\t15 km\n"
-            "12349\tLoki\tLoki\t12 km\n"
+            "12348\tMachariel\tMachariel\t15 km\n" "12349\tLoki\tLoki\t12 km\n"
         )
         res_edit = self.client.post(
             reverse("hostile:system_observation_edit", args=[obs.id]),
@@ -317,7 +344,9 @@ class TestCrudOperations(TestCase):
         self.assertContains(res_del_get, "Confirm Pilot Dossier Deletion")
 
         # POST delete
-        res_del_post = self.client.post(reverse("hostile:pilot_delete", args=[pilot.id]), follow=True)
+        res_del_post = self.client.post(
+            reverse("hostile:pilot_delete", args=[pilot.id]), follow=True
+        )
         self.assertEqual(res_del_post.status_code, 200)
         self.assertFalse(HostilePilotDossier.objects.filter(id=pilot.id).exists())
 
@@ -329,11 +358,15 @@ class TestCrudOperations(TestCase):
             corporation_name="Target Corp To Delete",
             ticker="TCTD",
         )
-        res_corp_del_get = self.client.get(reverse("hostile:corporation_delete", args=[corp.id]))
+        res_corp_del_get = self.client.get(
+            reverse("hostile:corporation_delete", args=[corp.id])
+        )
         self.assertEqual(res_corp_del_get.status_code, 200)
         self.assertContains(res_corp_del_get, "Confirm Corporation Deletion")
 
-        res_corp_del_post = self.client.post(reverse("hostile:corporation_delete", args=[corp.id]), follow=True)
+        res_corp_del_post = self.client.post(
+            reverse("hostile:corporation_delete", args=[corp.id]), follow=True
+        )
         self.assertEqual(res_corp_del_post.status_code, 200)
         self.assertFalse(HostileCorporation.objects.filter(id=corp.id).exists())
 
@@ -361,19 +394,25 @@ class TestCrudOperations(TestCase):
             ticker="UNR",
         )
 
-        res_all_del_get = self.client.get(reverse("hostile:alliance_delete", args=[alliance.id]))
+        res_all_del_get = self.client.get(
+            reverse("hostile:alliance_delete", args=[alliance.id])
+        )
         self.assertEqual(res_all_del_get.status_code, 200)
         self.assertContains(res_all_del_get, "Confirm Alliance Deletion")
         self.assertContains(res_all_del_get, "Member Corp Alpha")
         self.assertContains(res_all_del_get, "Member Corp Bravo")
         self.assertContains(res_all_del_get, "all associated member corporations")
 
-        res_all_del_post = self.client.post(reverse("hostile:alliance_delete", args=[alliance.id]), follow=True)
+        res_all_del_post = self.client.post(
+            reverse("hostile:alliance_delete", args=[alliance.id]), follow=True
+        )
         self.assertEqual(res_all_del_post.status_code, 200)
         self.assertFalse(HostileAlliance.objects.filter(id=alliance.id).exists())
         self.assertFalse(HostileCorporation.objects.filter(id=corp1.id).exists())
         self.assertFalse(HostileCorporation.objects.filter(id=corp2.id).exists())
-        self.assertTrue(HostileCorporation.objects.filter(id=unrelated_corp.id).exists())
+        self.assertTrue(
+            HostileCorporation.objects.filter(id=unrelated_corp.id).exists()
+        )
 
     def test_staging_edit_and_delete(self):
         """Test editing and deleting staging systems"""
@@ -408,12 +447,16 @@ class TestCrudOperations(TestCase):
         self.assertEqual(staging.max_subcap_form, 150)
 
         # GET delete confirm
-        res_del_get = self.client.get(reverse("hostile:staging_delete", args=[staging.id]))
+        res_del_get = self.client.get(
+            reverse("hostile:staging_delete", args=[staging.id])
+        )
         self.assertEqual(res_del_get.status_code, 200)
         self.assertContains(res_del_get, "Confirm Staging Deletion")
 
         # POST delete
-        res_del_post = self.client.post(reverse("hostile:staging_delete", args=[staging.id]), follow=True)
+        res_del_post = self.client.post(
+            reverse("hostile:staging_delete", args=[staging.id]), follow=True
+        )
         self.assertEqual(res_del_post.status_code, 200)
         self.assertFalse(HostileStagingSystem.objects.filter(id=staging.id).exists())
 
@@ -434,7 +477,9 @@ class TestCrudOperations(TestCase):
         )
 
         # Edit fit
-        res_fit_edit = self.client.get(reverse("hostile:doctrine_fit_edit", args=[fit.id]))
+        res_fit_edit = self.client.get(
+            reverse("hostile:doctrine_fit_edit", args=[fit.id])
+        )
         self.assertEqual(res_fit_edit.status_code, 200)
         self.assertContains(res_fit_edit, "Edit Example Fit")
 
@@ -454,16 +499,22 @@ class TestCrudOperations(TestCase):
         self.assertEqual(fit.name, "Heavy Artillery TFI")
 
         # Delete fit
-        res_fit_del_get = self.client.get(reverse("hostile:doctrine_fit_delete", args=[fit.id]))
+        res_fit_del_get = self.client.get(
+            reverse("hostile:doctrine_fit_delete", args=[fit.id])
+        )
         self.assertEqual(res_fit_del_get.status_code, 200)
         self.assertContains(res_fit_del_get, "Confirm Example Fit Deletion")
 
-        res_fit_del_post = self.client.post(reverse("hostile:doctrine_fit_delete", args=[fit.id]), follow=True)
+        res_fit_del_post = self.client.post(
+            reverse("hostile:doctrine_fit_delete", args=[fit.id]), follow=True
+        )
         self.assertEqual(res_fit_del_post.status_code, 200)
         self.assertFalse(DoctrineFit.objects.filter(id=fit.id).exists())
 
         # Edit doctrine
-        res_doc_edit = self.client.get(reverse("hostile:doctrine_edit", args=[doctrine.id]))
+        res_doc_edit = self.client.get(
+            reverse("hostile:doctrine_edit", args=[doctrine.id])
+        )
         self.assertEqual(res_doc_edit.status_code, 200)
         self.assertContains(res_doc_edit, "Edit Fleet Doctrine")
 
@@ -482,11 +533,15 @@ class TestCrudOperations(TestCase):
         self.assertEqual(doctrine.name, "Shield TFI Fleet")
 
         # Delete doctrine
-        res_doc_del_get = self.client.get(reverse("hostile:doctrine_delete", args=[doctrine.id]))
+        res_doc_del_get = self.client.get(
+            reverse("hostile:doctrine_delete", args=[doctrine.id])
+        )
         self.assertEqual(res_doc_del_get.status_code, 200)
         self.assertContains(res_doc_del_get, "Confirm Doctrine Deletion")
 
-        res_doc_del_post = self.client.post(reverse("hostile:doctrine_delete", args=[doctrine.id]), follow=True)
+        res_doc_del_post = self.client.post(
+            reverse("hostile:doctrine_delete", args=[doctrine.id]), follow=True
+        )
         self.assertEqual(res_doc_del_post.status_code, 200)
         self.assertFalse(HostileDoctrine.objects.filter(id=doctrine.id).exists())
 
@@ -505,12 +560,16 @@ class TestCrudOperations(TestCase):
         )
 
         # GET delete confirm
-        res_del_get = self.client.get(reverse("hostile:threat_scan_delete", args=[scan.id]))
+        res_del_get = self.client.get(
+            reverse("hostile:threat_scan_delete", args=[scan.id])
+        )
         self.assertEqual(res_del_get.status_code, 200)
         self.assertContains(res_del_get, "Confirm Threat Scan Deletion")
 
         # POST delete
-        res_del_post = self.client.post(reverse("hostile:threat_scan_delete", args=[scan.id]), follow=True)
+        res_del_post = self.client.post(
+            reverse("hostile:threat_scan_delete", args=[scan.id]), follow=True
+        )
         self.assertEqual(res_del_post.status_code, 200)
         self.assertFalse(LocalThreatScan.objects.filter(id=scan.id).exists())
 
@@ -561,12 +620,18 @@ class TestCrudOperations(TestCase):
         self.assertEqual(res.status_code, 200)
 
         # 6. User A can edit their own observation
-        res = self.client.get(reverse("hostile:system_observation_edit", args=[obs_a.id]))
+        res = self.client.get(
+            reverse("hostile:system_observation_edit", args=[obs_a.id])
+        )
         self.assertEqual(res.status_code, 200)
 
         # 7. User A CANNOT delete their own structure (delete is manager only)
-        res_del = self.client.post(reverse("hostile:structure_delete", args=[struct_a.id]))
-        self.assertEqual(res_del.status_code, 302)  # redirected due to missing permission
+        res_del = self.client.post(
+            reverse("hostile:structure_delete", args=[struct_a.id])
+        )
+        self.assertEqual(
+            res_del.status_code, 302
+        )  # redirected due to missing permission
         self.assertTrue(HostileStructure.objects.filter(id=struct_a.id).exists())
 
         # 8. User A CANNOT delete their own timer
@@ -575,7 +640,9 @@ class TestCrudOperations(TestCase):
         self.assertTrue(StructureTimer.objects.filter(id=timer_a.id).exists())
 
         # 9. User A CANNOT delete their own observation
-        res_del_o = self.client.post(reverse("hostile:system_observation_delete", args=[obs_a.id]))
+        res_del_o = self.client.post(
+            reverse("hostile:system_observation_delete", args=[obs_a.id])
+        )
         self.assertEqual(res_del_o.status_code, 302)
         self.assertTrue(SystemObservation.objects.filter(id=obs_a.id).exists())
 
@@ -587,13 +654,25 @@ class TestCrudOperations(TestCase):
         self.client.force_login(user_basic_b)
 
         # 11. User B CANNOT edit User A's structure
-        res_b_struct = self.client.get(reverse("hostile:structure_edit", args=[struct_a.id]), follow=True)
-        self.assertContains(res_b_struct, "You do not have permission to edit this structure.")
+        res_b_struct = self.client.get(
+            reverse("hostile:structure_edit", args=[struct_a.id]), follow=True
+        )
+        self.assertContains(
+            res_b_struct, "You do not have permission to edit this structure."
+        )
 
         # 12. User B CANNOT edit User A's timer
-        res_b_timer = self.client.get(reverse("hostile:timer_edit", args=[timer_a.id]), follow=True)
-        self.assertContains(res_b_timer, "You do not have permission to edit this timer.")
+        res_b_timer = self.client.get(
+            reverse("hostile:timer_edit", args=[timer_a.id]), follow=True
+        )
+        self.assertContains(
+            res_b_timer, "You do not have permission to edit this timer."
+        )
 
         # 13. User B CANNOT edit User A's observation
-        res_b_obs = self.client.get(reverse("hostile:system_observation_edit", args=[obs_a.id]), follow=True)
-        self.assertContains(res_b_obs, "You do not have permission to edit this observation.")
+        res_b_obs = self.client.get(
+            reverse("hostile:system_observation_edit", args=[obs_a.id]), follow=True
+        )
+        self.assertContains(
+            res_b_obs, "You do not have permission to edit this observation."
+        )

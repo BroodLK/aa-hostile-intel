@@ -6,6 +6,9 @@ Unit tests for zKillboard stats client and synchronization tasks
 from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
+# Third Party
+from eve_sde.models import SolarSystem
+
 # Django
 from django.test import Client, TestCase
 from django.urls import reverse
@@ -15,7 +18,6 @@ from django.utils import timezone
 from allianceauth.tests.auth_utils import AuthUtils
 
 # AA Hostile Intel
-from eve_sde.models import SolarSystem
 from hostile.models import (
     HostileAlliance,
     HostileCorporation,
@@ -70,7 +72,9 @@ class ZKillClientTestCase(TestCase):
         mock_get.assert_called_once()
         args, kwargs = mock_get.call_args
         headers = kwargs.get("headers", {})
-        self.assertIn("Alliance Auth Hostile Intel Plugin", headers.get("User-Agent", ""))
+        self.assertIn(
+            "Alliance Auth Hostile Intel Plugin", headers.get("User-Agent", "")
+        )
         self.assertEqual(headers.get("Accept-Encoding"), "gzip")
 
     @patch.object(ZKillClient, "fetch_alliance_stats")
@@ -131,7 +135,7 @@ class ZKillClientTestCase(TestCase):
             "groups": {
                 "485": {"count": 40},  # Dreadnoughts
                 "1538": {"count": 20},  # Force Auxiliaries
-                "547": {"count": 15},   # Carriers
+                "547": {"count": 15},  # Carriers
             },
             "supers": {
                 "supercarrier": {"count": 25},
@@ -332,7 +336,9 @@ class ZKillViewsTestCase(TestCase):
                 },
             }
         }
-        count = zkill_client.ingest_pilots_from_zkill_data(payload, alliance=self.alliance)
+        count = zkill_client.ingest_pilots_from_zkill_data(
+            payload, alliance=self.alliance
+        )
         self.assertEqual(count, 2)
 
         titan_dossier = HostilePilotDossier.objects.get(character_id=950001)
@@ -389,7 +395,9 @@ class ZKillViewsTestCase(TestCase):
                 }
             },
         }
-        count = zkill_client.ingest_pilots_from_zkill_data(payload, alliance=self.alliance)
+        count = zkill_client.ingest_pilots_from_zkill_data(
+            payload, alliance=self.alliance
+        )
         self.assertEqual(count, 3)
 
         dread_dossier = HostilePilotDossier.objects.get(character_id=950003)
@@ -542,19 +550,37 @@ class ZKillViewsTestCase(TestCase):
             },
         }
 
-        count = zkill_client.ingest_pilots_from_zkill_data(payload, alliance=self.alliance)
+        count = zkill_client.ingest_pilots_from_zkill_data(
+            payload, alliance=self.alliance
+        )
         # Only 2 legitimate characters should be created (950008, 950009)
         self.assertEqual(count, 2)
 
         # Confirm non-pilot entities were NOT created as dossiers
-        self.assertFalse(HostilePilotDossier.objects.filter(character_id=19720).exists())
+        self.assertFalse(
+            HostilePilotDossier.objects.filter(character_id=19720).exists()
+        )
         self.assertFalse(HostilePilotDossier.objects.filter(character_id=645).exists())
-        self.assertFalse(HostilePilotDossier.objects.filter(character_id=30000142).exists())
-        self.assertFalse(HostilePilotDossier.objects.filter(character_id=40012345).exists())
-        self.assertFalse(HostilePilotDossier.objects.filter(character_id=98040755).exists())
-        self.assertFalse(HostilePilotDossier.objects.filter(character_name="Revelation").exists())
-        self.assertFalse(HostilePilotDossier.objects.filter(character_name="Jita").exists())
-        self.assertFalse(HostilePilotDossier.objects.filter(character_name="Stargate (Jita)").exists())
+        self.assertFalse(
+            HostilePilotDossier.objects.filter(character_id=30000142).exists()
+        )
+        self.assertFalse(
+            HostilePilotDossier.objects.filter(character_id=40012345).exists()
+        )
+        self.assertFalse(
+            HostilePilotDossier.objects.filter(character_id=98040755).exists()
+        )
+        self.assertFalse(
+            HostilePilotDossier.objects.filter(character_name="Revelation").exists()
+        )
+        self.assertFalse(
+            HostilePilotDossier.objects.filter(character_name="Jita").exists()
+        )
+        self.assertFalse(
+            HostilePilotDossier.objects.filter(
+                character_name="Stargate (Jita)"
+            ).exists()
+        )
 
         # Confirm legitimate pilots exist and dread pilot linked to group ship data
         p_dread = HostilePilotDossier.objects.get(character_id=950009)
@@ -588,16 +614,30 @@ class ZKillViewsTestCase(TestCase):
 
         deleted = zkill_client.cleanup_invalid_pilot_dossiers()
         self.assertGreaterEqual(deleted, 3)
-        self.assertFalse(HostilePilotDossier.objects.filter(character_id=19720).exists())
-        self.assertFalse(HostilePilotDossier.objects.filter(character_id=30000142).exists())
-        self.assertFalse(HostilePilotDossier.objects.filter(character_id=40099999).exists())
-        self.assertTrue(HostilePilotDossier.objects.filter(character_id=valid_pilot.character_id).exists())
+        self.assertFalse(
+            HostilePilotDossier.objects.filter(character_id=19720).exists()
+        )
+        self.assertFalse(
+            HostilePilotDossier.objects.filter(character_id=30000142).exists()
+        )
+        self.assertFalse(
+            HostilePilotDossier.objects.filter(character_id=40099999).exists()
+        )
+        self.assertTrue(
+            HostilePilotDossier.objects.filter(
+                character_id=valid_pilot.character_id
+            ).exists()
+        )
 
     @patch.object(ZKillClient, "fetch_alliance_stats")
     def test_update_alliance_stats_ingests_pilots(self, mock_fetch):
         """Test that update_alliance_stats automatically ingests pilots on initial add and periodic sync"""
         mock_fetch.return_value = {
-            "activepvp": {"characters": {"count": 200}, "kills": {"count": 800}, "losses": {"count": 100}},
+            "activepvp": {
+                "characters": {"count": 200},
+                "kills": {"count": 800},
+                "losses": {"count": 100},
+            },
             "supers": {
                 "titan": {
                     "count": 1,
@@ -622,15 +662,29 @@ class ZKillViewsTestCase(TestCase):
 
     @patch("hostile.services.zkill_client.esi_client.post_characters_affiliation")
     @patch("hostile.services.zkill_client.esi_client.post_universe_names")
-    def test_ingest_pilots_with_affiliation_resolution(self, mock_names, mock_affiliations):
+    def test_ingest_pilots_with_affiliation_resolution(
+        self, mock_names, mock_affiliations
+    ):
         """Test that character affiliations are bulk resolved to corporations and tactical roles/stats are recorded"""
         mock_affiliations.return_value = [
-            {"character_id": 960001, "corporation_id": 98000001, "alliance_id": self.alliance.alliance_id},
-            {"character_id": 960002, "corporation_id": 98000002, "alliance_id": 99000003},  # Out of corp / alt
+            {
+                "character_id": 960001,
+                "corporation_id": 98000001,
+                "alliance_id": self.alliance.alliance_id,
+            },
+            {
+                "character_id": 960002,
+                "corporation_id": 98000002,
+                "alliance_id": 99000003,
+            },  # Out of corp / alt
         ]
         mock_names.return_value = [
             {"id": 98000001, "name": "Primary Combat Corp", "category": "corporation"},
-            {"id": 98000002, "name": "Undercover Holding Corp", "category": "corporation"},
+            {
+                "id": 98000002,
+                "name": "Undercover Holding Corp",
+                "category": "corporation",
+            },
             {"id": 99000003, "name": "Alt Holding Alliance", "category": "alliance"},
         ]
 
@@ -655,7 +709,9 @@ class ZKillViewsTestCase(TestCase):
             ]
         }
 
-        count = zkill_client.ingest_pilots_from_zkill_data(payload, alliance=self.alliance)
+        count = zkill_client.ingest_pilots_from_zkill_data(
+            payload, alliance=self.alliance
+        )
         self.assertEqual(count, 2)
 
         p1 = HostilePilotDossier.objects.get(character_id=960001)
@@ -821,6 +877,7 @@ class ZKillViewsTestCase(TestCase):
     @patch.object(ZKillClient, "fetch_character_stats")
     def test_sync_pilot_dossier_zkill_kixkahn_profile(self, mock_char_stats):
         """Test syncing a pilot with FC (LOW), BAIT LOW (4), and BLOPS (4) tags, danger meter, sec status and tickers"""
+        # Standard Library
         from datetime import date
 
         mock_char_stats.return_value = {
@@ -890,45 +947,66 @@ class ZKillViewsTestCase(TestCase):
         client = Client()
         client.force_login(user)
 
-        HostilePilotDossier.objects.create(character_id=9901, character_name="Pilot Awox", is_awox=True)
-        HostilePilotDossier.objects.create(character_id=9902, character_name="Pilot Bait", is_bait=True)
-        HostilePilotDossier.objects.create(character_id=9903, character_name="Pilot Ganker", is_ganker=True)
-        HostilePilotDossier.objects.create(character_id=9904, character_name="Pilot Logi", is_logi_pilot=True)
-        HostilePilotDossier.objects.create(character_id=9905, character_name="Pilot Rookie", is_rookie=True)
+        HostilePilotDossier.objects.create(
+            character_id=9901, character_name="Pilot Awox", is_awox=True
+        )
+        HostilePilotDossier.objects.create(
+            character_id=9902, character_name="Pilot Bait", is_bait=True
+        )
+        HostilePilotDossier.objects.create(
+            character_id=9903, character_name="Pilot Ganker", is_ganker=True
+        )
+        HostilePilotDossier.objects.create(
+            character_id=9904, character_name="Pilot Logi", is_logi_pilot=True
+        )
+        HostilePilotDossier.objects.create(
+            character_id=9905, character_name="Pilot Rookie", is_rookie=True
+        )
 
         # Test AWOX filter
         res_awox = client.get(reverse("hostile:pilots") + "?role=awox")
         self.assertEqual(res_awox.status_code, 200)
         self.assertContains(res_awox, "Pilot Awox")
-        self.assertNotContains(res_awox, '<h5 class="card-title mb-0 fw-bold text-light">Pilot Ganker</h5>')
+        self.assertNotContains(
+            res_awox, '<h5 class="card-title mb-0 fw-bold text-light">Pilot Ganker</h5>'
+        )
 
         # Test Bait filter
         res_bait = client.get(reverse("hostile:pilots") + "?role=bait")
         self.assertEqual(res_bait.status_code, 200)
         self.assertContains(res_bait, "Pilot Bait")
-        self.assertNotContains(res_bait, '<h5 class="card-title mb-0 fw-bold text-light">Pilot Awox</h5>')
+        self.assertNotContains(
+            res_bait, '<h5 class="card-title mb-0 fw-bold text-light">Pilot Awox</h5>'
+        )
 
         # Test Ganker filter
         res_ganker = client.get(reverse("hostile:pilots") + "?role=gankers")
         self.assertEqual(res_ganker.status_code, 200)
         self.assertContains(res_ganker, "Pilot Ganker")
-        self.assertNotContains(res_ganker, '<h5 class="card-title mb-0 fw-bold text-light">Pilot Bait</h5>')
+        self.assertNotContains(
+            res_ganker, '<h5 class="card-title mb-0 fw-bold text-light">Pilot Bait</h5>'
+        )
 
         # Test Logi filter
         res_logi = client.get(reverse("hostile:pilots") + "?role=logi")
         self.assertEqual(res_logi.status_code, 200)
         self.assertContains(res_logi, "Pilot Logi")
-        self.assertNotContains(res_logi, '<h5 class="card-title mb-0 fw-bold text-light">Pilot Rookie</h5>')
+        self.assertNotContains(
+            res_logi, '<h5 class="card-title mb-0 fw-bold text-light">Pilot Rookie</h5>'
+        )
 
         # Test Rookie filter
         res_rookie = client.get(reverse("hostile:pilots") + "?role=rookies")
         self.assertEqual(res_rookie.status_code, 200)
         self.assertContains(res_rookie, "Pilot Rookie")
-        self.assertNotContains(res_rookie, '<h5 class="card-title mb-0 fw-bold text-light">Pilot Logi</h5>')
+        self.assertNotContains(
+            res_rookie, '<h5 class="card-title mb-0 fw-bold text-light">Pilot Logi</h5>'
+        )
 
     def test_alt_detection_engine(self):
         """Test alt detection patterns, scoring, and automated correlation"""
-        from hostile.services.intel_manager import AltDetectionEngine, IntelManager
+        # AA Hostile Intel
+        from hostile.services.intel_manager import IntelManager
 
         # Main character (FC and Titan pilot)
         main_p = HostilePilotDossier.objects.create(
@@ -1005,7 +1083,8 @@ class ZKillViewsTestCase(TestCase):
 
     def test_alt_detection_transitive_and_scoring(self):
         """Test transitive alt correlation chains (A -> B and B -> C) resolve to common main"""
-        from hostile.services.intel_manager import AltDetectionEngine, IntelManager
+        # AA Hostile Intel
+        from hostile.services.intel_manager import IntelManager
 
         # Main combat pilot
         p_main = HostilePilotDossier.objects.create(
@@ -1062,7 +1141,9 @@ class ZKillViewsTestCase(TestCase):
         # Check pilots filter for alts and mains
         res_alts = client.get(reverse("hostile:pilots") + "?role=alts")
         self.assertContains(res_alts, "Titan Boss Cyno")
-        self.assertNotContains(res_alts, '<h5 class="card-title mb-0 fw-bold text-light">Titan Boss</h5>')
+        self.assertNotContains(
+            res_alts, '<h5 class="card-title mb-0 fw-bold text-light">Titan Boss</h5>'
+        )
 
         res_mains = client.get(reverse("hostile:pilots") + "?role=mains")
         self.assertContains(res_mains, "Titan Boss")
@@ -1070,7 +1151,10 @@ class ZKillViewsTestCase(TestCase):
     @patch("hostile.services.map_routing.esi_client.get_route")
     def test_map_routing_service_and_distance_summary(self, mock_get_route):
         """Test MapRoutingService 3D light year distance calculation and stargate jump routing"""
+        # Django
         from django.core.cache import cache
+
+        # AA Hostile Intel
         from hostile.services.map_routing import MapRoutingService
 
         cache.clear()
@@ -1089,7 +1173,9 @@ class ZKillViewsTestCase(TestCase):
             id=30002187,
             defaults={"name": "Amamake", "x": 1e16, "y": 2e16, "z": 3e16},
         )
-        dest_sys.x = 10000000000000000.0 + 9.4607304725808e16  # 10 Light Years delta along X axis
+        dest_sys.x = (
+            10000000000000000.0 + 9.4607304725808e16
+        )  # 10 Light Years delta along X axis
         dest_sys.y = 20000000000000000.0
         dest_sys.z = 30000000000000000.0
         dest_sys.save()
@@ -1098,7 +1184,9 @@ class ZKillViewsTestCase(TestCase):
         self.assertEqual(dist, 10.0)
 
         # Stargate jumps calculation
-        jumps = MapRoutingService.calculate_stargate_jumps(origin_sys, dest_sys, flag="shortest")
+        jumps = MapRoutingService.calculate_stargate_jumps(
+            origin_sys, dest_sys, flag="shortest"
+        )
         self.assertEqual(jumps, 2)
 
         # Same system distance
@@ -1107,13 +1195,17 @@ class ZKillViewsTestCase(TestCase):
         same_jumps = MapRoutingService.calculate_stargate_jumps(origin_sys, origin_sys)
         self.assertEqual(same_jumps, 0)
 
-        summary = MapRoutingService.get_system_distance_summary(origin_sys, dest_sys, flag="shortest")
+        summary = MapRoutingService.get_system_distance_summary(
+            origin_sys, dest_sys, flag="shortest"
+        )
         self.assertEqual(summary["ly"], 10.0)
         self.assertEqual(summary["jumps"], 2)
         self.assertEqual(summary["display"], "10.00 LY · 2 Jumps")
 
         # Batch summary
-        batch = MapRoutingService.get_batch_routes_summary(origin_sys.id, [dest_sys.id], flag="shortest")
+        batch = MapRoutingService.get_batch_routes_summary(
+            origin_sys.id, [dest_sys.id], flag="shortest"
+        )
         self.assertIn(dest_sys.id, batch)
         self.assertEqual(batch[dest_sys.id]["jumps"], 2)
 
@@ -1126,6 +1218,7 @@ class ZKillViewsTestCase(TestCase):
     @patch("hostile.services.map_routing.esi_client.get_route")
     def test_sov_timers_distance_calculation_with_origin(self, mock_get_route):
         """Test Sov Timers tab attached distance calculation when origin is selected"""
+        # Django
         from django.core.cache import cache
 
         cache.clear()
@@ -1176,8 +1269,11 @@ class ZKillViewsTestCase(TestCase):
     @patch("hostile.services.map_routing.esi_client.get_route")
     def test_sov_timers_sorting_by_ly_region_and_jumps(self, mock_get_route):
         """Test Sov Timers sorting by LY, Region, and Jumps from origin"""
-        from django.core.cache import cache
+        # Third Party
         from eve_sde.models import Constellation, Region
+
+        # Django
+        from django.core.cache import cache
 
         cache.clear()
 
@@ -1187,15 +1283,29 @@ class ZKillViewsTestCase(TestCase):
         client = Client()
         client.force_login(user)
 
-        reg_alpha, _ = Region.objects.get_or_create(id=10000001, defaults={"name": "Alpha Region"})
-        reg_zulu, _ = Region.objects.get_or_create(id=10000002, defaults={"name": "Zulu Region"})
+        reg_alpha, _ = Region.objects.get_or_create(
+            id=10000001, defaults={"name": "Alpha Region"}
+        )
+        reg_zulu, _ = Region.objects.get_or_create(
+            id=10000002, defaults={"name": "Zulu Region"}
+        )
 
-        con_alpha, _ = Constellation.objects.get_or_create(id=20000001, defaults={"name": "Alpha Constellation", "region": reg_alpha})
-        con_zulu, _ = Constellation.objects.get_or_create(id=20000002, defaults={"name": "Zulu Constellation", "region": reg_zulu})
+        con_alpha, _ = Constellation.objects.get_or_create(
+            id=20000001, defaults={"name": "Alpha Constellation", "region": reg_alpha}
+        )
+        con_zulu, _ = Constellation.objects.get_or_create(
+            id=20000002, defaults={"name": "Zulu Constellation", "region": reg_zulu}
+        )
 
         origin_sys, _ = SolarSystem.objects.get_or_create(
             id=30005000,
-            defaults={"name": "Origin-0", "x": 0.0, "y": 0.0, "z": 0.0, "constellation": con_alpha},
+            defaults={
+                "name": "Origin-0",
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "constellation": con_alpha,
+            },
         )
         origin_sys.x = 0.0
         origin_sys.y = 0.0
@@ -1205,7 +1315,13 @@ class ZKillViewsTestCase(TestCase):
         # Far system in Alpha Region (20 LY, 5 Jumps)
         far_sys, _ = SolarSystem.objects.get_or_create(
             id=30005001,
-            defaults={"name": "Far-Sys", "x": 1.892e17, "y": 0.0, "z": 0.0, "constellation": con_alpha},
+            defaults={
+                "name": "Far-Sys",
+                "x": 1.892e17,
+                "y": 0.0,
+                "z": 0.0,
+                "constellation": con_alpha,
+            },
         )
         far_sys.x = 1.892e17
         far_sys.y = 0.0
@@ -1215,7 +1331,13 @@ class ZKillViewsTestCase(TestCase):
         # Near system in Zulu Region (2 LY, 15 Jumps via winding gates)
         near_sys, _ = SolarSystem.objects.get_or_create(
             id=30005002,
-            defaults={"name": "Near-Sys", "x": 1.892e16, "y": 0.0, "z": 0.0, "constellation": con_zulu},
+            defaults={
+                "name": "Near-Sys",
+                "x": 1.892e16,
+                "y": 0.0,
+                "z": 0.0,
+                "constellation": con_zulu,
+            },
         )
         near_sys.x = 1.892e16
         near_sys.y = 0.0
@@ -1245,8 +1367,12 @@ class ZKillViewsTestCase(TestCase):
         )
 
         def mock_route_fn(*args, **kwargs):
-            dest = kwargs.get("destination_system_id") or (args[1] if len(args) > 1 else None)
-            orig = kwargs.get("origin_system_id") or (args[0] if len(args) > 0 else None)
+            dest = kwargs.get("destination_system_id") or (
+                args[1] if len(args) > 1 else None
+            )
+            orig = kwargs.get("origin_system_id") or (
+                args[0] if len(args) > 0 else None
+            )
             if dest and int(dest) == 30005001:
                 return [30005000, 1, 2, 3, 4, 30005001]  # 5 jumps
             elif dest and int(dest) == 30005002:
@@ -1256,7 +1382,9 @@ class ZKillViewsTestCase(TestCase):
         mock_get_route.side_effect = mock_route_fn
 
         # 1. Sort by Region (asc vs desc)
-        res_reg_asc = client.get(reverse("hostile:sov_timers") + "?sort=region&order=asc")
+        res_reg_asc = client.get(
+            reverse("hostile:sov_timers") + "?sort=region&order=asc"
+        )
         self.assertEqual(res_reg_asc.status_code, 200)
         self.assertContains(res_reg_asc, "Alpha Region")
         self.assertContains(res_reg_asc, "Zulu Region")
@@ -1264,7 +1392,9 @@ class ZKillViewsTestCase(TestCase):
         self.assertEqual(upcoming_reg_asc[0].id, timer_far.id)  # Alpha before Zulu
         self.assertEqual(upcoming_reg_asc[1].id, timer_near.id)
 
-        res_reg_desc = client.get(reverse("hostile:sov_timers") + "?sort=region&order=desc")
+        res_reg_desc = client.get(
+            reverse("hostile:sov_timers") + "?sort=region&order=desc"
+        )
         self.assertEqual(res_reg_desc.status_code, 200)
         upcoming_reg_desc = res_reg_desc.context["upcoming_timers"]
         self.assertEqual(upcoming_reg_desc[0].id, timer_near.id)  # Zulu before Alpha
@@ -1272,27 +1402,42 @@ class ZKillViewsTestCase(TestCase):
 
         # 2. Sort by LY with origin (asc vs desc)
         cache.clear()
-        res_ly_asc = client.get(reverse("hostile:sov_timers") + f"?origin={origin_sys.id}&sort=ly&order=asc")
+        res_ly_asc = client.get(
+            reverse("hostile:sov_timers") + f"?origin={origin_sys.id}&sort=ly&order=asc"
+        )
         self.assertEqual(res_ly_asc.status_code, 200)
         upcoming_ly_asc = res_ly_asc.context["upcoming_timers"]
-        self.assertEqual(upcoming_ly_asc[0].id, timer_near.id)  # ~2.0 LY is closer than ~20.0 LY
+        self.assertEqual(
+            upcoming_ly_asc[0].id, timer_near.id
+        )  # ~2.0 LY is closer than ~20.0 LY
         self.assertEqual(upcoming_ly_asc[1].id, timer_far.id)
 
-        res_ly_desc = client.get(reverse("hostile:sov_timers") + f"?origin={origin_sys.id}&sort=ly&order=desc")
+        res_ly_desc = client.get(
+            reverse("hostile:sov_timers")
+            + f"?origin={origin_sys.id}&sort=ly&order=desc"
+        )
         self.assertEqual(res_ly_desc.status_code, 200)
         upcoming_ly_desc = res_ly_desc.context["upcoming_timers"]
-        self.assertEqual(upcoming_ly_desc[0].id, timer_far.id)  # ~20.0 LY is further than ~2.0 LY
+        self.assertEqual(
+            upcoming_ly_desc[0].id, timer_far.id
+        )  # ~20.0 LY is further than ~2.0 LY
         self.assertEqual(upcoming_ly_desc[1].id, timer_near.id)
 
         # 3. Sort by Jumps from Origin (asc vs desc)
         cache.clear()
-        res_jumps_asc = client.get(reverse("hostile:sov_timers") + f"?origin={origin_sys.id}&sort=jumps&order=asc")
+        res_jumps_asc = client.get(
+            reverse("hostile:sov_timers")
+            + f"?origin={origin_sys.id}&sort=jumps&order=asc"
+        )
         self.assertEqual(res_jumps_asc.status_code, 200)
         upcoming_jumps_asc = res_jumps_asc.context["upcoming_timers"]
         self.assertEqual(upcoming_jumps_asc[0].id, timer_far.id)  # 5 jumps < 15 jumps
         self.assertEqual(upcoming_jumps_asc[1].id, timer_near.id)
 
-        res_jumps_desc = client.get(reverse("hostile:sov_timers") + f"?origin={origin_sys.id}&sort=jumps&order=desc")
+        res_jumps_desc = client.get(
+            reverse("hostile:sov_timers")
+            + f"?origin={origin_sys.id}&sort=jumps&order=desc"
+        )
         self.assertEqual(res_jumps_desc.status_code, 200)
         upcoming_jumps_desc = res_jumps_desc.context["upcoming_timers"]
         self.assertEqual(upcoming_jumps_desc[0].id, timer_near.id)  # 15 jumps > 5 jumps
@@ -1307,6 +1452,7 @@ class ZKillViewsTestCase(TestCase):
     @patch("hostile.services.map_routing.esi_client.get_route")
     def test_api_routes_batch_endpoint(self, mock_get_route):
         """Test /api/routes/ batch calculation endpoint"""
+        # Django
         from django.core.cache import cache
 
         cache.clear()
@@ -1327,7 +1473,10 @@ class ZKillViewsTestCase(TestCase):
         client = Client()
         client.force_login(user)
 
-        res = client.get(reverse("hostile:api_routes_batch") + "?origin=30000142&destinations=30002187&flag=shortest")
+        res = client.get(
+            reverse("hostile:api_routes_batch")
+            + "?origin=30000142&destinations=30002187&flag=shortest"
+        )
         self.assertEqual(res.status_code, 200)
         data = res.json()
         self.assertEqual(data["origin_id"], 30000142)
@@ -1337,6 +1486,7 @@ class ZKillViewsTestCase(TestCase):
 
     def test_esi_client_get_route_direct(self):
         """Test HostileESIClientProvider get_route with PostRoute and dict unwrapping"""
+        # AA Hostile Intel
         from hostile.services.esi_client import esi_client
 
         with patch.object(esi_client, "fetch_safely") as mock_fetch:

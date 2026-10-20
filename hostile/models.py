@@ -5,7 +5,6 @@ Hostile Intelligence Models
 # Standard Library
 import re
 import uuid
-from typing import Any, Dict, List, Optional
 
 # Third Party
 from eve_sde.models import ItemType, SolarSystem
@@ -837,6 +836,7 @@ class StructureTimer(models.Model):
         """Return linked Alliance Auth Timer instance if installed and available"""
         if not self.timerboard_timer_id:
             return None
+        # AA Hostile Intel
         from hostile.services.timer_sync import TimerboardSyncService
 
         return TimerboardSyncService.get_timerboard_timer_by_id(
@@ -848,6 +848,7 @@ class StructureTimer(models.Model):
         """Return linked aa-structuretimers Timer instance if installed and available"""
         if not self.structuretimers_timer_id:
             return None
+        # AA Hostile Intel
         from hostile.services.timer_sync import TimerboardSyncService
 
         return TimerboardSyncService.get_structuretimers_timer_by_id(
@@ -1453,13 +1454,19 @@ class HostilePilotDossier(models.Model):
         return "secondary"
 
     @property
-    def age_years(self) -> Optional[int]:
+    def age_years(self) -> int | None:
         """Calculates character age in years from birthday"""
         if not self.birthday:
             return None
+        # Standard Library
         from datetime import date
+
         today = date.today()
-        return today.year - self.birthday.year - ((today.month, today.day) < (self.birthday.month, self.birthday.day))
+        return (
+            today.year
+            - self.birthday.year
+            - ((today.month, today.day) < (self.birthday.month, self.birthday.day))
+        )
 
     @property
     def formatted_sec_status(self) -> str:

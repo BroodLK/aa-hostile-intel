@@ -67,7 +67,7 @@
                 <div class="text-end">
                     <div class="progress" style="width: 100px; height: 10px; background-color: #2b3035;">
                         <div id="blops-progress-bar" class="progress-bar {% if scan.blops_drop_chance >= 75 %}bg-danger{% elif scan.blops_drop_chance >= 40 %}bg-warning{% else %}bg-info{% endif %}"
-                             role="progressbar" style="width: {{ scan.blops_drop_chance }}%;"></div>
+                            role="progressbar" style="width: {{ scan.blops_drop_chance }}%;"></div>
                     </div>
                     <span id="blops-risk-badge" class="badge bg-dark border border-secondary text-muted mt-2 small">
                         {% if scan.blops_drop_chance >= 75 %}CRITICAL RISK{% elif scan.blops_drop_chance >= 40 %}ELEVATED RISK{% else %}STANDARD RISK{% endif %}
@@ -95,7 +95,7 @@
                 <div class="text-end">
                     <div class="progress" style="width: 100px; height: 10px; background-color: #2b3035;">
                         <div id="cap-progress-bar" class="progress-bar {% if scan.cap_drop_chance >= 75 %}bg-danger{% elif scan.cap_drop_chance >= 40 %}bg-warning{% else %}bg-info{% endif %}"
-                             role="progressbar" style="width: {{ scan.cap_drop_chance }}%;"></div>
+                            role="progressbar" style="width: {{ scan.cap_drop_chance }}%;"></div>
                     </div>
                     <span id="cap-risk-badge" class="badge bg-dark border border-secondary text-muted mt-2 small">
                         {% if scan.cap_drop_chance >= 75 %}CRITICAL RISK{% elif scan.cap_drop_chance >= 40 %}ELEVATED RISK{% else %}STANDARD RISK{% endif %}
@@ -297,8 +297,8 @@
                             <div class="d-flex align-items-center">
                                 {% if pilot.character_id %}
                                 <img src="https://images.evetech.net/characters/{{ pilot.character_id }}/portrait?size=64"
-                                     class="rounded-circle me-2 border border-secondary"
-                                     alt="{{ pilot.character_name }}" width="36" height="36">
+                                    class="rounded-circle me-2 border border-secondary"
+                                    alt="{{ pilot.character_name }}" width="36" height="36">
                                 {% else %}
                                 <div class="bg-secondary rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 36px; height: 36px;">
                                     <i class="fas fa-user text-dark"></i>
@@ -450,17 +450,17 @@
                         </td>
                         <td class="text-end">
                             <a href="https://zkillboard.com/character/{% if pilot.character_id %}{{ pilot.character_id }}{% else %}search/{{ pilot.character_name|urlencode }}{% endif %}/"
-                               target="_blank" class="btn btn-sm btn-outline-secondary" title="View on zKillboard">
+                                target="_blank" class="btn btn-sm btn-outline-secondary" title="View on zKillboard">
                                 <i class="fas fa-external-link-alt"></i>
                             </a>
                             {% if pilot.dossier_id %}
                             <a href="{% url 'hostile:pilot_detail' pilot.dossier_id %}"
-                               class="btn btn-sm btn-outline-info" title="View Pilot Dossier">
+                                class="btn btn-sm btn-outline-info" title="View Pilot Dossier">
                                 <i class="fas fa-id-card"></i>
                             </a>
                             {% else %}
                             <a href="{% url 'hostile:pilot_add' %}?name={{ pilot.character_name|urlencode }}&corp={{ pilot.corporation_name|urlencode }}&alliance={{ pilot.alliance_name|urlencode }}"
-                               class="btn btn-sm btn-outline-info" title="Create or Update Dossier">
+                                class="btn btn-sm btn-outline-info" title="Create or Update Dossier">
                                 <i class="fas fa-user-plus"></i>
                             </a>
                             {% endif %}

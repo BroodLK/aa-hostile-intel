@@ -57,15 +57,15 @@
 
     function showFromTrigger(trigger) {
         const title = trigger.getAttribute('data-hostile-loading') ||
-                      trigger.getAttribute('data-loading-overlay') ||
-                      trigger.getAttribute('data-indy-loading') ||
-                      trigger.getAttribute('data-me-loading') ||
-                      '';
+            trigger.getAttribute('data-loading-overlay') ||
+            trigger.getAttribute('data-indy-loading') ||
+            trigger.getAttribute('data-me-loading') ||
+            '';
         const detail = trigger.getAttribute('data-hostile-loading-detail') ||
-                       trigger.getAttribute('data-loading-detail') ||
-                       trigger.getAttribute('data-indy-loading-detail') ||
-                       trigger.getAttribute('data-me-loading-detail') ||
-                       '';
+            trigger.getAttribute('data-loading-detail') ||
+            trigger.getAttribute('data-indy-loading-detail') ||
+            trigger.getAttribute('data-me-loading-detail') ||
+            '';
         showOverlay(title, detail);
     }
 
@@ -121,29 +121,29 @@
 
         if (submitter) {
             title = submitter.getAttribute('data-hostile-loading') ||
-                    submitter.getAttribute('data-loading-overlay') ||
-                    submitter.getAttribute('data-indy-loading') ||
-                    submitter.getAttribute('data-me-loading') ||
-                    '';
+                submitter.getAttribute('data-loading-overlay') ||
+                submitter.getAttribute('data-indy-loading') ||
+                submitter.getAttribute('data-me-loading') ||
+                '';
             detail = submitter.getAttribute('data-hostile-loading-detail') ||
-                     submitter.getAttribute('data-loading-detail') ||
-                     submitter.getAttribute('data-indy-loading-detail') ||
-                     submitter.getAttribute('data-me-loading-detail') ||
-                     '';
+                submitter.getAttribute('data-loading-detail') ||
+                submitter.getAttribute('data-indy-loading-detail') ||
+                submitter.getAttribute('data-me-loading-detail') ||
+                '';
         }
         if (!title) {
             title = form.getAttribute('data-hostile-loading') ||
-                    form.getAttribute('data-loading-overlay') ||
-                    form.getAttribute('data-indy-loading') ||
-                    form.getAttribute('data-me-loading') ||
-                    '';
+                form.getAttribute('data-loading-overlay') ||
+                form.getAttribute('data-indy-loading') ||
+                form.getAttribute('data-me-loading') ||
+                '';
         }
         if (!detail) {
             detail = form.getAttribute('data-hostile-loading-detail') ||
-                     form.getAttribute('data-loading-detail') ||
-                     form.getAttribute('data-indy-loading-detail') ||
-                     form.getAttribute('data-me-loading-detail') ||
-                     '';
+                form.getAttribute('data-loading-detail') ||
+                form.getAttribute('data-indy-loading-detail') ||
+                form.getAttribute('data-me-loading-detail') ||
+                '';
         }
 
         // Fallback default message for submitting forms

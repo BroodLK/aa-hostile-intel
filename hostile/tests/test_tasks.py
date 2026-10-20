@@ -5,15 +5,14 @@ Tests for django-esi synchronization pipeline, timezone inference, and Celery ta
 # Standard Library
 from unittest.mock import MagicMock, patch
 
-# Django
-from django.test import TestCase
-from django.utils import timezone
-
 # Third Party
 from eve_sde.models import SolarSystem
 
+# Django
+from django.test import TestCase
+
 # AA Hostile Intel
-from hostile.models import HostileAlliance, StructureTimer
+from hostile.models import HostileAlliance
 from hostile.services.esi_client import HostileESIClientProvider
 from hostile.services.sov_engine import SovAnalysisEngine
 from hostile.tasks import update_sovereignty_campaigns, update_sovereignty_intelligence
@@ -22,7 +21,9 @@ from hostile.tasks import update_sovereignty_campaigns, update_sovereignty_intel
 class TestTasksAndSovEngine(TestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.system_1dq = SolarSystem.objects.create(id=30004759, name="1DQ1-A", security_status=-0.5)
+        cls.system_1dq = SolarSystem.objects.create(
+            id=30004759, name="1DQ1-A", security_status=-0.5
+        )
         cls.alliance_goons = HostileAlliance.objects.create(
             alliance_id=1354830081,
             alliance_name="Goonswarm Federation",
@@ -134,7 +135,9 @@ class TestTasksAndSovEngine(TestCase):
             }
         ]
         result = update_sovereignty_campaigns()
-        self.assertIn("Successfully synchronized 1 active sovereignty campaign timers", result)
+        self.assertIn(
+            "Successfully synchronized 1 active sovereignty campaign timers", result
+        )
 
     def test_process_sovereignty_campaigns_pydantic_object(self):
         class MockPydanticCampaign:
@@ -143,7 +146,9 @@ class TestTasksAndSovEngine(TestCase):
                     setattr(self, k, v)
 
             def __getattr__(self, item):
-                raise AttributeError(f"'{type(self).__name__}' object has no attribute {item!r}")
+                raise AttributeError(
+                    f"'{type(self).__name__}' object has no attribute {item!r}"
+                )
 
         pydantic_campaign = MockPydanticCampaign(
             campaign_id=77771,
@@ -170,7 +175,9 @@ class TestTasksAndSovEngine(TestCase):
                     setattr(self, k, v)
 
             def __getattr__(self, item):
-                raise AttributeError(f"'{type(self).__name__}' object has no attribute {item!r}")
+                raise AttributeError(
+                    f"'{type(self).__name__}' object has no attribute {item!r}"
+                )
 
         pydantic_structure = MockPydanticStructure(
             alliance_id=1354830081,
@@ -253,8 +260,21 @@ class TestTasksAndSovEngine(TestCase):
         client_provider._client = mock_legacy_client
 
         mock_fetch.side_effect = [
-            [{"system_id": 30004759, "alliance_id": 1354830081, "corporation_id": 98599770}],
-            [{"solar_system_id": 30004759, "alliance_id": 1354830081, "structure_id": 1034510825648, "vulnerable_start_time": "2026-10-03T18:00:00Z"}]
+            [
+                {
+                    "system_id": 30004759,
+                    "alliance_id": 1354830081,
+                    "corporation_id": 98599770,
+                }
+            ],
+            [
+                {
+                    "solar_system_id": 30004759,
+                    "alliance_id": 1354830081,
+                    "structure_id": 1034510825648,
+                    "vulnerable_start_time": "2026-10-03T18:00:00Z",
+                }
+            ],
         ]
         legacy_map = client_provider.get_sovereignty_map()
         self.assertEqual(len(legacy_map), 1)
@@ -288,8 +308,13 @@ class TestTasksAndSovEngine(TestCase):
         self.assertEqual(self.alliance_goons.zkill_deltas["members"]["pct"], 14)
 
     def test_fetch_safely_304_cache_hit_and_miss(self):
-        from esi.exceptions import HTTPNotModified
+        # Django
         from django.core.cache import cache
+
+        # Alliance Auth
+        from esi.exceptions import HTTPNotModified
+
+        # AA Hostile Intel
         from hostile.services.esi_client import _get_esi_cache_key
 
         client_provider = HostileESIClientProvider()
@@ -297,7 +322,9 @@ class TestTasksAndSovEngine(TestCase):
         mock_op = MagicMock()
         mock_op.operation.operationId = "GetSovereigntyMapTest"
         mock_op.return_value = [{"system_id": 30004759, "alliance_id": 1354830081}]
-        mock_op.results = MagicMock(return_value=[{"system_id": 30004759, "alliance_id": 1354830081}])
+        mock_op.results = MagicMock(
+            return_value=[{"system_id": 30004759, "alliance_id": 1354830081}]
+        )
 
         # 1. Normal fetch caches the payload
         res = client_provider.fetch_safely(mock_op)
@@ -313,7 +340,9 @@ class TestTasksAndSovEngine(TestCase):
         cache_key = _get_esi_cache_key(mock_op, (), {})
         cache.delete(cache_key)
         mock_op.side_effect = HTTPNotModified(304, {})
-        mock_op.results.return_value = [{"system_id": 30004759, "alliance_id": 1354830081}]
+        mock_op.results.return_value = [
+            {"system_id": 30004759, "alliance_id": 1354830081}
+        ]
         res_forced = client_provider.fetch_safely(mock_op)
         self.assertEqual(len(res_forced), 1)
         mock_op.results.assert_called_with(force_refresh=True)
@@ -324,7 +353,9 @@ class TestTasksAndSovEngine(TestCase):
         self.alliance_goons.save()
 
         # Empty map should preserve existing count
-        count = SovAnalysisEngine.sync_alliance_sovereignty_held_single(self.alliance_goons, sov_map=[])
+        count = SovAnalysisEngine.sync_alliance_sovereignty_held_single(
+            self.alliance_goons, sov_map=[]
+        )
         self.assertEqual(count, 15)
         self.alliance_goons.refresh_from_db()
         self.assertEqual(self.alliance_goons.systems_held_count, 15)

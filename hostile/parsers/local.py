@@ -4,20 +4,18 @@ Local Threat Parser for non-ESI Local chat window and member list intelligence
 """
 
 # Standard Library
-from collections import Counter
-from datetime import datetime
 import logging
 import re
-from typing import Any, Dict, List, Optional, Set
-
-# Django
-from django.conf import settings
+from typing import Any
 
 # Third Party
 from eve_sde.models import SolarSystem
 
+# Django
+from django.conf import settings
+
 # AA Hostile Intel
-from hostile.models import HostilePilotDossier, LocalThreatScan
+from hostile.models import HostilePilotDossier
 from hostile.parsers.dscan import DScanParser
 from hostile.services.entity_resolver import EntityResolver
 from hostile.services.intel_manager import AltDetectionEngine
@@ -38,11 +36,17 @@ class LocalThreatParser:
     )
 
     @classmethod
-    def get_ignored_alliances(cls) -> Set[str]:
+    def get_ignored_alliances(cls) -> set[str]:
         """Collects lower-case list of friendly/ignored alliances and corporations dynamically from settings and database"""
         ignored = set()
-        main_alliance_name = getattr(settings, "HOSTILE_MAIN_ALLIANCE_NAME", getattr(settings, "ALLIANCE_NAME", None))
-        main_alliance_id = getattr(settings, "HOSTILE_MAIN_ALLIANCE_ID", getattr(settings, "ALLIANCE_ID", None))
+        main_alliance_name = getattr(
+            settings,
+            "HOSTILE_MAIN_ALLIANCE_NAME",
+            getattr(settings, "ALLIANCE_NAME", None),
+        )
+        main_alliance_id = getattr(
+            settings, "HOSTILE_MAIN_ALLIANCE_ID", getattr(settings, "ALLIANCE_ID", None)
+        )
 
         if main_alliance_name:
             ignored.add(str(main_alliance_name).lower().strip())
@@ -67,9 +71,12 @@ class LocalThreatParser:
 
         # Include database-flagged friendly / ignored alliances and corporations
         try:
+            # AA Hostile Intel
             from hostile.models import HostileAlliance, HostileCorporation
 
-            for a in HostileAlliance.objects.filter(is_friendly=True).values("alliance_id", "alliance_name", "ticker"):
+            for a in HostileAlliance.objects.filter(is_friendly=True).values(
+                "alliance_id", "alliance_name", "ticker"
+            ):
                 if a.get("alliance_id"):
                     ignored.add(str(a["alliance_id"]).lower().strip())
                 if a.get("alliance_name"):
@@ -77,7 +84,9 @@ class LocalThreatParser:
                 if a.get("ticker"):
                     ignored.add(str(a["ticker"]).lower().strip())
 
-            for c in HostileCorporation.objects.filter(is_friendly=True).values("corporation_id", "corporation_name", "ticker"):
+            for c in HostileCorporation.objects.filter(is_friendly=True).values(
+                "corporation_id", "corporation_name", "ticker"
+            ):
                 if c.get("corporation_id"):
                     ignored.add(str(c["corporation_id"]).lower().strip())
                 if c.get("corporation_name"):
@@ -118,8 +127,8 @@ class LocalThreatParser:
 
     @classmethod
     def enrich_pilot(
-        cls, pilot: Dict[str, Any], save_dossier: bool = True
-    ) -> Dict[str, Any]:
+        cls, pilot: dict[str, Any], save_dossier: bool = True
+    ) -> dict[str, Any]:
         """
         Enriches a single pilot's dictionary with full entity affiliation, zKillboard combat intelligence,
         top ships flown, behavioral tags (cyno, blops, fc, capital, dread, fax, super, titan, bait, etc.),
@@ -136,19 +145,39 @@ class LocalThreatParser:
                 char_name = res_info.get("character_name") or char_name
                 pilot["character_id"] = char_id
                 pilot["character_name"] = char_name
-                pilot["corporation_id"] = res_info.get("corporation_id") or pilot.get("corporation_id")
-                pilot["corporation_name"] = res_info.get("corporation_name") or pilot.get("corporation_name") or ""
-                pilot["corporation_ticker"] = res_info.get("corporation_ticker") or pilot.get("corporation_ticker") or ""
-                pilot["alliance_id"] = res_info.get("alliance_id") or pilot.get("alliance_id")
-                pilot["alliance_name"] = res_info.get("alliance_name") or pilot.get("alliance_name") or ""
-                pilot["alliance_ticker"] = res_info.get("alliance_ticker") or pilot.get("alliance_ticker") or ""
+                pilot["corporation_id"] = res_info.get("corporation_id") or pilot.get(
+                    "corporation_id"
+                )
+                pilot["corporation_name"] = (
+                    res_info.get("corporation_name")
+                    or pilot.get("corporation_name")
+                    or ""
+                )
+                pilot["corporation_ticker"] = (
+                    res_info.get("corporation_ticker")
+                    or pilot.get("corporation_ticker")
+                    or ""
+                )
+                pilot["alliance_id"] = res_info.get("alliance_id") or pilot.get(
+                    "alliance_id"
+                )
+                pilot["alliance_name"] = (
+                    res_info.get("alliance_name") or pilot.get("alliance_name") or ""
+                )
+                pilot["alliance_ticker"] = (
+                    res_info.get("alliance_ticker")
+                    or pilot.get("alliance_ticker")
+                    or ""
+                )
 
         # 2. Check dossier
         dossier = None
         if char_id:
             dossier = HostilePilotDossier.objects.filter(character_id=char_id).first()
         if not dossier and char_name:
-            dossier = HostilePilotDossier.objects.filter(character_name__iexact=char_name).first()
+            dossier = HostilePilotDossier.objects.filter(
+                character_name__iexact=char_name
+            ).first()
 
         # 3. Fetch zKill combat intelligence
         combat_intel = {}
@@ -156,7 +185,9 @@ class LocalThreatParser:
             try:
                 combat_intel = zkill_client.get_character_combat_intelligence(char_id)
             except Exception as exc:
-                logger.debug("Failed to fetch zKill combat intel for %s: %s", char_id, exc)
+                logger.debug(
+                    "Failed to fetch zKill combat intel for %s: %s", char_id, exc
+                )
 
         is_cyno_alt = bool(
             (dossier and dossier.is_cyno_alt)
@@ -197,39 +228,69 @@ class LocalThreatParser:
             or is_titan_pilot
             or pilot.get("is_capital_pilot")
         )
-        is_fc = bool((dossier and dossier.is_fc) or combat_intel.get("is_fc") or pilot.get("is_fc"))
+        is_fc = bool(
+            (dossier and dossier.is_fc)
+            or combat_intel.get("is_fc")
+            or pilot.get("is_fc")
+        )
         fc_level = (
             dossier.fc_level
             if (dossier and dossier.fc_level)
             else (combat_intel.get("fc_level") or pilot.get("fc_level", ""))
         )
-        fc_score = max((dossier.fc_score if dossier else 0), combat_intel.get("fc_score", 0), pilot.get("fc_score", 0))
+        fc_score = max(
+            (dossier.fc_score if dossier else 0),
+            combat_intel.get("fc_score", 0),
+            pilot.get("fc_score", 0),
+        )
 
-        is_bait = bool((dossier and dossier.is_bait) or combat_intel.get("is_bait") or pilot.get("is_bait"))
+        is_bait = bool(
+            (dossier and dossier.is_bait)
+            or combat_intel.get("is_bait")
+            or pilot.get("is_bait")
+        )
         bait_level = (
             dossier.bait_level
             if (dossier and dossier.bait_level)
             else (combat_intel.get("bait_level") or pilot.get("bait_level", ""))
         )
         bait_count = max(
-            (dossier.bait_count if dossier else 0), combat_intel.get("bait_count", 0), pilot.get("bait_count", 0)
+            (dossier.bait_count if dossier else 0),
+            combat_intel.get("bait_count", 0),
+            pilot.get("bait_count", 0),
         )
 
-        is_ganker = bool((dossier and dossier.is_ganker) or combat_intel.get("is_ganker") or pilot.get("is_ganker"))
+        is_ganker = bool(
+            (dossier and dossier.is_ganker)
+            or combat_intel.get("is_ganker")
+            or pilot.get("is_ganker")
+        )
         ganker_count = max(
-            (dossier.ganker_count if dossier else 0), combat_intel.get("ganker_count", 0), pilot.get("ganker_count", 0)
+            (dossier.ganker_count if dossier else 0),
+            combat_intel.get("ganker_count", 0),
+            pilot.get("ganker_count", 0),
         )
 
         is_logi_pilot = bool(
-            (dossier and dossier.is_logi_pilot) or combat_intel.get("is_logi_pilot") or pilot.get("is_logi_pilot")
+            (dossier and dossier.is_logi_pilot)
+            or combat_intel.get("is_logi_pilot")
+            or pilot.get("is_logi_pilot")
         )
         logi_count = max(
-            (dossier.logi_count if dossier else 0), combat_intel.get("logi_count", 0), pilot.get("logi_count", 0)
+            (dossier.logi_count if dossier else 0),
+            combat_intel.get("logi_count", 0),
+            pilot.get("logi_count", 0),
         )
 
-        is_awox = bool((dossier and dossier.is_awox) or combat_intel.get("is_awox") or pilot.get("is_awox"))
+        is_awox = bool(
+            (dossier and dossier.is_awox)
+            or combat_intel.get("is_awox")
+            or pilot.get("is_awox")
+        )
         awox_count = max(
-            (dossier.awox_count if dossier else 0), combat_intel.get("awox_count", 0), pilot.get("awox_count", 0)
+            (dossier.awox_count if dossier else 0),
+            combat_intel.get("awox_count", 0),
+            pilot.get("awox_count", 0),
         )
 
         is_alliance_awox = bool(
@@ -254,7 +315,11 @@ class LocalThreatParser:
             pilot.get("faction_awox_count", 0),
         )
 
-        is_rookie = bool((dossier and dossier.is_rookie) or combat_intel.get("is_rookie") or pilot.get("is_rookie"))
+        is_rookie = bool(
+            (dossier and dossier.is_rookie)
+            or combat_intel.get("is_rookie")
+            or pilot.get("is_rookie")
+        )
 
         danger_ratio = combat_intel.get("danger_ratio", pilot.get("danger_ratio", 0))
         gang_ratio = combat_intel.get("gang_ratio", pilot.get("gang_ratio", 0))
@@ -355,7 +420,9 @@ class LocalThreatParser:
                 "is_alt": is_alt,
                 "main_character_name": main_character_name,
                 "is_out_of_corp": (
-                    dossier.is_out_of_corp if dossier else pilot.get("is_out_of_corp", False)
+                    dossier.is_out_of_corp
+                    if dossier
+                    else pilot.get("is_out_of_corp", False)
                 ),
                 "is_verified": (
                     dossier.is_verified if dossier else pilot.get("is_verified", False)
@@ -372,15 +439,15 @@ class LocalThreatParser:
     @classmethod
     def calculate_activity_profile(
         cls,
-        pilots: List[Dict[str, Any]],
-        timestamps_found: Optional[List[str]] = None,
-        initial_hourly: Optional[Dict[int, int]] = None,
-    ) -> Dict[str, Any]:
+        pilots: list[dict[str, Any]],
+        timestamps_found: list[str] | None = None,
+        initial_hourly: dict[int, int] | None = None,
+    ) -> dict[str, Any]:
         """
         Calculates aggregate 24-hour UTC activity distribution, timezone breakdown (EUTZ/USTZ/AUTZ),
         and dominant operational timezone across chat timestamps and pilot combat histories.
         """
-        hourly_distribution: Dict[int, int] = {h: 0 for h in range(24)}
+        hourly_distribution: dict[int, int] = {h: 0 for h in range(24)}
         if initial_hourly:
             for h, count in initial_hourly.items():
                 try:
@@ -464,9 +531,9 @@ class LocalThreatParser:
     def enrich_scan(
         cls,
         scan: Any,
-        character_names: Optional[List[str]] = None,
+        character_names: list[str] | None = None,
         batch_size: int = 5,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Progressively enriches a scan's pilot roster via zKillboard & ESI,
         recalculating Black Ops and Capital drop probabilities, threat level, and factors.
@@ -556,19 +623,21 @@ class LocalThreatParser:
     def parse(
         cls,
         local_text: str,
-        dscan_text: Optional[str] = None,
-        default_system: Optional[SolarSystem] = None,
+        dscan_text: str | None = None,
+        default_system: SolarSystem | None = None,
         fetch_zkill: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Parses raw local chat or pilot roster text, extracts timestamps & activity profile,
         filters out friendly alliances, pairs with D-Scan, and computes drop chances.
         """
-        lines = [line.strip() for line in local_text.strip().splitlines() if line.strip()]
+        lines = [
+            line.strip() for line in local_text.strip().splitlines() if line.strip()
+        ]
 
-        raw_pilots: Dict[str, Dict[str, Any]] = {}
-        hourly_distribution: Dict[int, int] = {h: 0 for h in range(24)}
-        timestamps_found: List[str] = []
+        raw_pilots: dict[str, dict[str, Any]] = {}
+        hourly_distribution: dict[int, int] = {h: 0 for h in range(24)}
+        timestamps_found: list[str] = []
         ignored_pilots_count = 0
         detected_system = default_system
 
@@ -579,7 +648,9 @@ class LocalThreatParser:
                 if len(parts) >= 3:
                     cand_name = parts[-1].strip()
                     if cand_name and not detected_system:
-                        detected_system = SolarSystem.objects.filter(name__iexact=cand_name).first()
+                        detected_system = SolarSystem.objects.filter(
+                            name__iexact=cand_name
+                        ).first()
 
         for line in lines:
             if cls.CHANNEL_HEADER_PATTERN.match(line):
@@ -621,7 +692,12 @@ class LocalThreatParser:
                 elif len(parts) == 1:
                     char_name = parts[0]
 
-            if not char_name or len(char_name) < 2 or char_name.startswith("---") or char_name.startswith("==="):
+            if (
+                not char_name
+                or len(char_name) < 2
+                or char_name.startswith("---")
+                or char_name.startswith("===")
+            ):
                 continue
 
             # Check if this pilot or corp/alliance is friendly/ignored
@@ -667,7 +743,7 @@ class LocalThreatParser:
             if d.character_id
         }
 
-        pilots_list: List[Dict[str, Any]] = []
+        pilots_list: list[dict[str, Any]] = []
         cynos_count = 0
         supers_count = 0
         capitals_count = 0
@@ -678,10 +754,14 @@ class LocalThreatParser:
             char_id = res_info.get("character_id")
             char_name = res_info.get("character_name") or name
             corp_id = res_info.get("corporation_id")
-            corp_name = res_info.get("corporation_name") or data.get("corporation_name") or ""
+            corp_name = (
+                res_info.get("corporation_name") or data.get("corporation_name") or ""
+            )
             corp_ticker = res_info.get("corporation_ticker", "")
             alliance_id = res_info.get("alliance_id")
-            alliance_name = res_info.get("alliance_name") or data.get("alliance_name") or ""
+            alliance_name = (
+                res_info.get("alliance_name") or data.get("alliance_name") or ""
+            )
             alliance_ticker = res_info.get("alliance_ticker", "")
 
             # Check if this pilot or corp/alliance is friendly/ignored
@@ -765,7 +845,9 @@ class LocalThreatParser:
                 "top_ships": [],
                 "likely_ship": "",
                 "zkill_labels": (
-                    list(dossier.zkill_labels) if dossier and dossier.zkill_labels else []
+                    list(dossier.zkill_labels)
+                    if dossier and dossier.zkill_labels
+                    else []
                 ),
                 "is_alt": dossier.is_alt if dossier else False,
                 "main_character_name": (
@@ -812,8 +894,12 @@ class LocalThreatParser:
         for i, p1 in enumerate(pilots_list):
             for j, p2 in enumerate(pilots_list):
                 if i != j and not p1.get("is_alt"):
-                    stem1 = AltDetectionEngine.extract_stem(p1.get("character_name", ""))
-                    stem2 = AltDetectionEngine.extract_stem(p2.get("character_name", ""))
+                    stem1 = AltDetectionEngine.extract_stem(
+                        p1.get("character_name", "")
+                    )
+                    stem2 = AltDetectionEngine.extract_stem(
+                        p2.get("character_name", "")
+                    )
                     if stem1 and stem2 and stem1 == stem2 and len(stem1) >= 3:
                         p1_is_alt_suffix = any(
                             s in p1.get("character_name", "").lower()
@@ -847,7 +933,7 @@ class LocalThreatParser:
         pilots_list = ThreatEngine.pair_pilots_to_ships(pilots_list, dscan_data)
 
         # Sort pilots: dangerous pilots first (supers > capitals > cynos > blops > fcs > others)
-        def pilot_sort_key(p: Dict[str, Any]) -> int:
+        def pilot_sort_key(p: dict[str, Any]) -> int:
             score = 0
             if p.get("is_titan_pilot") or p.get("is_super_pilot"):
                 score += 100

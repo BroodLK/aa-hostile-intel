@@ -17,7 +17,9 @@ class ExampleConfig(AppConfig):
     def ready(self) -> None:
         try:
             # Register signals and connect external timerboard bidirectional synchronization
+            # AA Hostile Intel
             from hostile import signals
+
             signals.connect_all_timer_signals()
         except Exception:
             pass

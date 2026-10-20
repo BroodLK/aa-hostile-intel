@@ -4,7 +4,7 @@ Structure Show-Info / Inspect window clipboard parser
 
 # Standard Library
 import re
-from typing import Any, Dict, Optional
+from typing import Any
 
 # Third Party
 from eve_sde.models import ItemType, SolarSystem
@@ -12,7 +12,7 @@ from eve_sde.models import ItemType, SolarSystem
 # AA Hostile Intel
 from hostile.models import normalize_structure_name
 from hostile.parsers.dscan import DScanParser
-from hostile.parsers.eft import EFTParser, StructureFittingParser
+from hostile.parsers.eft import StructureFittingParser
 
 
 class StructureHackParser:
@@ -38,7 +38,9 @@ class StructureHackParser:
         )
 
     @classmethod
-    def parse(cls, text: str, default_system: Optional[SolarSystem] = None) -> Dict[str, Any]:
+    def parse(
+        cls, text: str, default_system: SolarSystem | None = None
+    ) -> dict[str, Any]:
         """Extracts structure name, inferred solar system, vulnerability hour, and jitter window"""
         lines = [line.strip() for line in text.strip().splitlines() if line.strip()]
         structure_name = ""
@@ -78,14 +80,18 @@ class StructureHackParser:
                     else:
                         structure_name = cand_type
                 else:
-                    prefix_match = re.match(r"^(?:Structure|Name|Target)\s*[:=]\s*(.*)$", line, re.I)
+                    prefix_match = re.match(
+                        r"^(?:Structure|Name|Target)\s*[:=]\s*(.*)$", line, re.I
+                    )
                     if prefix_match:
                         structure_name = prefix_match.group(1).strip()
                     else:
                         structure_name = line
 
                 if not solar_system:
-                    solar_system = DScanParser.infer_solar_system_from_name(structure_name)
+                    solar_system = DScanParser.infer_solar_system_from_name(
+                        structure_name
+                    )
 
                 ticker_cand = DScanParser.extract_ticker(structure_name)
                 if ticker_cand:
@@ -115,7 +121,9 @@ class StructureHackParser:
         if type_name:
             structure_type = ItemType.objects.filter(name__iexact=type_name).first()
             if not structure_type:
-                structure_type = ItemType.objects.filter(name__icontains=type_name).first()
+                structure_type = ItemType.objects.filter(
+                    name__icontains=type_name
+                ).first()
 
         if not structure_name:
             if solar_system:
@@ -131,8 +139,17 @@ class StructureHackParser:
             "solar_system": solar_system,
             "owner_ticker": owner_ticker,
             "vulnerability_hour": vulnerability_hour,
-            "vulnerability_window": vulnerability_window or (f"{vulnerability_hour:02d}:00 (+- 3 hrs)" if vulnerability_hour is not None else ""),
-            "notes": "\n".join(notes) if notes else "Hacked with Data Analyzer (Scanned Defense Hour)",
+            "vulnerability_window": vulnerability_window
+            or (
+                f"{vulnerability_hour:02d}:00 (+- 3 hrs)"
+                if vulnerability_hour is not None
+                else ""
+            ),
+            "notes": (
+                "\n".join(notes)
+                if notes
+                else "Hacked with Data Analyzer (Scanned Defense Hour)"
+            ),
             "source": "DATA_ANALYZER_HACK",
         }
 
@@ -141,7 +158,7 @@ class StructureShowInfoParser:
     """Parses clipboard text copied from EVE Online structure info and profile windows"""
 
     @classmethod
-    def parse(cls, text: str) -> Dict[str, Any]:
+    def parse(cls, text: str) -> dict[str, Any]:
         """Extracts structure metadata, owner details, core status, and fitting lines from text"""
         lines = [line.strip() for line in text.strip().splitlines() if line.strip()]
 
@@ -168,7 +185,7 @@ class StructureShowInfoParser:
                 type_cand = header_bracket.group(1).strip()
                 rest = header_bracket.group(2).strip()
                 if "," in type_cand:
-                    type_cand, fit_part = [p.strip() for p in type_cand.split(",", 1)]
+                    type_cand, fit_part = (p.strip() for p in type_cand.split(",", 1))
                     if not rest:
                         rest = fit_part
                 type_name = type_cand
@@ -176,17 +193,33 @@ class StructureShowInfoParser:
                 continue
 
             # Core detection
-            if re.search(r"core\s*:\s*(installed|fitted|yes|true)", line, re.I) or "quantum core: installed" in line.lower():
+            if (
+                re.search(r"core\s*:\s*(installed|fitted|yes|true)", line, re.I)
+                or "quantum core: installed" in line.lower()
+            ):
                 core_status = "FITTED"
                 continue
-            elif re.search(r"core\s*:\s*(missing|none|unfitted|no|false)", line, re.I) or "quantum core: unfitted" in line.lower():
+            elif (
+                re.search(r"core\s*:\s*(missing|none|unfitted|no|false)", line, re.I)
+                or "quantum core: unfitted" in line.lower()
+            ):
                 core_status = "UNFITTED"
                 continue
 
             # State detection
             if re.search(r"state\s*:\s*(\w+)", line, re.I):
-                state_match = re.search(r"state\s*:\s*(\w+)", line, re.I).group(1).upper()
-                if state_match in ["ANCHORING", "UNANCHORING", "ARMOR", "HULL", "ONLINE", "REINFORCED", "DESTROYED"]:
+                state_match = (
+                    re.search(r"state\s*:\s*(\w+)", line, re.I).group(1).upper()
+                )
+                if state_match in [
+                    "ANCHORING",
+                    "UNANCHORING",
+                    "ARMOR",
+                    "HULL",
+                    "ONLINE",
+                    "REINFORCED",
+                    "DESTROYED",
+                ]:
                     state = state_match
                 continue
 
@@ -198,7 +231,9 @@ class StructureShowInfoParser:
             )
             if vuln_match:
                 vulnerability_window = vuln_match.group(1).strip()
-                hour_match = re.search(r"\b(\d{1,2})(?::(\d{2}))?\b", vulnerability_window)
+                hour_match = re.search(
+                    r"\b(\d{1,2})(?::(\d{2}))?\b", vulnerability_window
+                )
                 if hour_match:
                     try:
                         h = int(hour_match.group(1))
@@ -236,7 +271,11 @@ class StructureShowInfoParser:
                     is_in_fitting_section = True
                 continue
 
-            if is_in_fitting_section or line.startswith("Standup") or "slot" in line.lower():
+            if (
+                is_in_fitting_section
+                or line.startswith("Standup")
+                or "slot" in line.lower()
+            ):
                 fitting_lines.append(line)
             else:
                 # If first line and structure_name is empty, treat as structure name
@@ -255,13 +294,17 @@ class StructureShowInfoParser:
         if type_name:
             structure_type = ItemType.objects.filter(name__iexact=type_name).first()
             if not structure_type:
-                structure_type = ItemType.objects.filter(name__icontains=type_name).first()
+                structure_type = ItemType.objects.filter(
+                    name__icontains=type_name
+                ).first()
 
         solar_system = None
         if system_name:
             solar_system = SolarSystem.objects.filter(name__iexact=system_name).first()
             if not solar_system:
-                solar_system = SolarSystem.objects.filter(name__icontains=system_name).first()
+                solar_system = SolarSystem.objects.filter(
+                    name__icontains=system_name
+                ).first()
 
         if not solar_system and structure_name:
             solar_system = DScanParser.infer_solar_system_from_name(structure_name)
@@ -269,7 +312,9 @@ class StructureShowInfoParser:
                 # Check if first word is system name e.g. "1DQ1-A 1-HQ"
                 words = structure_name.split()
                 if words:
-                    solar_system = SolarSystem.objects.filter(name__iexact=words[0]).first()
+                    solar_system = SolarSystem.objects.filter(
+                        name__iexact=words[0]
+                    ).first()
 
         if not owner_ticker and structure_name:
             owner_ticker = DScanParser.extract_ticker(structure_name) or ""
@@ -282,7 +327,9 @@ class StructureShowInfoParser:
                 fitting_data["hull_item_type"] = structure_type
                 fitting_data["hull_type_name"] = type_name
 
-        raw_struct_name = structure_name or (f"{type_name} in {system_name}" if type_name else "Hostile Structure")
+        raw_struct_name = structure_name or (
+            f"{type_name} in {system_name}" if type_name else "Hostile Structure"
+        )
         return {
             "name": normalize_structure_name(raw_struct_name),
             "structure_type_name": type_name,

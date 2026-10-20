@@ -5,34 +5,31 @@ staging form overrides, and periodic task setup.
 """
 
 # Standard Library
-from datetime import timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 # Third Party
 from django_celery_beat.models import PeriodicTask
 from eve_sde.models import ItemCategory, ItemGroup, ItemType, SolarSystem
 
-# Alliance Auth
-from allianceauth.tests.auth_utils import AuthUtils
-
 # Django
-from django.contrib.auth.models import Group, Permission, User
 from django.core.management import call_command
 from django.test import Client, TestCase
 from django.urls import reverse
 from django.utils import timezone
 
+# Alliance Auth
+from allianceauth.tests.auth_utils import AuthUtils
+
 # AA Hostile Intel
-from hostile.forms import HostileAllianceForm, HostileStagingSystemForm
+from hostile.forms import HostileStagingSystemForm
 from hostile.models import (
     HostileAlliance,
     HostileCorporation,
     HostileStagingSystem,
     HostileStructure,
-    StructureTimer,
 )
 from hostile.services.sov_engine import SovAnalysisEngine
-from hostile.services.zkill_client import ZKillClient, zkill_client
+from hostile.services.zkill_client import ZKillClient
 
 
 class TestZKillAndIntelEnhancements(TestCase):
@@ -49,13 +46,23 @@ class TestZKillAndIntelEnhancements(TestCase):
         AuthUtils.add_permission_to_user_by_name("hostile.basic_access", cls.basic_user)
 
         # Structure Type setup (Astrahus)
-        cls.category_structure = ItemCategory.objects.create(id=65, name="Structure", published=True)
-        cls.group_citadel = ItemGroup.objects.create(id=1657, name="Citadel", category=cls.category_structure, published=True)
-        cls.astrahus_type = ItemType.objects.create(id=35832, name="Astrahus", group=cls.group_citadel, published=True)
+        cls.category_structure = ItemCategory.objects.create(
+            id=65, name="Structure", published=True
+        )
+        cls.group_citadel = ItemGroup.objects.create(
+            id=1657, name="Citadel", category=cls.category_structure, published=True
+        )
+        cls.astrahus_type = ItemType.objects.create(
+            id=35832, name="Astrahus", group=cls.group_citadel, published=True
+        )
 
         # Solar system setup
-        cls.solar_system = SolarSystem.objects.create(id=30000142, name="Jita", security_status=0.9)
-        cls.null_system = SolarSystem.objects.create(id=30004759, name="1DQ1-A", security_status=-0.5)
+        cls.solar_system = SolarSystem.objects.create(
+            id=30000142, name="Jita", security_status=0.9
+        )
+        cls.null_system = SolarSystem.objects.create(
+            id=30004759, name="1DQ1-A", security_status=-0.5
+        )
 
         # Alliance setup
         cls.alliance = HostileAlliance.objects.create(
@@ -182,7 +189,7 @@ class TestZKillAndIntelEnhancements(TestCase):
             "groups": {
                 "485": {"count": 15},  # Dreadnoughts
                 "1538": {"count": 10},  # FAX
-                "547": {"count": 5},   # Carriers
+                "547": {"count": 5},  # Carriers
             },
             "activity": {
                 "2": {"18": 15, "19": 40, "20": 25},  # Tuesday peak
@@ -190,7 +197,9 @@ class TestZKillAndIntelEnhancements(TestCase):
             },
         }
 
-        with patch.object(ZKillClient, "fetch_alliance_stats", return_value=mock_zkill_data):
+        with patch.object(
+            ZKillClient, "fetch_alliance_stats", return_value=mock_zkill_data
+        ):
             client = ZKillClient()
             success = client.update_alliance_stats(self.alliance)
             self.assertTrue(success)
@@ -199,13 +208,15 @@ class TestZKillAndIntelEnhancements(TestCase):
             self.assertEqual(self.alliance.active_pilots_count, 120)
             self.assertEqual(self.alliance.weekly_kills_count, 450)
             self.assertEqual(self.alliance.max_subcap_form, 90)  # 150 * 0.6
-            self.assertEqual(self.alliance.max_cap_form, 30)     # 15 + 10 + 5
-            self.assertEqual(self.alliance.max_super_form, 6)    # 4 + 2
+            self.assertEqual(self.alliance.max_cap_form, 30)  # 15 + 10 + 5
+            self.assertEqual(self.alliance.max_super_form, 6)  # 4 + 2
 
             # Check deltas (+20% supers detected from 5 -> 6, etc.)
             self.assertIn("super", self.alliance.zkill_deltas)
             self.assertEqual(self.alliance.zkill_deltas["super"]["pct"], 20)
-            self.assertEqual(self.alliance.zkill_deltas["super"]["text"], "+20% supers detected")
+            self.assertEqual(
+                self.alliance.zkill_deltas["super"]["text"], "+20% supers detected"
+            )
 
             # Check auto-inferred timezone from zKill kill distribution (18-20 UTC -> EUTZ)
             self.assertEqual(self.alliance.primary_timezone, "EUTZ")
@@ -225,11 +236,17 @@ class TestZKillAndIntelEnhancements(TestCase):
         self.alliance.save()
 
         mock_zkill_data = {
-            "activepvp": {"characters": {"count": 50}, "kills": {"count": 100}, "losses": {"count": 5}},
+            "activepvp": {
+                "characters": {"count": 50},
+                "kills": {"count": 100},
+                "losses": {"count": 5},
+            },
             "activity": {"2": {"19": 50}},  # EUTZ kills
         }
 
-        with patch.object(ZKillClient, "fetch_alliance_stats", return_value=mock_zkill_data):
+        with patch.object(
+            ZKillClient, "fetch_alliance_stats", return_value=mock_zkill_data
+        ):
             client = ZKillClient()
             client.update_alliance_stats(self.alliance)
             self.alliance.refresh_from_db()
@@ -240,16 +257,22 @@ class TestZKillAndIntelEnhancements(TestCase):
         """Test management command creates Celery Beat tasks for weekly zKill scan and sovereignty sync"""
         call_command("hostile_setup_tasks")
 
-        task_zkill = PeriodicTask.objects.get(task="hostile.tasks.update_all_zkill_stats")
+        task_zkill = PeriodicTask.objects.get(
+            task="hostile.tasks.update_all_zkill_stats"
+        )
         self.assertTrue(task_zkill.enabled)
         self.assertIsNotNone(task_zkill.crontab)
         self.assertEqual(task_zkill.crontab.day_of_week, "0")  # Sunday
 
-        task_sov = PeriodicTask.objects.get(task="hostile.tasks.update_sovereignty_intelligence")
+        task_sov = PeriodicTask.objects.get(
+            task="hostile.tasks.update_sovereignty_intelligence"
+        )
         self.assertTrue(task_sov.enabled)
         self.assertIsNotNone(task_sov.crontab)
 
-        task_campaign = PeriodicTask.objects.get(task="hostile.tasks.update_sovereignty_campaigns")
+        task_campaign = PeriodicTask.objects.get(
+            task="hostile.tasks.update_sovereignty_campaigns"
+        )
         self.assertTrue(task_campaign.enabled)
         self.assertIsNotNone(task_campaign.interval)
         self.assertEqual(task_campaign.interval.every, 1)
@@ -266,7 +289,15 @@ class TestZKillAndIntelEnhancements(TestCase):
     def test_alliance_and_corporation_detail_view_heatmap(self):
         """Test detail views load and format 7x24 heatmap data properly in template context"""
         self.alliance.activity_heatmap = {
-            "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+            "days": [
+                "Monday",
+                "Tuesday",
+                "Wednesday",
+                "Thursday",
+                "Friday",
+                "Saturday",
+                "Sunday",
+            ],
             "matrix": [[5 if h == 19 else 0 for h in range(24)] for _ in range(7)],
             "max_val": 5,
             "peak_day": "Monday",
@@ -275,7 +306,9 @@ class TestZKillAndIntelEnhancements(TestCase):
         }
         self.alliance.save()
 
-        res = self.client.get(reverse("hostile:alliance_detail", args=[self.alliance.id]))
+        res = self.client.get(
+            reverse("hostile:alliance_detail", args=[self.alliance.id])
+        )
         self.assertEqual(res.status_code, 200)
         self.assertIn("heatmap_data", res.context)
         self.assertEqual(len(res.context["heatmap_data"]["rows"]), 7)
@@ -293,7 +326,9 @@ class TestZKillAndIntelEnhancements(TestCase):
         self.assertContains(res, "Primary TZ:")
 
         # Corporation detail view
-        res_corp = self.client.get(reverse("hostile:corporation_detail", args=[self.corporation.id]))
+        res_corp = self.client.get(
+            reverse("hostile:corporation_detail", args=[self.corporation.id])
+        )
         self.assertEqual(res_corp.status_code, 200)
         self.assertIn("heatmap_data", res_corp.context)
 
@@ -314,29 +349,220 @@ class TestZKillAndIntelEnhancements(TestCase):
             "activity": {
                 "days": ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
                 "max": 357,
-                "0": [15, 28, 175, 106, 34, 14, 12, 4, 16, 11, 38, 207, 357, 84, 30, 27, 26, 22, 43, 90, 24, 26, 30, 47],
-                "1": [25, 102, 117, 50, 29, 16, 11, 15, 10, 9, 10, 6, 10, 15, 27, 34, 27, 30, 28, 23, 26, 25, 17, 16],
-                "2": [30, 51, 100, 46, 41, 8, 20, 15, 14, 17, 32, 36, 20, 16, 28, 19, 14, 23, 38, 32, 11, 28, 25, 48],
-                "3": [26, 75, 156, 45, 19, 13, 19, 15, 9, 12, 10, 4, 16, 8, 6, 28, 13, 16, 18, 22, 42, 21, 11, 11],
-                "4": [27, 70, 106, 54, 18, 14, 11, 5, 12, 15, 35, 6, 11, 19, 28, 52, 31, 25, 39, 34, 26, 30, 19, 26],
-                "5": [51, 84, 159, 63, 48, 11, 23, 8, 18, 20, 20, 35, 95, 30, 11, 34, 20, 16, 24, 26, 38, 18, 37, 27],
-                "6": [48, 22, 42, 82, 66, 44, 14, 6, 5, 9, 6, 31, 136, 59, 16, 15, 21, 35, 46, 48, 66, 56, 20, 40],
+                "0": [
+                    15,
+                    28,
+                    175,
+                    106,
+                    34,
+                    14,
+                    12,
+                    4,
+                    16,
+                    11,
+                    38,
+                    207,
+                    357,
+                    84,
+                    30,
+                    27,
+                    26,
+                    22,
+                    43,
+                    90,
+                    24,
+                    26,
+                    30,
+                    47,
+                ],
+                "1": [
+                    25,
+                    102,
+                    117,
+                    50,
+                    29,
+                    16,
+                    11,
+                    15,
+                    10,
+                    9,
+                    10,
+                    6,
+                    10,
+                    15,
+                    27,
+                    34,
+                    27,
+                    30,
+                    28,
+                    23,
+                    26,
+                    25,
+                    17,
+                    16,
+                ],
+                "2": [
+                    30,
+                    51,
+                    100,
+                    46,
+                    41,
+                    8,
+                    20,
+                    15,
+                    14,
+                    17,
+                    32,
+                    36,
+                    20,
+                    16,
+                    28,
+                    19,
+                    14,
+                    23,
+                    38,
+                    32,
+                    11,
+                    28,
+                    25,
+                    48,
+                ],
+                "3": [
+                    26,
+                    75,
+                    156,
+                    45,
+                    19,
+                    13,
+                    19,
+                    15,
+                    9,
+                    12,
+                    10,
+                    4,
+                    16,
+                    8,
+                    6,
+                    28,
+                    13,
+                    16,
+                    18,
+                    22,
+                    42,
+                    21,
+                    11,
+                    11,
+                ],
+                "4": [
+                    27,
+                    70,
+                    106,
+                    54,
+                    18,
+                    14,
+                    11,
+                    5,
+                    12,
+                    15,
+                    35,
+                    6,
+                    11,
+                    19,
+                    28,
+                    52,
+                    31,
+                    25,
+                    39,
+                    34,
+                    26,
+                    30,
+                    19,
+                    26,
+                ],
+                "5": [
+                    51,
+                    84,
+                    159,
+                    63,
+                    48,
+                    11,
+                    23,
+                    8,
+                    18,
+                    20,
+                    20,
+                    35,
+                    95,
+                    30,
+                    11,
+                    34,
+                    20,
+                    16,
+                    24,
+                    26,
+                    38,
+                    18,
+                    37,
+                    27,
+                ],
+                "6": [
+                    48,
+                    22,
+                    42,
+                    82,
+                    66,
+                    44,
+                    14,
+                    6,
+                    5,
+                    9,
+                    6,
+                    31,
+                    136,
+                    59,
+                    16,
+                    15,
+                    21,
+                    35,
+                    46,
+                    48,
+                    66,
+                    56,
+                    20,
+                    40,
+                ],
             }
         }
         heatmap = ZKillClient._build_activity_heatmap(zkill_native_data)
         self.assertEqual(len(heatmap["matrix"]), 7)
         # Sunday is row index 6
-        self.assertEqual(heatmap["matrix"][6][12], 357, "Sunday 12:00 UTC must be 357 kills")
-        self.assertEqual(heatmap["matrix"][6][11], 207, "Sunday 11:00 UTC must be 207 kills")
-        self.assertEqual(heatmap["matrix"][6][2], 175, "Sunday 02:00 UTC must be 175 kills")
+        self.assertEqual(
+            heatmap["matrix"][6][12], 357, "Sunday 12:00 UTC must be 357 kills"
+        )
+        self.assertEqual(
+            heatmap["matrix"][6][11], 207, "Sunday 11:00 UTC must be 207 kills"
+        )
+        self.assertEqual(
+            heatmap["matrix"][6][2], 175, "Sunday 02:00 UTC must be 175 kills"
+        )
         # Monday is row index 0
-        self.assertEqual(heatmap["matrix"][0][0], 25, "Monday 00:00 UTC must be 25 kills")
-        self.assertEqual(heatmap["matrix"][0][1], 102, "Monday 01:00 UTC must be 102 kills")
-        self.assertEqual(heatmap["matrix"][0][2], 117, "Monday 02:00 UTC must be 117 kills")
+        self.assertEqual(
+            heatmap["matrix"][0][0], 25, "Monday 00:00 UTC must be 25 kills"
+        )
+        self.assertEqual(
+            heatmap["matrix"][0][1], 102, "Monday 01:00 UTC must be 102 kills"
+        )
+        self.assertEqual(
+            heatmap["matrix"][0][2], 117, "Monday 02:00 UTC must be 117 kills"
+        )
         # Friday is row index 4
-        self.assertEqual(heatmap["matrix"][4][2], 159, "Friday 02:00 UTC must be 159 kills")
+        self.assertEqual(
+            heatmap["matrix"][4][2], 159, "Friday 02:00 UTC must be 159 kills"
+        )
         # Saturday is row index 5
-        self.assertEqual(heatmap["matrix"][5][12], 136, "Saturday 12:00 UTC must be 136 kills")
+        self.assertEqual(
+            heatmap["matrix"][5][12], 136, "Saturday 12:00 UTC must be 136 kills"
+        )
 
         self.assertEqual(heatmap["max_val"], 357)
         self.assertEqual(heatmap["peak_day"], "Sunday")
@@ -346,12 +572,16 @@ class TestZKillAndIntelEnhancements(TestCase):
         nested_sunday_0 = {
             "activity": {
                 "0": {"19": 15},  # Sunday
-                "1": {"19": 8},   # Monday
+                "1": {"19": 8},  # Monday
             }
         }
         heatmap_0 = ZKillClient._build_activity_heatmap(nested_sunday_0)
-        self.assertEqual(heatmap_0["matrix"][6][19], 15, "0-key should map to Sunday (row 6)")
-        self.assertEqual(heatmap_0["matrix"][0][19], 8, "1-key should map to Monday (row 0)")
+        self.assertEqual(
+            heatmap_0["matrix"][6][19], 15, "0-key should map to Sunday (row 6)"
+        )
+        self.assertEqual(
+            heatmap_0["matrix"][0][19], 8, "1-key should map to Monday (row 0)"
+        )
 
         # Test 3: Named days
         named_days_data = {
@@ -397,8 +627,12 @@ class TestZKillAndIntelEnhancements(TestCase):
             active_pilots_count=45,
             primary_timezone="UNKNOWN",
         )
-        res = self.client.get(reverse("hostile:alliance_detail", args=[alliance_unpopulated.id]))
+        res = self.client.get(
+            reverse("hostile:alliance_detail", args=[alliance_unpopulated.id])
+        )
         self.assertEqual(res.status_code, 200)
         self.assertIn("heatmap_data", res.context)
         self.assertEqual(res.context["heatmap_data"], {})
-        self.assertContains(res, "No 3-month rolling zKillboard combat activity data recorded yet")
+        self.assertContains(
+            res, "No 3-month rolling zKillboard combat activity data recorded yet"
+        )

@@ -7,6 +7,9 @@ and coalition/alt affiliations for alliances and corporations.
 # Standard Library
 from datetime import timedelta
 
+# Third Party
+from eve_sde.models import ItemCategory, ItemGroup, ItemType, SolarSystem
+
 # Django
 from django.test import Client, TestCase
 from django.urls import reverse
@@ -15,11 +18,10 @@ from django.utils import timezone
 # Alliance Auth
 from allianceauth.tests.auth_utils import AuthUtils
 
-# Third Party
-from eve_sde.models import ItemCategory, ItemGroup, ItemType, SolarSystem
-
 # AA Hostile Intel
-from hostile.forms import HostileAllianceForm, HostileCorporationForm, HostileStructureForm
+from hostile.forms import (
+    HostileStructureForm,
+)
 from hostile.models import (
     HostileAlliance,
     HostileCorporation,
@@ -28,28 +30,43 @@ from hostile.models import (
     HostileStructure,
     StructureTimer,
 )
-from hostile.services.entity_resolver import EntityResolver
 
 
 class TestStructuresAndEntities(TestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.category_structure = ItemCategory.objects.create(id=65, name="Structure", published=True)
-        cls.group_citadel = ItemGroup.objects.create(id=1657, name="Citadel", category=cls.category_structure, published=True)
-        cls.group_refinery = ItemGroup.objects.create(id=1406, name="Refinery", category=cls.category_structure, published=True)
+        cls.category_structure = ItemCategory.objects.create(
+            id=65, name="Structure", published=True
+        )
+        cls.group_citadel = ItemGroup.objects.create(
+            id=1657, name="Citadel", category=cls.category_structure, published=True
+        )
+        cls.group_refinery = ItemGroup.objects.create(
+            id=1406, name="Refinery", category=cls.category_structure, published=True
+        )
 
-        cls.astrahus = ItemType.objects.create(id=35832, name="Astrahus", group=cls.group_citadel, published=True)
-        cls.athanor = ItemType.objects.create(id=35835, name="Athanor", group=cls.group_refinery, published=True)
+        cls.astrahus = ItemType.objects.create(
+            id=35832, name="Astrahus", group=cls.group_citadel, published=True
+        )
+        cls.athanor = ItemType.objects.create(
+            id=35835, name="Athanor", group=cls.group_refinery, published=True
+        )
 
-        cls.system = SolarSystem.objects.create(id=30004759, name="1DQ1-A", security_status=-0.5)
+        cls.system = SolarSystem.objects.create(
+            id=30004759, name="1DQ1-A", security_status=-0.5
+        )
         cls.alliance = HostileAlliance.objects.create(
             alliance_id=99000099, alliance_name="Hostile Alliance", ticker="H-ALLI"
         )
 
         cls.user_officer = AuthUtils.create_user(username="officer_user")
         AuthUtils.add_main_character(cls.user_officer, "Officer Pilot", 21100099)
-        AuthUtils.add_permission_to_user_by_name("hostile.basic_access", cls.user_officer)
-        AuthUtils.add_permission_to_user_by_name("hostile.manage_intel", cls.user_officer)
+        AuthUtils.add_permission_to_user_by_name(
+            "hostile.basic_access", cls.user_officer
+        )
+        AuthUtils.add_permission_to_user_by_name(
+            "hostile.manage_intel", cls.user_officer
+        )
 
         cls.client = Client()
 
@@ -85,7 +102,9 @@ class TestStructuresAndEntities(TestCase):
             }
         )
         self.assertTrue(form_wrap.is_valid(), form_wrap.errors)
-        self.assertEqual(form_wrap.cleaned_data["vulnerability_window"], "22:00 - 04:00 UTC")
+        self.assertEqual(
+            form_wrap.cleaned_data["vulnerability_window"], "22:00 - 04:00 UTC"
+        )
 
     def test_structure_form_anchoring_core_status(self):
         """Anchoring structures must always have core status set to UNFITTED (No Core)"""
@@ -104,8 +123,12 @@ class TestStructuresAndEntities(TestCase):
 
     def test_structure_owner_ticker_prefilled_from_alliance_or_corp(self):
         """Owner ticker should pre-fill from selected alliance or corporation"""
-        alliance = HostileAlliance.objects.create(alliance_id=99000101, alliance_name="Test Alliance", ticker="TALLI")
-        corp = HostileCorporation.objects.create(corporation_id=98000101, corporation_name="Test Corp", ticker="TCORP")
+        alliance = HostileAlliance.objects.create(
+            alliance_id=99000101, alliance_name="Test Alliance", ticker="TALLI"
+        )
+        corp = HostileCorporation.objects.create(
+            corporation_id=98000101, corporation_name="Test Corp", ticker="TCORP"
+        )
 
         form_alliance = HostileStructureForm(
             data={
@@ -154,7 +177,9 @@ class TestStructuresAndEntities(TestCase):
 
     def test_structure_add_creates_timer_when_anchoring_or_reinforced(self):
         """Adding a structure with anchoring or reinforced state and datetime creates a StructureTimer"""
-        future_time = (timezone.now() + timezone.timedelta(days=1)).strftime("%Y-%m-%dT%H:%M")
+        future_time = (timezone.now() + timezone.timedelta(days=1)).strftime(
+            "%Y-%m-%dT%H:%M"
+        )
         response = self.client.post(
             reverse("hostile:structure_add"),
             data={
@@ -262,18 +287,26 @@ class TestStructuresAndEntities(TestCase):
         )
 
         # Search endpoint
-        search_res = self.client.get(reverse("hostile:api_corporation_search"), {"q": "Black"})
+        search_res = self.client.get(
+            reverse("hostile:api_corporation_search"), {"q": "Black"}
+        )
         self.assertEqual(search_res.status_code, 200)
         data = search_res.json()
         self.assertTrue(len(data.get("results", [])) > 0)
-        self.assertEqual(data["results"][0]["corporation_name"], "Black Legion Holdings")
+        self.assertEqual(
+            data["results"][0]["corporation_name"], "Black Legion Holdings"
+        )
 
         # Resolve endpoint
-        resolve_res = self.client.get(reverse("hostile:api_corporation_resolve"), {"query": "98000888"})
+        resolve_res = self.client.get(
+            reverse("hostile:api_corporation_resolve"), {"query": "98000888"}
+        )
         self.assertEqual(resolve_res.status_code, 200)
         res_data = resolve_res.json()
         self.assertTrue(res_data["success"])
-        self.assertEqual(res_data["corporation"]["corporation_name"], "Black Legion Holdings")
+        self.assertEqual(
+            res_data["corporation"]["corporation_name"], "Black Legion Holdings"
+        )
         self.assertEqual(res_data["corporation"]["ticker"], "MEN")
 
     def test_structures_and_alliances_pages_render(self):
@@ -290,23 +323,38 @@ class TestStructuresAndEntities(TestCase):
 
     def test_structure_type_choice_field_and_timer_stage_validation(self):
         """StructureTypeChoiceField should filter structure types and validate timer stages based on structure category"""
+        # AA Hostile Intel
         from hostile.forms import StructureTypeChoiceField
 
         # Create valid structure types including faction citadels
-        draccous_fort = ItemType.objects.create(id=47512, name="'Draccous' Fortizar", published=True)
-        horizon_fort = ItemType.objects.create(id=47513, name="'Horizon' Fortizar", published=True)
-        flex_jump_gate = ItemType.objects.create(id=35841, name="Ansiblex Jump Gate", published=True)
+        ItemType.objects.create(id=47512, name="'Draccous' Fortizar", published=True)
+        ItemType.objects.create(id=47513, name="'Horizon' Fortizar", published=True)
+        flex_jump_gate = ItemType.objects.create(
+            id=35841, name="Ansiblex Jump Gate", published=True
+        )
 
         # Create invalid items from SDE that should be filtered out
         ItemType.objects.create(id=587, name="Rifter", published=True)
-        ItemType.objects.create(id=99001, name="'Citadella' 100mm Steel Plates", published=True)
-        ItemType.objects.create(id=99002, name="'Citadella' 100mm Steel Plates Blueprint", published=True)
-        ItemType.objects.create(id=99003, name="'Draccous' Fortizar Wreck", published=True)
-        ItemType.objects.create(id=99004, name="'Draccous' Fortizar Wreck (copy)", published=True)
-        ItemType.objects.create(id=99005, name="[AIR] Non-Interactable Athanor", published=True)
+        ItemType.objects.create(
+            id=99001, name="'Citadella' 100mm Steel Plates", published=True
+        )
+        ItemType.objects.create(
+            id=99002, name="'Citadella' 100mm Steel Plates Blueprint", published=True
+        )
+        ItemType.objects.create(
+            id=99003, name="'Draccous' Fortizar Wreck", published=True
+        )
+        ItemType.objects.create(
+            id=99004, name="'Draccous' Fortizar Wreck (copy)", published=True
+        )
+        ItemType.objects.create(
+            id=99005, name="[AIR] Non-Interactable Athanor", published=True
+        )
         ItemType.objects.create(id=99006, name="♦ Sotiyo", published=True)
         ItemType.objects.create(id=99007, name="Academy", published=True)
-        ItemType.objects.create(id=99008, name="Advanced Large Ship Assembly Array", published=True)
+        ItemType.objects.create(
+            id=99008, name="Advanced Large Ship Assembly Array", published=True
+        )
         ItemType.objects.create(id=99009, name="Amarr Citadel", published=True)
 
         field = StructureTypeChoiceField()
@@ -386,7 +434,7 @@ class TestStructuresAndEntities(TestCase):
 
     def test_timer_board_add_structure_creates_known_structure_and_timer(self):
         """Adding a new/untracked structure from Timer Board adds it to known structures and creates linked timer"""
-        from hostile.forms import StructureTimerForm
+        # AA Hostile Intel
 
         response = self.client.post(
             reverse("hostile:timer_add"),
@@ -409,13 +457,17 @@ class TestStructuresAndEntities(TestCase):
         self.assertEqual(response.status_code, 200)
 
         # Structure should be in known structures
-        new_struct = HostileStructure.objects.filter(name="Timer Board Fortizar").first()
+        new_struct = HostileStructure.objects.filter(
+            name="Timer Board Fortizar"
+        ).first()
         self.assertIsNotNone(new_struct)
         self.assertEqual(new_struct.solar_system, self.system)
         self.assertEqual(new_struct.alliance, self.alliance)
         self.assertEqual(new_struct.owner_ticker, "H-ALLI")
         self.assertEqual(new_struct.state, "ANCHORING")
-        self.assertEqual(new_struct.core_status, "UNFITTED")  # Anchoring defaults core to UNFITTED
+        self.assertEqual(
+            new_struct.core_status, "UNFITTED"
+        )  # Anchoring defaults core to UNFITTED
         self.assertEqual(new_struct.vulnerability_window, "11:00 - 17:00 UTC")
 
         # Timer should exist and be linked to the newly created structure
@@ -468,7 +520,9 @@ class TestStructuresAndEntities(TestCase):
         )
         self.assertEqual(response.status_code, 200)
 
-        timer = StructureTimer.objects.filter(timer_type="SOV_IHUB", solar_system=self.system).first()
+        timer = StructureTimer.objects.filter(
+            timer_type="SOV_IHUB", solar_system=self.system
+        ).first()
         self.assertIsNotNone(timer)
         self.assertIsNone(timer.structure)
 
@@ -600,7 +654,10 @@ class TestStructuresAndEntities(TestCase):
             alliance_id=99000202, alliance_name="WinterCo Member 2", ticker="SIXY"
         )
         a3 = HostileAlliance.objects.create(
-            alliance_id=99000203, alliance_name="Old WinterCo Member", ticker="OLD", coalition="WinterCo"
+            alliance_id=99000203,
+            alliance_name="Old WinterCo Member",
+            ticker="OLD",
+            coalition="WinterCo",
         )
 
         response = self.client.post(
@@ -640,20 +697,20 @@ class TestStructuresAndEntities(TestCase):
             max_super_form=20,
             sov_timer_distribution={"18": 12, "19": 8},
         )
-        alt_alliance = HostileAlliance.objects.create(
+        HostileAlliance.objects.create(
             alliance_id=99000302,
             alliance_name="Horde Structure Holding",
             ticker="H-HOLD",
             is_alt_alliance=True,
             main_alliance=main_alliance,
         )
-        member_corp = HostileCorporation.objects.create(
+        HostileCorporation.objects.create(
             corporation_id=98000301,
             corporation_name="Horde Vanguard Corp",
             ticker="HVG",
             alliance=main_alliance,
         )
-        alt_corp = HostileCorporation.objects.create(
+        HostileCorporation.objects.create(
             corporation_id=98000302,
             corporation_name="Horde Cyno Beacon Network",
             ticker="HCYNO",
@@ -669,13 +726,13 @@ class TestStructuresAndEntities(TestCase):
             state="ONLINE",
             core_status="FITTED",
         )
-        timer = StructureTimer.objects.create(
+        StructureTimer.objects.create(
             structure=struct,
             solar_system=self.system,
             timer_type="ARMOR",
             timer_datetime=timezone.now() + timezone.timedelta(days=2),
         )
-        pilot = HostilePilotDossier.objects.create(
+        HostilePilotDossier.objects.create(
             character_id=91000301,
             character_name="Gobbins Commander",
             alliance_name="Pandemic Horde",
@@ -714,7 +771,7 @@ class TestStructuresAndEntities(TestCase):
             max_subcap_form=80,
             max_cap_form=30,
         )
-        struct = HostileStructure.objects.create(
+        HostileStructure.objects.create(
             name="4-HWWF - Staging Fortizar",
             structure_type=self.astrahus,
             solar_system=self.system,
@@ -723,7 +780,7 @@ class TestStructuresAndEntities(TestCase):
             state="ONLINE",
             core_status="FITTED",
         )
-        pilot = HostilePilotDossier.objects.create(
+        HostilePilotDossier.objects.create(
             character_id=91000401,
             character_name="Noraus Super Pilot",
             corporation_name="Chinese High Command",
@@ -806,7 +863,9 @@ class TestStructuresAndEntities(TestCase):
             "timer_datetime": future_timer.strftime("%Y-%m-%dT%H:%M"),
             "timer_stage": "ARMOR",
         }
-        res_post = self.client.post(reverse("hostile:structure_edit", args=[struct.id]), data=post_data)
+        res_post = self.client.post(
+            reverse("hostile:structure_edit", args=[struct.id]), data=post_data
+        )
         self.assertEqual(res_post.status_code, 302)
         self.assertRedirects(res_post, reverse("hostile:structures"))
 
@@ -837,17 +896,23 @@ class TestStructuresAndEntities(TestCase):
         )
 
         # GET confirm delete view
-        res_get = self.client.get(reverse("hostile:structure_delete", args=[struct_to_delete.id]))
+        res_get = self.client.get(
+            reverse("hostile:structure_delete", args=[struct_to_delete.id])
+        )
         self.assertEqual(res_get.status_code, 200)
         self.assertContains(res_get, "Confirm Structure Deletion")
         self.assertContains(res_get, "1DQ1-A - Structure to Delete")
 
         # POST delete view
-        res_post = self.client.post(reverse("hostile:structure_delete", args=[struct_to_delete.id]))
+        res_post = self.client.post(
+            reverse("hostile:structure_delete", args=[struct_to_delete.id])
+        )
         self.assertEqual(res_post.status_code, 302)
         self.assertRedirects(res_post, reverse("hostile:structures"))
 
-        self.assertFalse(HostileStructure.objects.filter(id=struct_to_delete.id).exists())
+        self.assertFalse(
+            HostileStructure.objects.filter(id=struct_to_delete.id).exists()
+        )
 
     def test_structure_table_action_buttons_and_modals_render(self):
         """Test that structures registry and entity dossiers render Edit links and Delete modals"""
@@ -864,22 +929,35 @@ class TestStructuresAndEntities(TestCase):
         # Registry table
         res_reg = self.client.get(reverse("hostile:structures"))
         self.assertEqual(res_reg.status_code, 200)
-        self.assertContains(res_reg, reverse("hostile:structure_edit", args=[struct.id]))
+        self.assertContains(
+            res_reg, reverse("hostile:structure_edit", args=[struct.id])
+        )
         self.assertContains(res_reg, f"deleteStructureModal{struct.id}")
-        self.assertContains(res_reg, reverse("hostile:structure_delete", args=[struct.id]))
+        self.assertContains(
+            res_reg, reverse("hostile:structure_delete", args=[struct.id])
+        )
 
         # Alliance dossier structures table
-        res_alli = self.client.get(reverse("hostile:alliance_detail", args=[self.alliance.id]))
+        res_alli = self.client.get(
+            reverse("hostile:alliance_detail", args=[self.alliance.id])
+        )
         self.assertEqual(res_alli.status_code, 200)
-        self.assertContains(res_alli, reverse("hostile:structure_edit", args=[struct.id]))
+        self.assertContains(
+            res_alli, reverse("hostile:structure_edit", args=[struct.id])
+        )
         self.assertContains(res_alli, f"deleteAllianceStructureModal{struct.id}")
-        self.assertContains(res_alli, reverse("hostile:structure_delete", args=[struct.id]))
+        self.assertContains(
+            res_alli, reverse("hostile:structure_delete", args=[struct.id])
+        )
 
     def test_alliance_sov_capital_auto_staging_creation_and_migration(self):
         """Setting or changing an alliance sov_capital should automatically create/update staging systems"""
+        # AA Hostile Intel
         from hostile.models import HostileStagingSystem
 
-        system_t5z = SolarSystem.objects.create(id=30004760, name="T5ZI-S", security_status=-0.5)
+        system_t5z = SolarSystem.objects.create(
+            id=30004760, name="T5ZI-S", security_status=-0.5
+        )
 
         # Create alliance with sov_capital
         alliance = HostileAlliance.objects.create(
@@ -889,7 +967,9 @@ class TestStructuresAndEntities(TestCase):
             sov_capital=self.system,
         )
 
-        staging = HostileStagingSystem.objects.filter(alliance=alliance, solar_system=self.system).first()
+        staging = HostileStagingSystem.objects.filter(
+            alliance=alliance, solar_system=self.system
+        ).first()
         self.assertIsNotNone(staging)
         self.assertEqual(staging.staging_type, "CAPITAL")
         self.assertTrue(staging.is_primary)
@@ -899,15 +979,20 @@ class TestStructuresAndEntities(TestCase):
         alliance.save()
 
         # Check staging moved
-        new_staging = HostileStagingSystem.objects.filter(alliance=alliance, solar_system=system_t5z).first()
+        new_staging = HostileStagingSystem.objects.filter(
+            alliance=alliance, solar_system=system_t5z
+        ).first()
         self.assertIsNotNone(new_staging)
         self.assertEqual(new_staging.staging_type, "CAPITAL")
         self.assertTrue(new_staging.is_primary)
 
     def test_sync_alliance_members_and_corps(self):
         """Testing ESI member corporation sync and character aggregation"""
-        from hostile.services.sov_engine import SovAnalysisEngine
+        # Standard Library
         from unittest.mock import patch
+
+        # AA Hostile Intel
+        from hostile.services.sov_engine import SovAnalysisEngine
 
         alliance = HostileAlliance.objects.create(
             alliance_id=99000300,
@@ -917,14 +1002,26 @@ class TestStructuresAndEntities(TestCase):
             prev_member_count=800,
         )
 
-        with patch("hostile.services.sov_engine.esi_client.get_alliance_corporations") as mock_get_corps, \
-             patch("hostile.services.sov_engine.esi_client.get_corporation_info") as mock_corp_info, \
-             patch("hostile.services.sov_engine.esi_client.get_alliance_info") as mock_alliance_info:
+        with (
+            patch(
+                "hostile.services.sov_engine.esi_client.get_alliance_corporations"
+            ) as mock_get_corps,
+            patch(
+                "hostile.services.sov_engine.esi_client.get_corporation_info"
+            ) as mock_corp_info,
+            patch(
+                "hostile.services.sov_engine.esi_client.get_alliance_info"
+            ) as mock_alliance_info,
+        ):
 
             mock_get_corps.return_value = [98000001, 98000002]
             mock_alliance_info.return_value = {"executor_corporation_id": 98000001}
             mock_corp_info.side_effect = lambda cid: {
-                98000001: {"name": "Corp Alpha", "ticker": "CALPH", "member_count": 450},
+                98000001: {
+                    "name": "Corp Alpha",
+                    "ticker": "CALPH",
+                    "member_count": 450,
+                },
                 98000002: {"name": "Corp Beta", "ticker": "CBETA", "member_count": 550},
             }.get(cid)
 
@@ -959,6 +1056,7 @@ class TestStructuresAndEntities(TestCase):
 
     def test_sync_sovereignty_held_and_deltas(self):
         """Testing sovereignty systems held sync from ESI map"""
+        # AA Hostile Intel
         from hostile.services.sov_engine import SovAnalysisEngine
 
         alliance = HostileAlliance.objects.create(
@@ -983,7 +1081,9 @@ class TestStructuresAndEntities(TestCase):
             {"solar_system_id": 30000012, "alliance_id": 99000400},
         ]
 
-        count = SovAnalysisEngine.sync_alliance_sovereignty_held_single(alliance, sov_map=dummy_map)
+        count = SovAnalysisEngine.sync_alliance_sovereignty_held_single(
+            alliance, sov_map=dummy_map
+        )
         self.assertEqual(count, 12)
 
         alliance.refresh_from_db()
@@ -1016,7 +1116,9 @@ class TestStructuresAndEntities(TestCase):
         self.assertContains(res_list, "+10%")
         self.assertContains(res_list, "+25%")
 
-        res_detail = self.client.get(reverse("hostile:alliance_detail", args=[alliance.id]))
+        res_detail = self.client.get(
+            reverse("hostile:alliance_detail", args=[alliance.id])
+        )
         self.assertEqual(res_detail.status_code, 200)
         self.assertContains(res_detail, "Capital: 1DQ1-A")
         self.assertContains(res_detail, "3,500")
@@ -1029,7 +1131,7 @@ class TestStructuresAndEntities(TestCase):
             alliance_name="Dossier Test Alliance",
             ticker="DTA",
         )
-        corp = HostileCorporation.objects.create(
+        HostileCorporation.objects.create(
             corporation_id=98000010,
             corporation_name="Dossier Member Corp",
             ticker="DMC",
@@ -1041,7 +1143,7 @@ class TestStructuresAndEntities(TestCase):
             max_cap_form=10,
             max_super_form=2,
         )
-        pilot = HostilePilotDossier.objects.create(
+        HostilePilotDossier.objects.create(
             character_id=960005,
             character_name="Commander Orion",
             corporation_name="Dossier Member Corp",
@@ -1138,14 +1240,14 @@ class TestStructuresAndEntities(TestCase):
             core_status="FITTED",
         )
 
-        timer = StructureTimer.objects.create(
+        StructureTimer.objects.create(
             structure=structure,
             solar_system=self.system,
             timer_type="ARMOR",
             timer_datetime=timezone.now() + timedelta(days=2),
         )
 
-        staging = HostileStagingSystem.objects.create(
+        HostileStagingSystem.objects.create(
             solar_system=self.system,
             alliance=alliance,
             corporation=corp,
@@ -1154,8 +1256,10 @@ class TestStructuresAndEntities(TestCase):
             notes="Main staging system for CTC",
         )
 
+        # AA Hostile Intel
         from hostile.models import HostileDoctrine
-        doctrine = HostileDoctrine.objects.create(
+
+        HostileDoctrine.objects.create(
             name="CTC Cerberus Fleet",
             corporation=corp,
             alliance=alliance,
@@ -1164,7 +1268,7 @@ class TestStructuresAndEntities(TestCase):
             created_by=self.user_officer,
         )
 
-        pilot = HostilePilotDossier.objects.create(
+        HostilePilotDossier.objects.create(
             character_id=960099,
             character_name="Captain CTC",
             corporation_name="Comprehensive Test Corp",
@@ -1266,7 +1370,7 @@ class TestStructuresAndEntities(TestCase):
         )
 
         # 5. Old concluded sov timer (> 24 hours ago - should not appear)
-        old_sov_timer = StructureTimer.objects.create(
+        StructureTimer.objects.create(
             solar_system=self.system,
             timer_type="SOV_IHUB",
             timer_datetime=now - timedelta(hours=36),
@@ -1336,7 +1440,7 @@ class TestStructuresAndEntities(TestCase):
             alliance=self.alliance,
             state="ARMOR",
         )
-        hostile_struct_timer = StructureTimer.objects.create(
+        StructureTimer.objects.create(
             structure=struct,
             solar_system=self.system,
             timer_type="ARMOR",
@@ -1344,7 +1448,7 @@ class TestStructuresAndEntities(TestCase):
         )
 
         # Tracked hostile sov timer (currently contested - started 30m ago)
-        hostile_sov_timer = StructureTimer.objects.create(
+        StructureTimer.objects.create(
             solar_system=self.system,
             timer_type="SOV_IHUB",
             timer_datetime=now - timedelta(minutes=30),
@@ -1355,7 +1459,7 @@ class TestStructuresAndEntities(TestCase):
         )
 
         # Untracked public sov timer (currently contested - started 1h ago)
-        untracked_sov_timer = StructureTimer.objects.create(
+        StructureTimer.objects.create(
             solar_system=self.system,
             timer_type="SOV_TCU",
             timer_datetime=now - timedelta(hours=1),
@@ -1366,7 +1470,7 @@ class TestStructuresAndEntities(TestCase):
         )
 
         # Upcoming public sov timer (not yet contested - 4h in future)
-        upcoming_sov_timer = StructureTimer.objects.create(
+        StructureTimer.objects.create(
             solar_system=self.system,
             timer_type="SOV_TCU",
             timer_datetime=now + timedelta(hours=4),
@@ -1389,7 +1493,7 @@ class TestStructuresAndEntities(TestCase):
 
     def test_pilot_dossier_display_corporation_name_and_healing(self):
         """Pilot dossier must display resolved corporation name and heal numeric/missing names"""
-        corp = HostileCorporation.objects.create(
+        HostileCorporation.objects.create(
             corporation_id=98777001,
             corporation_name="Elite PVP Corp",
             ticker="EPC",
@@ -1432,8 +1536,11 @@ class TestStructuresAndEntities(TestCase):
         """HTTP 304 Not Modified responses must activate and return cached data"""
         # Standard Library
         from unittest.mock import MagicMock
+
+        # Alliance Auth
         from esi.openapi_clients import HTTPNotModified
-        from django.core.cache import cache
+
+        # AA Hostile Intel
         from hostile.services.esi_client import HostileESIClientProvider
 
         client_provider = HostileESIClientProvider()
@@ -1453,11 +1560,17 @@ class TestStructuresAndEntities(TestCase):
         """Alliance sovereignty intel must be grouped by region and hourly schedule must support accordion expansion"""
         # Standard Library
         from unittest.mock import patch
+
+        # Third Party
         from eve_sde.models import Constellation, Region
+
+        # AA Hostile Intel
         from hostile.services.sov_engine import SovAnalysisEngine
 
         region_delve = Region.objects.create(id=10000060, name="Delve")
-        const_1dq = Constellation.objects.create(id=20000720, name="OK-0IB", region=region_delve)
+        const_1dq = Constellation.objects.create(
+            id=20000720, name="OK-0IB", region=region_delve
+        )
         self.system.constellation = const_1dq
         self.system.save()
 
@@ -1475,7 +1588,7 @@ class TestStructuresAndEntities(TestCase):
 
         # Add active structure timer
         now = timezone.now()
-        timer = StructureTimer.objects.create(
+        StructureTimer.objects.create(
             structure=struct,
             solar_system=self.system,
             timer_type="ARMOR",
@@ -1488,7 +1601,11 @@ class TestStructuresAndEntities(TestCase):
         hour_19_group = next((h for h in hourly_schedule if h["hour"] == 19), None)
         self.assertIsNotNone(hour_19_group)
         self.assertEqual(hour_19_group["hour_display"], "19:00 UTC")
-        self.assertTrue(any(item["name"] == "1DQ Imperial Palace" for item in hour_19_group["items"]))
+        self.assertTrue(
+            any(
+                item["name"] == "1DQ Imperial Palace" for item in hour_19_group["items"]
+            )
+        )
 
         # 2. Test sovereignty intel by region
         dummy_sov_systems = [
@@ -1513,9 +1630,20 @@ class TestStructuresAndEntities(TestCase):
             }
         ]
 
-        with patch("hostile.services.sov_engine.esi_client.get_sovereignty_systems", return_value=dummy_sov_systems), \
-             patch("hostile.services.sov_engine.esi_client.get_sovereignty_structures", return_value=[]), \
-             patch("hostile.services.sov_engine.esi_client.get_sovereignty_map", return_value=[]):
+        with (
+            patch(
+                "hostile.services.sov_engine.esi_client.get_sovereignty_systems",
+                return_value=dummy_sov_systems,
+            ),
+            patch(
+                "hostile.services.sov_engine.esi_client.get_sovereignty_structures",
+                return_value=[],
+            ),
+            patch(
+                "hostile.services.sov_engine.esi_client.get_sovereignty_map",
+                return_value=[],
+            ),
+        ):
             sov_intel = SovAnalysisEngine.get_alliance_sovereignty_intel(self.alliance)
 
             self.assertEqual(sov_intel["total_systems_count"], 1)
@@ -1532,10 +1660,14 @@ class TestStructuresAndEntities(TestCase):
             self.assertEqual(sys_intel["solar_system_name"], "1DQ1-A")
             self.assertTrue(sys_intel["is_capital"])
             self.assertEqual(sys_intel["adm"], 5.4)
-            self.assertIn("19:00 - 23:00 UTC", sys_intel["vulnerability_window_display"])
+            self.assertIn(
+                "19:00 - 23:00 UTC", sys_intel["vulnerability_window_display"]
+            )
 
             # 3. Test alliance dossier view rendering
-            res = self.client.get(reverse("hostile:alliance_detail", args=[self.alliance.id]))
+            res = self.client.get(
+                reverse("hostile:alliance_detail", args=[self.alliance.id])
+            )
             self.assertEqual(res.status_code, 200)
 
             # Sovereignty tab and region details
@@ -1548,5 +1680,5 @@ class TestStructuresAndEntities(TestCase):
 
             # Clickable accordion schedule
             self.assertContains(res, "Structure Vulnerability & Timer Schedule")
-            self.assertContains(res, "data-bs-target=\"#hourCollapse-19\"")
+            self.assertContains(res, 'data-bs-target="#hourCollapse-19"')
             self.assertContains(res, "1DQ Imperial Palace")

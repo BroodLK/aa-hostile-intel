@@ -4,7 +4,7 @@ D-Scan Parser for non-ESI structure and grid intelligence ingestion
 
 # Standard Library
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 # Third Party
 from eve_sde.models import ItemType, SolarSystem
@@ -41,7 +41,9 @@ class DScanParser:
     """Parses standard tab-separated or column-formatted D-Scan clipboard data"""
 
     @classmethod
-    def is_structure_type(cls, type_name: str, item_type: Optional[ItemType] = None) -> bool:
+    def is_structure_type(
+        cls, type_name: str, item_type: ItemType | None = None
+    ) -> bool:
         """Determines if an item type represents a deployable structure or starbase"""
         if not type_name:
             return False
@@ -52,13 +54,26 @@ class DScanParser:
 
         if item_type and hasattr(item_type, "group") and item_type.group:
             group_name = item_type.group.name.lower()
-            if any(kw in group_name for kw in ["citadel", "structure", "starbase", "engineering complex", "refinery", "jump gate", "cyno", "moon drill", "drill"]):
+            if any(
+                kw in group_name
+                for kw in [
+                    "citadel",
+                    "structure",
+                    "starbase",
+                    "engineering complex",
+                    "refinery",
+                    "jump gate",
+                    "cyno",
+                    "moon drill",
+                    "drill",
+                ]
+            ):
                 return True
 
         return False
 
     @classmethod
-    def extract_ticker(cls, name: str) -> Optional[str]:
+    def extract_ticker(cls, name: str) -> str | None:
         """Extracts owner ticker bracket e.g. '1DQ1-A 1-HQ [CONDI]' -> 'CONDI'"""
         match = re.search(r"\[([A-Za-z0-9\-_]{1,10})\]", name)
         if match:
@@ -66,7 +81,7 @@ class DScanParser:
         return None
 
     @classmethod
-    def infer_solar_system_from_name(cls, name: str) -> Optional[SolarSystem]:
+    def infer_solar_system_from_name(cls, name: str) -> SolarSystem | None:
         """
         Infers a SolarSystem from structure or item naming patterns in D-Scan or clipboard text.
         Handles common EVE naming conventions such as:
@@ -109,7 +124,9 @@ class DScanParser:
             re.IGNORECASE,
         )
         if celestial_match:
-            sys = SolarSystem.objects.filter(name__iexact=celestial_match.group(1)).first()
+            sys = SolarSystem.objects.filter(
+                name__iexact=celestial_match.group(1)
+            ).first()
             if sys:
                 return sys
 
@@ -128,14 +145,18 @@ class DScanParser:
         return None
 
     @classmethod
-    def parse(cls, dscan_text: str, default_system: Optional[SolarSystem] = None) -> Dict[str, Any]:
+    def parse(
+        cls, dscan_text: str, default_system: SolarSystem | None = None
+    ) -> dict[str, Any]:
         """Parses D-Scan text and categorizes structures, ships, and solar system context"""
-        lines = [line.strip() for line in dscan_text.strip().splitlines() if line.strip()]
+        lines = [
+            line.strip() for line in dscan_text.strip().splitlines() if line.strip()
+        ]
 
-        structures: List[Dict[str, Any]] = []
-        all_items: List[Dict[str, Any]] = []
-        ship_counts: Dict[str, int] = {}
-        detected_system: Optional[SolarSystem] = default_system
+        structures: list[dict[str, Any]] = []
+        all_items: list[dict[str, Any]] = []
+        ship_counts: dict[str, int] = {}
+        detected_system: SolarSystem | None = default_system
 
         for line in lines:
             parts = [p.strip() for p in line.split("\t") if p.strip()]
@@ -208,7 +229,11 @@ class DScanParser:
                         "solar_system": detected_system,
                         "distance": distance,
                         "owner_ticker": ticker or "",
-                        "location_details": name if ("Planet" in name or "Moon" in name or "Gate" in name) else "",
+                        "location_details": (
+                            name
+                            if ("Planet" in name or "Moon" in name or "Gate" in name)
+                            else ""
+                        ),
                     }
                 )
             else:

@@ -2,15 +2,24 @@
 Tests for Non-ESI Ingestion Parsers and Classifier
 """
 
-# Django
-from django.test import TestCase
-
 # Third Party
 from eve_sde.models import ItemCategory, ItemGroup, ItemType, SolarSystem
 
+# Django
+from django.test import TestCase
+
 # AA Hostile Intel
-from hostile.models import HostilePilotDossier, HostileStructure, StructureFitting, StructureModule
-from hostile.parsers.classifier import IntelFormat, classify_intel_text, parse_intel_paste
+from hostile.models import (
+    HostilePilotDossier,
+    HostileStructure,
+    StructureFitting,
+    StructureModule,
+)
+from hostile.parsers.classifier import (
+    IntelFormat,
+    classify_intel_text,
+    parse_intel_paste,
+)
 from hostile.parsers.dscan import DScanParser
 from hostile.parsers.eft import EFTParser, StructureFittingParser
 from hostile.parsers.local import LocalThreatParser
@@ -21,15 +30,24 @@ from hostile.services.threat_engine import ThreatEngine
 class TestParsers(TestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.category_structure = ItemCategory.objects.create(id=65, name="Structure", published=True)
-        cls.category_module = ItemCategory.objects.create(id=7, name="Module", published=True)
-        cls.category_ship = ItemCategory.objects.create(id=6, name="Ship", published=True)
+        cls.category_structure = ItemCategory.objects.create(
+            id=65, name="Structure", published=True
+        )
+        cls.category_module = ItemCategory.objects.create(
+            id=7, name="Module", published=True
+        )
+        cls.category_ship = ItemCategory.objects.create(
+            id=6, name="Ship", published=True
+        )
 
         cls.group_citadel = ItemGroup.objects.create(
             id=1657, name="Citadel", category=cls.category_structure, published=True
         )
         cls.group_service = ItemGroup.objects.create(
-            id=1322, name="Structure Service Module", category=cls.category_module, published=True
+            id=1322,
+            name="Structure Service Module",
+            category=cls.category_module,
+            published=True,
         )
         cls.group_battleship = ItemGroup.objects.create(
             id=27, name="Battleship", category=cls.category_ship, published=True
@@ -45,16 +63,28 @@ class TestParsers(TestCase):
             id=638, name="Rokh", group=cls.group_battleship, published=True
         )
         cls.neut = ItemType.objects.create(
-            id=35920, name="Standup Heavy Energy Neutralizer I", group=cls.group_citadel, published=True
+            id=35920,
+            name="Standup Heavy Energy Neutralizer I",
+            group=cls.group_citadel,
+            published=True,
         )
         cls.service_mod = ItemType.objects.create(
-            id=35894, name="Standup Market Hub I", group=cls.group_service, published=True
+            id=35894,
+            name="Standup Market Hub I",
+            group=cls.group_service,
+            published=True,
         )
         cls.damage_control = ItemType.objects.create(
-            id=35900, name="Standup Damage Control I", group=cls.group_citadel, published=True
+            id=35900,
+            name="Standup Damage Control I",
+            group=cls.group_citadel,
+            published=True,
         )
         cls.shield_extender = ItemType.objects.create(
-            id=35910, name="Standup Variable Spectrum ECM I", group=cls.group_citadel, published=True
+            id=35910,
+            name="Standup Variable Spectrum ECM I",
+            group=cls.group_citadel,
+            published=True,
         )
         cls.mobile_depot = ItemType.objects.create(
             id=33474, name="Mobile Depot", published=True
@@ -62,29 +92,54 @@ class TestParsers(TestCase):
 
         # User example ship scanner structure fitting modules
         cls.standup_launcher = ItemType.objects.create(
-            id=35930, name="Standup Anticapital Missile Launcher I", group=cls.group_citadel, published=True
+            id=35930,
+            name="Standup Anticapital Missile Launcher I",
+            group=cls.group_citadel,
+            published=True,
         )
         cls.standup_xl_neut = ItemType.objects.create(
-            id=35931, name="Standup XL Energy Neutralizer I", group=cls.group_citadel, published=True
+            id=35931,
+            name="Standup XL Energy Neutralizer I",
+            group=cls.group_citadel,
+            published=True,
         )
         cls.standup_point = ItemType.objects.create(
-            id=35932, name="Standup Focused Warp Disruptor I", group=cls.group_citadel, published=True
+            id=35932,
+            name="Standup Focused Warp Disruptor I",
+            group=cls.group_citadel,
+            published=True,
         )
         cls.standup_tp = ItemType.objects.create(
-            id=35933, name="Standup Target Painter I", group=cls.group_citadel, published=True
+            id=35933,
+            name="Standup Target Painter I",
+            group=cls.group_citadel,
+            published=True,
         )
         cls.standup_bcs = ItemType.objects.create(
-            id=35934, name="Standup Ballistic Control System I", group=cls.group_citadel, published=True
+            id=35934,
+            name="Standup Ballistic Control System I",
+            group=cls.group_citadel,
+            published=True,
         )
         cls.standup_mge = ItemType.objects.create(
-            id=35935, name="Standup Missile Guidance Enhancer I", group=cls.group_citadel, published=True
+            id=35935,
+            name="Standup Missile Guidance Enhancer I",
+            group=cls.group_citadel,
+            published=True,
         )
         cls.standup_clone = ItemType.objects.create(
-            id=35936, name="Standup Cloning Center I", group=cls.group_service, published=True
+            id=35936,
+            name="Standup Cloning Center I",
+            group=cls.group_service,
+            published=True,
         )
 
-        cls.system_1dq = SolarSystem.objects.create(id=30004759, name="1DQ1-A", security_status=-0.5)
-        cls.system_f9 = SolarSystem.objects.create(id=30001234, name="F9-FUV", security_status=-0.2)
+        cls.system_1dq = SolarSystem.objects.create(
+            id=30004759, name="1DQ1-A", security_status=-0.5
+        )
+        cls.system_f9 = SolarSystem.objects.create(
+            id=30001234, name="F9-FUV", security_status=-0.2
+        )
 
     def test_dscan_parser(self):
         dscan_sample = (
@@ -173,7 +228,9 @@ class TestParsers(TestCase):
         eft_text = "[Keepstar, 1DQ1-A]\nStandup Heavy Energy Neutralizer I"
         self.assertEqual(classify_intel_text(eft_text), IntelFormat.EFT)
 
-        showinfo_text = "Owner: Goonswarm\nSolar System: 1DQ1-A\nQuantum Core: Installed"
+        showinfo_text = (
+            "Owner: Goonswarm\nSolar System: 1DQ1-A\nQuantum Core: Installed"
+        )
         self.assertEqual(classify_intel_text(showinfo_text), IntelFormat.SHOWINFO)
 
         obs_text = "Hostile fleet roaming with 20 Kikimoras on gate"
@@ -209,11 +266,12 @@ class TestParsers(TestCase):
             "[ 2026.10.01 18:25:00 ] RandomScout > tackle on gate\n"
         )
         dscan_sample = (
-            "11993\tHostile Arazu\tArazu\t15 km\n"
-            "23773\tHostile Hel\tHel\t25 km\n"
+            "11993\tHostile Arazu\tArazu\t15 km\n" "23773\tHostile Hel\tHel\t25 km\n"
         )
 
-        res = LocalThreatParser.parse(chat_log, dscan_text=dscan_sample, default_system=self.system_1dq)
+        res = LocalThreatParser.parse(
+            chat_log, dscan_text=dscan_sample, default_system=self.system_1dq
+        )
         self.assertEqual(res["pilot_count"], 3)
         self.assertEqual(res["cynos_count"], 1)
         self.assertEqual(res["supers_count"], 1)
@@ -223,15 +281,17 @@ class TestParsers(TestCase):
         self.assertEqual(res["activity_profile"]["primary_timezone"], "EUTZ")
 
         # Verify pilot paired to D-Scan ship
-        super_entry = next((p for p in res["pilots"] if p["character_name"] == "HostileSuperPilot"), None)
+        super_entry = next(
+            (p for p in res["pilots"] if p["character_name"] == "HostileSuperPilot"),
+            None,
+        )
         self.assertIsNotNone(super_entry)
         self.assertIn("Hel", super_entry["likely_ship"])
 
     def test_helios_and_onyx_not_classified_as_supers(self):
         """Verifies Helios (covert ops frigate) and Onyx (HIC) are not misclassified as supercapitals (Hel/Nyx)"""
         dscan_sample = (
-            "11188\tScout Helios\tHelios\t100 km\n"
-            "12017\tTackle Onyx\tOnyx\t50 km\n"
+            "11188\tScout Helios\tHelios\t100 km\n" "12017\tTackle Onyx\tOnyx\t50 km\n"
         )
         parsed_dscan = DScanParser.parse(dscan_sample)
         profile = ThreatEngine.categorize_dscan_ships(parsed_dscan)
@@ -289,12 +349,15 @@ class TestParsers(TestCase):
         )
 
     def test_solar_system_choice_field_no_id_display(self):
+        # AA Hostile Intel
         from hostile.forms import SolarSystemChoiceField
 
         field = SolarSystemChoiceField()
         self.assertEqual(field.label_from_instance(self.system_f9), "F9-FUV")
         self.assertEqual(field.label_from_instance(self.system_1dq), "1DQ1-A")
-        self.assertNotIn(str(self.system_f9.id), field.label_from_instance(self.system_f9))
+        self.assertNotIn(
+            str(self.system_f9.id), field.label_from_instance(self.system_f9)
+        )
 
     def test_structure_fitting_ship_scanner_user_example(self):
         """Tests parsing of the exact structure fitting format produced by ship scanners on structures"""
@@ -363,7 +426,9 @@ class TestParsers(TestCase):
         self.assertEqual(len(parsed["slots"]["LOW"]), 2)
         self.assertEqual(len(parsed["slots"]["SERVICE"]), 1)
         self.assertEqual(len(parsed["slots"]["CHARGE"]), 1)
-        self.assertEqual(parsed["slots"]["CHARGE"][0]["module_name"], "Focused Warp Disruptor Script")
+        self.assertEqual(
+            parsed["slots"]["CHARGE"][0]["module_name"], "Focused Warp Disruptor Script"
+        )
 
     def test_structure_hack_user_example(self):
         """Tests the exact Data Analyzer structure timer hack format provided by the user"""
@@ -413,14 +478,10 @@ class TestParsers(TestCase):
 
     def test_local_threat_parser_bulk_resolution_and_combat_intel(self):
         """Tests that local threat scanner extracts character affiliation, combat stats, danger %, and top ships"""
+        # Standard Library
         from unittest.mock import patch
 
-        local_paste = (
-            "April Springtime\n"
-            "B1cBrute Cyno\n"
-            "B1cBrute\n"
-            "Montaire\n"
-        )
+        local_paste = "April Springtime\n" "B1cBrute Cyno\n" "B1cBrute\n" "Montaire\n"
 
         mock_resolved = {
             "april springtime": {
@@ -503,12 +564,22 @@ class TestParsers(TestCase):
                 "top_ships": ["Caracal"],
             }
 
-        with patch("hostile.services.entity_resolver.EntityResolver.resolve_bulk_characters", return_value=mock_resolved):
-            with patch("hostile.services.zkill_client.zkill_client.get_character_combat_intelligence", side_effect=mock_combat_intel):
-                res = LocalThreatParser.parse(local_paste, default_system=self.system_f9)
+        with patch(
+            "hostile.services.entity_resolver.EntityResolver.resolve_bulk_characters",
+            return_value=mock_resolved,
+        ):
+            with patch(
+                "hostile.services.zkill_client.zkill_client.get_character_combat_intelligence",
+                side_effect=mock_combat_intel,
+            ):
+                res = LocalThreatParser.parse(
+                    local_paste, default_system=self.system_f9
+                )
 
         self.assertEqual(res["pilot_count"], 4)
-        april = next(p for p in res["pilots"] if p["character_name"] == "April Springtime")
+        april = next(
+            p for p in res["pilots"] if p["character_name"] == "April Springtime"
+        )
         self.assertEqual(april["corporation_name"], "Springtime Corp")
         self.assertEqual(april["alliance_name"], "Spring Alliance")
         self.assertEqual(april["danger_ratio"], 92)
@@ -518,19 +589,26 @@ class TestParsers(TestCase):
         self.assertEqual(april["fc_level"], "HIGH")
         self.assertIn("Redeemer", april["top_ships"])
 
-        cyno_alt = next(p for p in res["pilots"] if p["character_name"] == "B1cBrute Cyno")
+        cyno_alt = next(
+            p for p in res["pilots"] if p["character_name"] == "B1cBrute Cyno"
+        )
         self.assertTrue(cyno_alt["is_cyno_alt"])
         self.assertTrue(cyno_alt["is_alt"])
         self.assertEqual(cyno_alt["main_character_name"], "B1cBrute")
 
-        dread_pilot = next(p for p in res["pilots"] if p["character_name"] == "B1cBrute")
+        dread_pilot = next(
+            p for p in res["pilots"] if p["character_name"] == "B1cBrute"
+        )
         self.assertTrue(dread_pilot["is_dread_pilot"])
         self.assertTrue(dread_pilot["is_capital_pilot"])
         self.assertIn("Revelation", dread_pilot["top_ships"])
 
     def test_local_threat_parser_fast_mode_and_enrich_pilot_and_scan(self):
         """Tests that fast parsing skips synchronous zKill calls and enrich_scan dynamically enriches pilots"""
+        # Standard Library
         from unittest.mock import patch
+
+        # AA Hostile Intel
         from hostile.models import LocalThreatScan
 
         local_paste = "April Springtime\nCynoDropper"
@@ -559,8 +637,13 @@ class TestParsers(TestCase):
         }
 
         # 1. Fast parse (fetch_zkill=False)
-        with patch("hostile.services.entity_resolver.EntityResolver.resolve_bulk_characters", return_value=mock_resolved):
-            res_fast = LocalThreatParser.parse(local_paste, default_system=self.system_f9, fetch_zkill=False)
+        with patch(
+            "hostile.services.entity_resolver.EntityResolver.resolve_bulk_characters",
+            return_value=mock_resolved,
+        ):
+            res_fast = LocalThreatParser.parse(
+                local_paste, default_system=self.system_f9, fetch_zkill=False
+            )
 
         self.assertEqual(res_fast["pilot_count"], 2)
         self.assertFalse(res_fast["pilots"][0].get("zkill_synced"))
@@ -591,9 +674,21 @@ class TestParsers(TestCase):
                 "activity": {"19": 40, "20": 60},
             }
 
-        with patch("hostile.services.entity_resolver.EntityResolver.resolve_character", side_effect=lambda q: mock_resolved.get(str(q).lower() if not isinstance(q, int) else ("april springtime" if q == 91001 else "cynodropper"))):
-            with patch("hostile.services.zkill_client.zkill_client.get_character_combat_intelligence", side_effect=mock_combat_intel):
-                pilot_enriched = LocalThreatParser.enrich_pilot(dict(res_fast["pilots"][0]))
+        with patch(
+            "hostile.services.entity_resolver.EntityResolver.resolve_character",
+            side_effect=lambda q: mock_resolved.get(
+                str(q).lower()
+                if not isinstance(q, int)
+                else ("april springtime" if q == 91001 else "cynodropper")
+            ),
+        ):
+            with patch(
+                "hostile.services.zkill_client.zkill_client.get_character_combat_intelligence",
+                side_effect=mock_combat_intel,
+            ):
+                pilot_enriched = LocalThreatParser.enrich_pilot(
+                    dict(res_fast["pilots"][0])
+                )
                 self.assertTrue(pilot_enriched["zkill_synced"])
                 self.assertEqual(pilot_enriched["danger_ratio"], 92)
                 self.assertTrue(pilot_enriched["is_blops_pilot"])
@@ -617,8 +712,12 @@ class TestParsers(TestCase):
                 self.assertEqual(enrich_result["synced_count"], 2)
                 self.assertTrue(enrich_result["is_finished"])
                 self.assertGreater(enrich_result["blops_drop_chance"], 0)
-                self.assertEqual(enrich_result["activity_profile"]["primary_timezone"], "EUTZ")
-                self.assertEqual(enrich_result["activity_profile"]["tz_breakdown"]["EUTZ"], 630)
+                self.assertEqual(
+                    enrich_result["activity_profile"]["primary_timezone"], "EUTZ"
+                )
+                self.assertEqual(
+                    enrich_result["activity_profile"]["tz_breakdown"]["EUTZ"], 630
+                )
                 self.assertEqual(enrich_result["activity_profile"]["total_events"], 630)
 
                 scan.refresh_from_db()

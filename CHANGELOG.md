@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 ## [0.0.6] - 2026-10-11
 
 ### Added
+
 - **Ansiblex & FLEX Structure Timers**: Added full support for Ansiblex Jump Gates, Pharolux Cyno Beacons, Tenebrex Cyno Jammers, and Metenox Moon Drills across structure type selectors, structure registrations, and Structure Timers board.
 - **Two-Way aa-structuretimers & Timerboard Synchronization**: Real-time invisible bidirectional synchronization between Hostile Intel Structure Timers, `aa-structuretimers` (v3.2.0+), and Alliance Auth built-in Structure Timers / Timerboard (`allianceauth.timerboard`).
 - **Deterministic State Marker & Untracked Change Detection**: Implemented SHA-256 state hashing marker (`last_sync_hash`) on `StructureTimer` for instant change detection, distinguishing backend-initiated modifications from external untracked changes across Discord bots and external apps without recursion loops.

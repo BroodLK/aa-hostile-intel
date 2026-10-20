@@ -2,16 +2,29 @@
 Unit tests for EntityResolver, Name/ID character & alliance lookups, out-of-corp alts, and SolarSystemChoiceField.
 """
 
-from unittest.mock import MagicMock, patch
+# Standard Library
+from unittest.mock import patch
 
-from django.test import TestCase
-from django.urls import reverse
-from allianceauth.tests.auth_utils import AuthUtils
-
-from allianceauth.eveonline.models import EveAllianceInfo, EveCharacter, EveCorporationInfo
+# Third Party
 from eve_sde.models import SolarSystem
 
-from hostile.forms import HostileAllianceForm, HostilePilotDossierForm, SolarSystemChoiceField
+# Django
+from django.test import TestCase
+from django.urls import reverse
+
+# Alliance Auth
+from allianceauth.eveonline.models import (
+    EveAllianceInfo,
+    EveCharacter,
+)
+from allianceauth.tests.auth_utils import AuthUtils
+
+# AA Hostile Intel
+from hostile.forms import (
+    HostileAllianceForm,
+    HostilePilotDossierForm,
+    SolarSystemChoiceField,
+)
 from hostile.models import HostileAlliance, HostilePilotDossier
 from hostile.services.entity_resolver import EntityResolver
 
@@ -90,8 +103,12 @@ class EntityResolverTests(TestCase):
     @patch("hostile.services.entity_resolver.esi_client.post_characters_affiliation")
     @patch("hostile.services.entity_resolver.esi_client.post_universe_names")
     def test_resolve_character_esi_fallback(self, mock_names, mock_affil, mock_ids):
-        mock_ids.return_value = {"characters": [{"id": 99999, "name": "External Pilot"}]}
-        mock_affil.return_value = [{"character_id": 99999, "corporation_id": 20099, "alliance_id": 30099}]
+        mock_ids.return_value = {
+            "characters": [{"id": 99999, "name": "External Pilot"}]
+        }
+        mock_affil.return_value = [
+            {"character_id": 99999, "corporation_id": 20099, "alliance_id": 30099}
+        ]
         mock_names.return_value = [
             {"id": 99999, "name": "External Pilot"},
             {"id": 20099, "name": "External Corp"},
@@ -169,7 +186,9 @@ class FormEntityResolutionTests(TestCase):
     def test_alliance_form_empty_error(self):
         form = HostileAllianceForm(data={})
         self.assertFalse(form.is_valid())
-        self.assertIn("Please provide an Alliance Name OR Alliance ID.", str(form.errors))
+        self.assertIn(
+            "Please provide an Alliance Name OR Alliance ID.", str(form.errors)
+        )
 
     def test_pilot_form_name_only_resolution_and_autofill(self):
         form = HostilePilotDossierForm(

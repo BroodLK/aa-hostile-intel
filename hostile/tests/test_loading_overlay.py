@@ -27,8 +27,22 @@ class TestLoadingOverlay(TestCase):
         self.client.force_login(self.user)
 
     def test_static_files_exist(self):
-        css_path = os.path.join(settings.BASE_DIR, "hostile", "static", "hostile", "css", "hostile_loading.css")
-        js_path = os.path.join(settings.BASE_DIR, "hostile", "static", "hostile", "js", "hostile_loading.js")
+        css_path = os.path.join(
+            settings.BASE_DIR,
+            "hostile",
+            "static",
+            "hostile",
+            "css",
+            "hostile_loading.css",
+        )
+        js_path = os.path.join(
+            settings.BASE_DIR,
+            "hostile",
+            "static",
+            "hostile",
+            "js",
+            "hostile_loading.js",
+        )
         self.assertTrue(os.path.isfile(css_path), f"Missing CSS file: {css_path}")
         self.assertTrue(os.path.isfile(js_path), f"Missing JS file: {js_path}")
 
@@ -57,7 +71,11 @@ class TestLoadingOverlay(TestCase):
             "Loading Threat Scanner",
             "Loading Alliances & Sov",
         ]:
-            self.assertIn(expected_title, content, f"Expected loading title '{expected_title}' in nav tabs")
+            self.assertIn(
+                expected_title,
+                content,
+                f"Expected loading title '{expected_title}' in nav tabs",
+            )
 
     def test_calculator_form_has_loading_attributes(self):
         response = self.client.get(reverse("hostile:calculator"))

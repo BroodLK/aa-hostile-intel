@@ -5,10 +5,12 @@ zKillboard statistics and intelligence client for hostile entities
 # Standard Library
 import re
 import time
-from typing import Any, Dict, Iterable, List, Optional, Set
+from collections.abc import Iterable
+from typing import Any
 
 # Third Party
 import requests
+from eve_sde.models import ItemType, SolarSystem
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
@@ -22,7 +24,6 @@ from allianceauth.eveonline.models import EveAllianceInfo, EveCorporationInfo
 from allianceauth.services.hooks import get_extension_logger
 
 # AA Hostile Intel
-from eve_sde.models import ItemType, SolarSystem
 from hostile.app_settings import (
     HOSTILE_ZKILL_MIN_REQUEST_INTERVAL,
     HOSTILE_ZKILL_USER_AGENT,
@@ -76,7 +77,7 @@ class ZKillClient:
         )
         return f"Alliance Auth Hostile Intel Plugin - Maintainer: {contact_email}"
 
-    def _get(self, url: str) -> Optional[requests.Response]:
+    def _get(self, url: str) -> requests.Response | None:
         """
         Helper to perform GET requests to zKillboard with rate limiting.
         Enforces a minimum interval between calls and sets appropriate compression and contact headers.
@@ -101,7 +102,7 @@ class ZKillClient:
             logger.error("Failed to fetch from zKillboard URL %s: %s", url, e)
             return None
 
-    def _fetch_stats(self, endpoint: str) -> Optional[Dict[str, Any]]:
+    def _fetch_stats(self, endpoint: str) -> dict[str, Any] | None:
         """Makes a GET request to zKillboard stats API with polite rate-limiting"""
         url = f"{self.BASE_URL}/{endpoint}/"
         response = self._get(url)
@@ -121,7 +122,7 @@ class ZKillClient:
         return None
 
     @staticmethod
-    def _get_rolling_3m_keys() -> List[str]:
+    def _get_rolling_3m_keys() -> list[str]:
         """Generates list of month strings in YYYYMM format for the last 3 rolling months"""
         now = timezone.now()
         y, m = now.year, now.month
@@ -135,7 +136,9 @@ class ZKillClient:
         return keys
 
     @staticmethod
-    def _parse_day_index(day_key: Any, all_keys: Optional[Iterable[Any]] = None) -> Optional[int]:
+    def _parse_day_index(
+        day_key: Any, all_keys: Iterable[Any] | None = None
+    ) -> int | None:
         """
         Parses various day representations into a canonical index:
         0 = Monday, 1 = Tuesday, 2 = Wednesday, 3 = Thursday, 4 = Friday, 5 = Saturday, 6 = Sunday.
@@ -143,13 +146,23 @@ class ZKillClient:
         if isinstance(day_key, str):
             day_str = day_key.strip().lower()
             named_days = {
-                "mon": 0, "monday": 0,
-                "tue": 1, "tues": 1, "tuesday": 1,
-                "wed": 2, "wednesday": 2,
-                "thu": 3, "thur": 3, "thurs": 3, "thursday": 3,
-                "fri": 4, "friday": 4,
-                "sat": 5, "saturday": 5,
-                "sun": 6, "sunday": 6,
+                "mon": 0,
+                "monday": 0,
+                "tue": 1,
+                "tues": 1,
+                "tuesday": 1,
+                "wed": 2,
+                "wednesday": 2,
+                "thu": 3,
+                "thur": 3,
+                "thurs": 3,
+                "thursday": 3,
+                "fri": 4,
+                "friday": 4,
+                "sat": 5,
+                "saturday": 5,
+                "sun": 6,
+                "sunday": 6,
             }
             if day_str in named_days:
                 return named_days[day_str]
@@ -187,9 +200,9 @@ class ZKillClient:
 
     @staticmethod
     def _build_activity_heatmap(
-        data: Dict[str, Any],
-        sov_distribution: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        data: dict[str, Any],
+        sov_distribution: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """
         Builds a 7-day x 24-hour activity heatmap matrix (Monday through Sunday x 0-23 UTC).
         Parses actual zKillboard activity / hourly data directly from the 3-month activity payload.
@@ -226,13 +239,21 @@ class ZKillClient:
 
                 if isinstance(val, (list, tuple)):
                     for h_idx, count in enumerate(val):
-                        if 0 <= h_idx < 24 and isinstance(count, (int, float)) and count > 0:
+                        if (
+                            0 <= h_idx < 24
+                            and isinstance(count, (int, float))
+                            and count > 0
+                        ):
                             matrix[row_idx][h_idx] += int(count)
                 elif isinstance(val, dict):
                     for h_key, count in val.items():
                         try:
                             h_int = int(h_key)
-                            if 0 <= h_int < 24 and isinstance(count, (int, float)) and count > 0:
+                            if (
+                                0 <= h_int < 24
+                                and isinstance(count, (int, float))
+                                and count > 0
+                            ):
                                 matrix[row_idx][h_int] += int(count)
                         except (ValueError, TypeError):
                             pass
@@ -240,13 +261,21 @@ class ZKillClient:
             for row_idx, val in enumerate(activity_data):
                 if isinstance(val, (list, tuple)):
                     for h_idx, count in enumerate(val):
-                        if 0 <= h_idx < 24 and isinstance(count, (int, float)) and count > 0:
+                        if (
+                            0 <= h_idx < 24
+                            and isinstance(count, (int, float))
+                            and count > 0
+                        ):
                             matrix[row_idx][h_idx] += int(count)
                 elif isinstance(val, dict):
                     for h_key, count in val.items():
                         try:
                             h_int = int(h_key)
-                            if 0 <= h_int < 24 and isinstance(count, (int, float)) and count > 0:
+                            if (
+                                0 <= h_int < 24
+                                and isinstance(count, (int, float))
+                                and count > 0
+                            ):
                                 matrix[row_idx][h_int] += int(count)
                         except (ValueError, TypeError):
                             pass
@@ -276,7 +305,7 @@ class ZKillClient:
         }
 
     @staticmethod
-    def _extract_weekly_stats(data: Dict[str, Any]) -> tuple[int, int, int]:
+    def _extract_weekly_stats(data: dict[str, Any]) -> tuple[int, int, int]:
         """
         Extracts active PvP characters, 7-day kills count, and 7-day losses count from zKillboard stats response.
         zKillboard API provides 7-day characters and total kills under `activepvp`, while PvP ship losses and kills
@@ -308,12 +337,20 @@ class ZKillClient:
                     weekly_kills = weekly_labels["cat:6"].get("shipsDestroyed", 0)
             else:
                 weekly_losses = max(
-                    (v.get("shipsLost", 0) for v in weekly_labels.values() if isinstance(v, dict)),
+                    (
+                        v.get("shipsLost", 0)
+                        for v in weekly_labels.values()
+                        if isinstance(v, dict)
+                    ),
                     default=0,
                 )
                 if not weekly_kills:
                     weekly_kills = max(
-                        (v.get("shipsDestroyed", 0) for v in weekly_labels.values() if isinstance(v, dict)),
+                        (
+                            v.get("shipsDestroyed", 0)
+                            for v in weekly_labels.values()
+                            if isinstance(v, dict)
+                        ),
                         default=0,
                     )
 
@@ -323,13 +360,17 @@ class ZKillClient:
         elif not weekly_losses and isinstance(activepvp.get("losses"), (int, float)):
             weekly_losses = int(activepvp["losses"])
 
-        return int(active_characters or 0), int(weekly_kills or 0), int(weekly_losses or 0)
+        return (
+            int(active_characters or 0),
+            int(weekly_kills or 0),
+            int(weekly_losses or 0),
+        )
 
-    def fetch_alliance_stats(self, alliance_id: int) -> Optional[Dict[str, Any]]:
+    def fetch_alliance_stats(self, alliance_id: int) -> dict[str, Any] | None:
         """Fetches public zKillboard statistics for an alliance"""
         return self._fetch_stats(f"allianceID/{alliance_id}")
 
-    def fetch_corporation_stats(self, corporation_id: int) -> Optional[Dict[str, Any]]:
+    def fetch_corporation_stats(self, corporation_id: int) -> dict[str, Any] | None:
         """Fetches public zKillboard statistics for a corporation"""
         return self._fetch_stats(f"corporationID/{corporation_id}")
 
@@ -393,31 +434,135 @@ class ZKillClient:
 
     KNOWN_SHIP_NAMES = {
         # Titans
-        "avatar", "erebus", "ragnarok", "leviathan", "komodo", "vanquisher", "molok",
+        "avatar",
+        "erebus",
+        "ragnarok",
+        "leviathan",
+        "komodo",
+        "vanquisher",
+        "molok",
         # Supercarriers
-        "aeon", "hel", "nyx", "wyvern", "revenant", "vendetta",
+        "aeon",
+        "hel",
+        "nyx",
+        "wyvern",
+        "revenant",
+        "vendetta",
         # Dreadnoughts
-        "revelation", "naglfar", "moros", "phoenix", "zirnitra", "bane", "karura",
-        "hubris", "valravn", "caiman", "chemosh", "vehement", "dreadnought", "lancer",
+        "revelation",
+        "naglfar",
+        "moros",
+        "phoenix",
+        "zirnitra",
+        "bane",
+        "karura",
+        "hubris",
+        "valravn",
+        "caiman",
+        "chemosh",
+        "vehement",
+        "dreadnought",
+        "lancer",
         # FAX
-        "apostle", "minokawa", "ninazu", "lif", "dagon", "loggerhead",
+        "apostle",
+        "minokawa",
+        "ninazu",
+        "lif",
+        "dagon",
+        "loggerhead",
         # Carriers
-        "archon", "chimera", "thanatos", "nidhoggur",
+        "archon",
+        "chimera",
+        "thanatos",
+        "nidhoggur",
         # Black Ops
-        "redeemer", "widow", "sin", "panther", "marshal",
+        "redeemer",
+        "widow",
+        "sin",
+        "panther",
+        "marshal",
         # Battleships & Capitals
-        "dominix", "rokh", "megathron", "tempest", "typhoon", "apocalypse", "abaddon",
-        "armageddon", "raven", "scorpion", "hyperion", "maelstrom", "rorqual", "orca", "bowhead",
+        "dominix",
+        "rokh",
+        "megathron",
+        "tempest",
+        "typhoon",
+        "apocalypse",
+        "abaddon",
+        "armageddon",
+        "raven",
+        "scorpion",
+        "hyperion",
+        "maelstrom",
+        "rorqual",
+        "orca",
+        "bowhead",
         # Cruisers & Battlecruisers
-        "drake", "ferox", "brutix", "myrmidon", "hurricane", "cyclone", "prophecy", "harbinger",
-        "cerberus", "eagle", "deimos", "ishtar", "muninn", "vagabond", "zealot", "sacrilege",
-        "tengu", "loki", "legion", "proteus", "scimitar", "basilisk", "guardian", "oneiros",
-        "falcon", "rook", "rapier", "arazu", "pilgrim", "curse", "lachesis", "huginn",
+        "drake",
+        "ferox",
+        "brutix",
+        "myrmidon",
+        "hurricane",
+        "cyclone",
+        "prophecy",
+        "harbinger",
+        "cerberus",
+        "eagle",
+        "deimos",
+        "ishtar",
+        "muninn",
+        "vagabond",
+        "zealot",
+        "sacrilege",
+        "tengu",
+        "loki",
+        "legion",
+        "proteus",
+        "scimitar",
+        "basilisk",
+        "guardian",
+        "oneiros",
+        "falcon",
+        "rook",
+        "rapier",
+        "arazu",
+        "pilgrim",
+        "curse",
+        "lachesis",
+        "huginn",
         # Frigates & Destroyers
-        "sabre", "flycatcher", "erisz", "dictor", "hic", "broadsword", "devoter", "onyx", "phobos",
-        "stiletto", "malediction", "ares", "claw", "crusader", "taranis", "crow", "raptor",
-        "dramiel", "daredevil", "cruor", "succubus", "worm", "orthrus", "gila", "machariel",
-        "nightmare", "rattlesnake", "bhaalgorn", "nestor", "barghest", "capsule", "shuttle",
+        "sabre",
+        "flycatcher",
+        "erisz",
+        "dictor",
+        "hic",
+        "broadsword",
+        "devoter",
+        "onyx",
+        "phobos",
+        "stiletto",
+        "malediction",
+        "ares",
+        "claw",
+        "crusader",
+        "taranis",
+        "crow",
+        "raptor",
+        "dramiel",
+        "daredevil",
+        "cruor",
+        "succubus",
+        "worm",
+        "orthrus",
+        "gila",
+        "machariel",
+        "nightmare",
+        "rattlesnake",
+        "bhaalgorn",
+        "nestor",
+        "barghest",
+        "capsule",
+        "shuttle",
     }
 
     @classmethod
@@ -439,7 +584,15 @@ class ZKillClient:
         n_lower = n_clean.lower()
 
         if n_clean.startswith(
-            ("Stargate (", "Moon ", "Planet ", "Sun ", "Asteroid ", "Station ", "Customs Office")
+            (
+                "Stargate (",
+                "Moon ",
+                "Planet ",
+                "Sun ",
+                "Asteroid ",
+                "Station ",
+                "Customs Office",
+            )
         ):
             return True
 
@@ -458,15 +611,35 @@ class ZKillClient:
             if (
                 HostileAlliance.objects.filter(alliance_id=cid).exists()
                 or EveAllianceInfo.objects.filter(alliance_id=cid).exists()
-                or (n_clean and HostileAlliance.objects.filter(alliance_name__iexact=n_clean).exists())
-                or (n_clean and EveAllianceInfo.objects.filter(alliance_name__iexact=n_clean).exists())
+                or (
+                    n_clean
+                    and HostileAlliance.objects.filter(
+                        alliance_name__iexact=n_clean
+                    ).exists()
+                )
+                or (
+                    n_clean
+                    and EveAllianceInfo.objects.filter(
+                        alliance_name__iexact=n_clean
+                    ).exists()
+                )
             ):
                 return True
             if (
                 HostileCorporation.objects.filter(corporation_id=cid).exists()
                 or EveCorporationInfo.objects.filter(corporation_id=cid).exists()
-                or (n_clean and HostileCorporation.objects.filter(corporation_name__iexact=n_clean).exists())
-                or (n_clean and EveCorporationInfo.objects.filter(corporation_name__iexact=n_clean).exists())
+                or (
+                    n_clean
+                    and HostileCorporation.objects.filter(
+                        corporation_name__iexact=n_clean
+                    ).exists()
+                )
+                or (
+                    n_clean
+                    and EveCorporationInfo.objects.filter(
+                        corporation_name__iexact=n_clean
+                    ).exists()
+                )
             ):
                 return True
         except Exception:
@@ -490,7 +663,9 @@ class ZKillClient:
         return deleted_count
 
     @staticmethod
-    def _classify_ship(ship_name: str, ship_type_id: Optional[int] = None) -> Dict[str, bool]:
+    def _classify_ship(
+        ship_name: str, ship_type_id: int | None = None
+    ) -> dict[str, bool]:
         """Classifies ship name into tactical pilot capabilities"""
         flags = {
             "is_titan_pilot": False,
@@ -512,15 +687,62 @@ class ZKillClient:
         if not s:
             return flags
 
-        titan_names = ["avatar", "erebus", "ragnarok", "leviathan", "komodo", "vanquisher", "molok", "titan"]
-        super_names = ["aeon", "hel", "nyx", "wyvern", "revenant", "vendetta", "supercarrier"]
-        dread_names = [
-            "revelation", "naglfar", "moros", "phoenix", "zirnitra", "bane", "karura",
-            "hubris", "valravn", "caiman", "chemosh", "vehement", "dreadnought", "dread", "lancer"
+        titan_names = [
+            "avatar",
+            "erebus",
+            "ragnarok",
+            "leviathan",
+            "komodo",
+            "vanquisher",
+            "molok",
+            "titan",
         ]
-        fax_names = ["apostle", "minokawa", "ninazu", "lif", "dagon", "loggerhead", "fax", "force auxiliary"]
+        super_names = [
+            "aeon",
+            "hel",
+            "nyx",
+            "wyvern",
+            "revenant",
+            "vendetta",
+            "supercarrier",
+        ]
+        dread_names = [
+            "revelation",
+            "naglfar",
+            "moros",
+            "phoenix",
+            "zirnitra",
+            "bane",
+            "karura",
+            "hubris",
+            "valravn",
+            "caiman",
+            "chemosh",
+            "vehement",
+            "dreadnought",
+            "dread",
+            "lancer",
+        ]
+        fax_names = [
+            "apostle",
+            "minokawa",
+            "ninazu",
+            "lif",
+            "dagon",
+            "loggerhead",
+            "fax",
+            "force auxiliary",
+        ]
         carrier_names = ["archon", "chimera", "thanatos", "nidhoggur", "carrier"]
-        blops_names = ["redeemer", "widow", "sin", "panther", "marshal", "black ops", "blops"]
+        blops_names = [
+            "redeemer",
+            "widow",
+            "sin",
+            "panther",
+            "marshal",
+            "black ops",
+            "blops",
+        ]
 
         if any(re.search(rf"\b{re.escape(n)}\b", s) for n in titan_names):
             flags["is_titan_pilot"] = True
@@ -544,24 +766,24 @@ class ZKillClient:
 
     @staticmethod
     def parse_pilot_labels(
-        raw_labels: Any, stats: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        raw_labels: Any, stats: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """
         Parses zKillboard character behavioral tags and labels.
         Recognized tags:
-          - AWOX (10): 10+ corp friendly fire final blows in past year
-          - ALLIANCE AWOX (15): 15+ alliance friendly fire final blows in past year
-          - FACTION AWOX (20): 20+ faction friendly fire final blows in past year
-          - FC (LOW/MEDIUM/HIGH): Fleet command signals (Monitor 20, Command Ship 2, 25+ fleet 1/5). Low (35+), Med (60+), High (100+)
-          - BAIT (LOW/MEDIUM/HIGH): Low (4-6), Medium (7-11), High (12+)
-          - CYNO (count): 1+ fitted cyno losses in past year
-          - GANKER (count): 10+ highsec ganks in past year
-          - BLOPS (count): 3+ Black Ops battleship appearances in past 90 days
-          - LOGI (count): 12+ Logistics cruiser/frigate appearances in past 90 days
-          - CAPITAL (count): 4+ Capital appearances in past 90 days
-          - SUPER (count): 2+ Supercarrier appearances in past 90 days
-          - TITAN (count): 2+ Titan appearances in past 90 days
-          - ROOKIE: Character <180 days old with negative PvP ratio, without cap/super/titan/cyno/bait tags
+        - AWOX (10): 10+ corp friendly fire final blows in past year
+        - ALLIANCE AWOX (15): 15+ alliance friendly fire final blows in past year
+        - FACTION AWOX (20): 20+ faction friendly fire final blows in past year
+        - FC (LOW/MEDIUM/HIGH): Fleet command signals (Monitor 20, Command Ship 2, 25+ fleet 1/5). Low (35+), Med (60+), High (100+)
+        - BAIT (LOW/MEDIUM/HIGH): Low (4-6), Medium (7-11), High (12+)
+        - CYNO (count): 1+ fitted cyno losses in past year
+        - GANKER (count): 10+ highsec ganks in past year
+        - BLOPS (count): 3+ Black Ops battleship appearances in past 90 days
+        - LOGI (count): 12+ Logistics cruiser/frigate appearances in past 90 days
+        - CAPITAL (count): 4+ Capital appearances in past 90 days
+        - SUPER (count): 2+ Supercarrier appearances in past 90 days
+        - TITAN (count): 2+ Titan appearances in past 90 days
+        - ROOKIE: Character <180 days old with negative PvP ratio, without cap/super/titan/cyno/bait tags
         """
         # Standard Library
         import re
@@ -603,9 +825,13 @@ class ZKillClient:
                 if isinstance(item, str):
                     label_strings.append(item.strip())
                 elif isinstance(item, dict):
-                    name = item.get("name") or item.get("label") or item.get("tag") or ""
+                    name = (
+                        item.get("name") or item.get("label") or item.get("tag") or ""
+                    )
                     lvl = item.get("level") or item.get("tier") or ""
-                    cnt = item.get("count") or item.get("score") or item.get("value") or 0
+                    cnt = (
+                        item.get("count") or item.get("score") or item.get("value") or 0
+                    )
                     if name and lvl and cnt:
                         label_strings.append(f"{name} {lvl} ({cnt})")
                     elif name and lvl:
@@ -662,7 +888,11 @@ class ZKillClient:
                 result["awox_count"] = max(result["awox_count"], cnt)
 
             # 4. FC rating
-            fc_m = re.search(r"\bfc\b(?:\s+(low|medium|high|candidate))?(?:\s*\(\s*(low|medium|high|candidate)?(?:\s*(\d+))?\s*\)|\s*\((\d+)\)|\s+(\d+))?", text, re.I)
+            fc_m = re.search(
+                r"\bfc\b(?:\s+(low|medium|high|candidate))?(?:\s*\(\s*(low|medium|high|candidate)?(?:\s*(\d+))?\s*\)|\s*\((\d+)\)|\s+(\d+))?",
+                text,
+                re.I,
+            )
             if fc_m:
                 result["is_fc"] = True
                 lvl = fc_m.group(1) or fc_m.group(2) or ""
@@ -675,7 +905,11 @@ class ZKillClient:
                     result["fc_score"] = max(result["fc_score"], int(score))
 
             # 5. Bait
-            bait_m = re.search(r"\bbait\b(?:\s+(low|medium|high))?(?:\s*\(\s*(low|medium|high)?(?:\s*(\d+))?\s*\)|\s*\((\d+)\)|\s+(\d+))?", text, re.I)
+            bait_m = re.search(
+                r"\bbait\b(?:\s+(low|medium|high))?(?:\s*\(\s*(low|medium|high)?(?:\s*(\d+))?\s*\)|\s*\((\d+)\)|\s+(\d+))?",
+                text,
+                re.I,
+            )
             if bait_m:
                 result["is_bait"] = True
                 lvl = bait_m.group(1) or bait_m.group(2) or ""
@@ -702,11 +936,26 @@ class ZKillClient:
                 result["ganker_count"] = max(result["ganker_count"], cnt)
 
             # 8. Blops
-            blops_m = re.search(r"\b(?:blops|black\s*ops)\b(?:\s+(low|medium|high))?(?:\s*\(\s*(low|medium|high)?(?:\s*(\d+))?\s*\)|\s*\((\d+)\)|\s+(\d+))?", text, re.I)
+            blops_m = re.search(
+                r"\b(?:blops|black\s*ops)\b(?:\s+(low|medium|high))?(?:\s*\(\s*(low|medium|high)?(?:\s*(\d+))?\s*\)|\s*\((\d+)\)|\s+(\d+))?",
+                text,
+                re.I,
+            )
             if blops_m:
                 result["is_blops_pilot"] = True
-                cnt = blops_m.group(3) or blops_m.group(4) or blops_m.group(5) or (int(blops_m.group(1)) if blops_m.group(1) and blops_m.group(1).isdigit() else 3)
-                result["blops_count"] = max(result["blops_count"], int(cnt) if str(cnt).isdigit() else 3)
+                cnt = (
+                    blops_m.group(3)
+                    or blops_m.group(4)
+                    or blops_m.group(5)
+                    or (
+                        int(blops_m.group(1))
+                        if blops_m.group(1) and blops_m.group(1).isdigit()
+                        else 3
+                    )
+                )
+                result["blops_count"] = max(
+                    result["blops_count"], int(cnt) if str(cnt).isdigit() else 3
+                )
 
             # 9. Logi
             logi_m = re.search(r"\blogi(?:stics)?\b(?:\s*\((\d+)\))?", text, re.I)
@@ -759,13 +1008,13 @@ class ZKillClient:
                 ships_destroyed = stats.get("shipsDestroyed", 0) or 0
                 if ships_lost > ships_destroyed:
                     # Check age if available
-                    sec_status = info.get("sec_status")
+                    info.get("sec_status")
                     if "rookie" in str(stats).lower() or ships_lost >= 3:
                         result["is_rookie"] = True
 
         return result
 
-    def fetch_character_stats(self, character_id: int) -> Optional[Dict[str, Any]]:
+    def fetch_character_stats(self, character_id: int) -> dict[str, Any] | None:
         """Queries zKillboard character statistics endpoint with rate limiting and caching"""
         cache_key = f"hostile_zkill_char_stats_{character_id}"
         cached = cache.get(cache_key)
@@ -776,7 +1025,7 @@ class ZKillClient:
             cache.set(cache_key, stats, timeout=86400)
         return stats
 
-    def get_character_combat_intelligence(self, character_id: int) -> Dict[str, Any]:
+    def get_character_combat_intelligence(self, character_id: int) -> dict[str, Any]:
         """
         Fetches character statistics and extracts rich combat intelligence:
         danger ratio, kills/losses, gang/solo ratios, top flown ships, and behavioral tags.
@@ -845,10 +1094,19 @@ class ZKillClient:
         top_lists = stats.get("topLists") or []
         if isinstance(top_lists, list):
             for t_item in top_lists:
-                if isinstance(t_item, dict) and t_item.get("type") in ("ships", "shipType", "ship_types", "shipTypes"):
+                if isinstance(t_item, dict) and t_item.get("type") in (
+                    "ships",
+                    "shipType",
+                    "ship_types",
+                    "shipTypes",
+                ):
                     for val in t_item.get("values", []):
                         if isinstance(val, dict):
-                            s_name = val.get("name") or val.get("ship_name") or val.get("typeName")
+                            s_name = (
+                                val.get("name")
+                                or val.get("ship_name")
+                                or val.get("typeName")
+                            )
                             if s_name and s_name not in top_ships:
                                 top_ships.append(s_name)
 
@@ -857,7 +1115,11 @@ class ZKillClient:
             for _gid, g_info in groups_data.items():
                 if isinstance(g_info, dict):
                     g_name = g_info.get("name") or g_info.get("groupName")
-                    if g_name and g_name not in top_ships and g_info.get("kills", 0) > 0:
+                    if (
+                        g_name
+                        and g_name not in top_ships
+                        and g_info.get("kills", 0) > 0
+                    ):
                         top_ships.append(g_name)
 
         likely_ship = top_ships[0] if top_ships else ""
@@ -907,10 +1169,14 @@ class ZKillClient:
         if combat_intel.get("gang_ratio", 0) != dossier.gang_ratio:
             dossier.gang_ratio = combat_intel.get("gang_ratio", 0)
             updated = True
-        if combat_intel.get("top_ships") and dossier.top_ships != combat_intel.get("top_ships"):
+        if combat_intel.get("top_ships") and dossier.top_ships != combat_intel.get(
+            "top_ships"
+        ):
             dossier.top_ships = combat_intel.get("top_ships")
             updated = True
-        if combat_intel.get("likely_ship") and dossier.likely_ship != combat_intel.get("likely_ship"):
+        if combat_intel.get("likely_ship") and dossier.likely_ship != combat_intel.get(
+            "likely_ship"
+        ):
             dossier.likely_ship = combat_intel.get("likely_ship")
             updated = True
 
@@ -927,7 +1193,9 @@ class ZKillClient:
                     pass
             if "birthday" in info and info["birthday"]:
                 try:
+                    # Standard Library
                     from datetime import datetime
+
                     bday_str = str(info["birthday"]).split("T")[0].split(" ")[0]
                     bday_date = datetime.strptime(bday_str, "%Y-%m-%d").date()
                     if dossier.birthday != bday_date:
@@ -937,26 +1205,42 @@ class ZKillClient:
                     pass
 
         # 3. Resolve tickers via EntityResolver if missing
-        if not dossier.corporation_ticker or not dossier.alliance_ticker or dossier.security_status is None:
+        if (
+            not dossier.corporation_ticker
+            or not dossier.alliance_ticker
+            or dossier.security_status is None
+        ):
             try:
+                # AA Hostile Intel
                 from hostile.services.entity_resolver import EntityResolver
 
                 resolved = EntityResolver.resolve_character(dossier.character_id)
                 if resolved:
-                    if resolved.get("corporation_ticker") and dossier.corporation_ticker != resolved["corporation_ticker"]:
+                    if (
+                        resolved.get("corporation_ticker")
+                        and dossier.corporation_ticker != resolved["corporation_ticker"]
+                    ):
                         dossier.corporation_ticker = resolved["corporation_ticker"]
                         updated = True
-                    if resolved.get("alliance_ticker") and dossier.alliance_ticker != resolved["alliance_ticker"]:
+                    if (
+                        resolved.get("alliance_ticker")
+                        and dossier.alliance_ticker != resolved["alliance_ticker"]
+                    ):
                         dossier.alliance_ticker = resolved["alliance_ticker"]
                         updated = True
-                    if dossier.security_status is None and resolved.get("security_status") is not None:
+                    if (
+                        dossier.security_status is None
+                        and resolved.get("security_status") is not None
+                    ):
                         dossier.security_status = resolved["security_status"]
                         updated = True
                     if not dossier.birthday and resolved.get("birthday"):
                         dossier.birthday = resolved["birthday"]
                         updated = True
             except Exception as e:
-                logger.debug("Failed entity resolver ticker lookup during pilot sync: %s", e)
+                logger.debug(
+                    "Failed entity resolver ticker lookup during pilot sync: %s", e
+                )
 
         # 4. Behavioral classification tags
         if parsed["is_fc"] and not dossier.is_fc:
@@ -1054,7 +1338,9 @@ class ZKillClient:
             updated = True
 
         if parsed["zkill_labels"]:
-            merged_labels = list(set((dossier.zkill_labels or []) + parsed["zkill_labels"]))
+            merged_labels = list(
+                set((dossier.zkill_labels or []) + parsed["zkill_labels"])
+            )
             if merged_labels != dossier.zkill_labels:
                 dossier.zkill_labels = merged_labels
                 updated = True
@@ -1065,9 +1351,9 @@ class ZKillClient:
 
     def ingest_pilots_from_zkill_data(
         self,
-        data: Dict[str, Any],
-        alliance: Optional[HostileAlliance] = None,
-        corporation: Optional[HostileCorporation] = None,
+        data: dict[str, Any],
+        alliance: HostileAlliance | None = None,
+        corporation: HostileCorporation | None = None,
     ) -> int:
         """
         Parses zKillboard payload (supers, topLists, groups, pilots) and automatically
@@ -1081,7 +1367,7 @@ class ZKillClient:
 
         self.cleanup_invalid_pilot_dossiers()
 
-        detected_pilots: Dict[int, Dict[str, Any]] = {}
+        detected_pilots: dict[int, dict[str, Any]] = {}
 
         def add_pilot_candidate(
             char_id: Any,
@@ -1122,7 +1408,7 @@ class ZKillClient:
             is_rookie: bool = False,
             raw_labels: Any = None,
             role_label: str = "",
-            flown_ships: Optional[Iterable[str]] = None,
+            flown_ships: Iterable[str] | None = None,
             stats_desc: str = "",
         ):
             try:
@@ -1140,12 +1426,33 @@ class ZKillClient:
                 parsed_lbl = self.parse_pilot_labels(raw_labels)
 
             ship_flags = self._classify_ship(ship_name, ship_type_id)
-            eff_titan = is_titan or ship_flags["is_titan_pilot"] or parsed_lbl.get("is_titan_pilot", False)
-            eff_super = is_super or eff_titan or ship_flags["is_super_pilot"] or parsed_lbl.get("is_super_pilot", False)
+            eff_titan = (
+                is_titan
+                or ship_flags["is_titan_pilot"]
+                or parsed_lbl.get("is_titan_pilot", False)
+            )
+            eff_super = (
+                is_super
+                or eff_titan
+                or ship_flags["is_super_pilot"]
+                or parsed_lbl.get("is_super_pilot", False)
+            )
             eff_dread = is_dread or ship_flags["is_dread_pilot"]
             eff_fax = is_fax or ship_flags["is_fax_pilot"]
-            eff_cap = is_capital or eff_titan or eff_super or eff_dread or eff_fax or ship_flags["is_capital_pilot"] or parsed_lbl.get("is_capital_pilot", False)
-            eff_blops = is_blops or ship_flags["is_blops_pilot"] or parsed_lbl.get("is_blops_pilot", False)
+            eff_cap = (
+                is_capital
+                or eff_titan
+                or eff_super
+                or eff_dread
+                or eff_fax
+                or ship_flags["is_capital_pilot"]
+                or parsed_lbl.get("is_capital_pilot", False)
+            )
+            eff_blops = (
+                is_blops
+                or ship_flags["is_blops_pilot"]
+                or parsed_lbl.get("is_blops_pilot", False)
+            )
             eff_cyno = is_cyno or parsed_lbl.get("is_cyno_alt", False)
             eff_fc = is_fc or parsed_lbl.get("is_fc", False)
             eff_fc_level = fc_level or parsed_lbl.get("fc_level", "")
@@ -1156,9 +1463,13 @@ class ZKillClient:
             eff_awox = is_awox or parsed_lbl.get("is_awox", False)
             eff_awox_cnt = max(awox_count, parsed_lbl.get("awox_count", 0))
             eff_all_awox = is_alliance_awox or parsed_lbl.get("is_alliance_awox", False)
-            eff_all_awox_cnt = max(alliance_awox_count, parsed_lbl.get("alliance_awox_count", 0))
+            eff_all_awox_cnt = max(
+                alliance_awox_count, parsed_lbl.get("alliance_awox_count", 0)
+            )
             eff_fac_awox = is_faction_awox or parsed_lbl.get("is_faction_awox", False)
-            eff_fac_awox_cnt = max(faction_awox_count, parsed_lbl.get("faction_awox_count", 0))
+            eff_fac_awox_cnt = max(
+                faction_awox_count, parsed_lbl.get("faction_awox_count", 0)
+            )
 
             eff_bait = is_bait or parsed_lbl.get("is_bait", False)
             eff_bait_level = bait_level or parsed_lbl.get("bait_level", "")
@@ -1193,8 +1504,10 @@ class ZKillClient:
                 detected_pilots[cid] = {
                     "character_id": cid,
                     "character_name": char_name or "",
-                    "corporation_name": corp_name or (corporation.corporation_name if corporation else ""),
-                    "alliance_name": all_name or (alliance.alliance_name if alliance else ""),
+                    "corporation_name": corp_name
+                    or (corporation.corporation_name if corporation else ""),
+                    "alliance_name": all_name
+                    or (alliance.alliance_name if alliance else ""),
                     "ships": ships_set,
                     "is_titan_pilot": eff_titan,
                     "is_super_pilot": eff_super,
@@ -1254,9 +1567,13 @@ class ZKillClient:
                 p["is_awox"] = p.get("is_awox", False) or eff_awox
                 p["awox_count"] = max(p.get("awox_count", 0), eff_awox_cnt)
                 p["is_alliance_awox"] = p.get("is_alliance_awox", False) or eff_all_awox
-                p["alliance_awox_count"] = max(p.get("alliance_awox_count", 0), eff_all_awox_cnt)
+                p["alliance_awox_count"] = max(
+                    p.get("alliance_awox_count", 0), eff_all_awox_cnt
+                )
                 p["is_faction_awox"] = p.get("is_faction_awox", False) or eff_fac_awox
-                p["faction_awox_count"] = max(p.get("faction_awox_count", 0), eff_fac_awox_cnt)
+                p["faction_awox_count"] = max(
+                    p.get("faction_awox_count", 0), eff_fac_awox_cnt
+                )
 
                 p["is_bait"] = p.get("is_bait", False) or eff_bait
                 if eff_bait_level and not p.get("bait_level"):
@@ -1309,7 +1626,9 @@ class ZKillClient:
                 # Pass 1: Extract all ship types from supers section
                 tl_list = []
                 if isinstance(s_entries, dict):
-                    tl_list = s_entries.get("topLists") or s_entries.get("top_lists") or []
+                    tl_list = (
+                        s_entries.get("topLists") or s_entries.get("top_lists") or []
+                    )
                 if isinstance(tl_list, list):
                     for tl in tl_list:
                         if isinstance(tl, dict):
@@ -1319,7 +1638,9 @@ class ZKillClient:
                                     if isinstance(v, dict) and v.get("name"):
                                         top_ships.append(v["name"])
                 if isinstance(s_entries, dict):
-                    for t_item in s_entries.get("types", []) or s_entries.get("ships", []):
+                    for t_item in s_entries.get("types", []) or s_entries.get(
+                        "ships", []
+                    ):
                         if isinstance(t_item, dict) and t_item.get("name"):
                             top_ships.append(t_item["name"])
 
@@ -1331,14 +1652,29 @@ class ZKillClient:
                             if t_type in self.PILOT_CATEGORIES:
                                 for item in tl.get("values", []):
                                     if isinstance(item, dict):
-                                        c_id = item.get("characterID") or item.get("character_id") or item.get("id")
-                                        c_name = item.get("characterName") or item.get("character_name") or item.get("name") or ""
-                                        s_name = item.get("shipName") or item.get("ship_name") or ""
+                                        c_id = (
+                                            item.get("characterID")
+                                            or item.get("character_id")
+                                            or item.get("id")
+                                        )
+                                        c_name = (
+                                            item.get("characterName")
+                                            or item.get("character_name")
+                                            or item.get("name")
+                                            or ""
+                                        )
+                                        s_name = (
+                                            item.get("shipName")
+                                            or item.get("ship_name")
+                                            or ""
+                                        )
                                         add_pilot_candidate(
                                             c_id,
                                             c_name,
                                             ship_name=s_name,
-                                            flown_ships=top_ships if not s_name else None,
+                                            flown_ships=(
+                                                top_ships if not s_name else None
+                                            ),
                                             is_titan=cfg["is_titan"],
                                             is_super=cfg["is_super"],
                                             is_capital=cfg["is_capital"],
@@ -1348,7 +1684,12 @@ class ZKillClient:
                 # Pass 3: Extract pilots from data / characters / pilots directly
                 items_list = []
                 if isinstance(s_entries, dict):
-                    items_list = s_entries.get("data") or s_entries.get("characters") or s_entries.get("pilots") or []
+                    items_list = (
+                        s_entries.get("data")
+                        or s_entries.get("characters")
+                        or s_entries.get("pilots")
+                        or []
+                    )
                 elif isinstance(s_entries, list):
                     items_list = s_entries
 
@@ -1364,7 +1705,9 @@ class ZKillClient:
 
                         c_id = item.get("characterID") or item.get("character_id")
                         if not c_id and "id" in item:
-                            if not self.is_invalid_character_id(item["id"], item.get("name", "")):
+                            if not self.is_invalid_character_id(
+                                item["id"], item.get("name", "")
+                            ):
                                 c_id = item["id"]
                             else:
                                 if item.get("name"):
@@ -1372,9 +1715,22 @@ class ZKillClient:
                                 continue
 
                         if c_id:
-                            c_name = item.get("characterName") or item.get("character_name") or item.get("name") or ""
-                            corp_n = item.get("corporationName") or item.get("corporation_name") or ""
-                            all_n = item.get("allianceName") or item.get("alliance_name") or ""
+                            c_name = (
+                                item.get("characterName")
+                                or item.get("character_name")
+                                or item.get("name")
+                                or ""
+                            )
+                            corp_n = (
+                                item.get("corporationName")
+                                or item.get("corporation_name")
+                                or ""
+                            )
+                            all_n = (
+                                item.get("allianceName")
+                                or item.get("alliance_name")
+                                or ""
+                            )
                             s_name = item.get("shipName") or item.get("ship_name") or ""
                             add_pilot_candidate(
                                 c_id,
@@ -1393,13 +1749,47 @@ class ZKillClient:
         groups_data = data.get("groups", {})
         if isinstance(groups_data, dict):
             group_map = {
-                "30": {"titan": True, "super": True, "capital": True, "label": "Titan Pilot", "role_name": "Titan"},
-                "659": {"super": True, "capital": True, "label": "Supercarrier Pilot", "role_name": "Supercarrier"},
-                "485": {"dread": True, "capital": True, "label": "Dread Pilot", "role_name": "Dreadnought"},
-                "4594": {"dread": True, "capital": True, "label": "Lancer Dread Pilot", "role_name": "Lancer Dreadnought"},
-                "1538": {"fax": True, "capital": True, "label": "FAX Pilot", "role_name": "Force Auxiliary (FAX)"},
-                "547": {"capital": True, "label": "Carrier Pilot", "role_name": "Carrier"},
-                "898": {"blops": True, "label": "Black Ops Pilot", "role_name": "Black Ops"},
+                "30": {
+                    "titan": True,
+                    "super": True,
+                    "capital": True,
+                    "label": "Titan Pilot",
+                    "role_name": "Titan",
+                },
+                "659": {
+                    "super": True,
+                    "capital": True,
+                    "label": "Supercarrier Pilot",
+                    "role_name": "Supercarrier",
+                },
+                "485": {
+                    "dread": True,
+                    "capital": True,
+                    "label": "Dread Pilot",
+                    "role_name": "Dreadnought",
+                },
+                "4594": {
+                    "dread": True,
+                    "capital": True,
+                    "label": "Lancer Dread Pilot",
+                    "role_name": "Lancer Dreadnought",
+                },
+                "1538": {
+                    "fax": True,
+                    "capital": True,
+                    "label": "FAX Pilot",
+                    "role_name": "Force Auxiliary (FAX)",
+                },
+                "547": {
+                    "capital": True,
+                    "label": "Carrier Pilot",
+                    "role_name": "Carrier",
+                },
+                "898": {
+                    "blops": True,
+                    "label": "Black Ops Pilot",
+                    "role_name": "Black Ops",
+                },
             }
             for g_id, g_info in groups_data.items():
                 g_key = str(g_id)
@@ -1409,7 +1799,12 @@ class ZKillClient:
                 # Pass 1: Extract all ship types from group topLists & types
                 tl_list = []
                 if isinstance(g_info, dict):
-                    tl_list = g_info.get("topLists") or g_info.get("top_lists") or g_info.get("top") or []
+                    tl_list = (
+                        g_info.get("topLists")
+                        or g_info.get("top_lists")
+                        or g_info.get("top")
+                        or []
+                    )
                 if isinstance(tl_list, list):
                     for tl in tl_list:
                         if isinstance(tl, dict):
@@ -1431,14 +1826,29 @@ class ZKillClient:
                             if t_type in self.PILOT_CATEGORIES:
                                 for item in tl.get("values", []):
                                     if isinstance(item, dict):
-                                        c_id = item.get("characterID") or item.get("character_id") or item.get("id")
-                                        c_name = item.get("characterName") or item.get("character_name") or item.get("name") or ""
-                                        s_name = item.get("shipName") or item.get("ship_name") or ""
+                                        c_id = (
+                                            item.get("characterID")
+                                            or item.get("character_id")
+                                            or item.get("id")
+                                        )
+                                        c_name = (
+                                            item.get("characterName")
+                                            or item.get("character_name")
+                                            or item.get("name")
+                                            or ""
+                                        )
+                                        s_name = (
+                                            item.get("shipName")
+                                            or item.get("ship_name")
+                                            or ""
+                                        )
                                         add_pilot_candidate(
                                             c_id,
                                             c_name,
                                             ship_name=s_name,
-                                            flown_ships=group_top_ships if not s_name else None,
+                                            flown_ships=(
+                                                group_top_ships if not s_name else None
+                                            ),
                                             is_titan=config.get("titan", False),
                                             is_super=config.get("super", False),
                                             is_dread=config.get("dread", False),
@@ -1451,7 +1861,12 @@ class ZKillClient:
                 # Pass 3: Extract pilots from group data / characters / pilots lists
                 g_items = []
                 if isinstance(g_info, dict):
-                    g_items = g_info.get("data") or g_info.get("characters") or g_info.get("pilots") or []
+                    g_items = (
+                        g_info.get("data")
+                        or g_info.get("characters")
+                        or g_info.get("pilots")
+                        or []
+                    )
                 elif isinstance(g_info, list):
                     g_items = g_info
 
@@ -1467,7 +1882,9 @@ class ZKillClient:
 
                         c_id = item.get("characterID") or item.get("character_id")
                         if not c_id and "id" in item:
-                            if not self.is_invalid_character_id(item["id"], item.get("name", "")):
+                            if not self.is_invalid_character_id(
+                                item["id"], item.get("name", "")
+                            ):
                                 c_id = item["id"]
                             else:
                                 if item.get("name"):
@@ -1475,9 +1892,22 @@ class ZKillClient:
                                 continue
 
                         if c_id:
-                            c_name = item.get("characterName") or item.get("character_name") or item.get("name") or ""
-                            corp_n = item.get("corporationName") or item.get("corporation_name") or ""
-                            all_n = item.get("allianceName") or item.get("alliance_name") or ""
+                            c_name = (
+                                item.get("characterName")
+                                or item.get("character_name")
+                                or item.get("name")
+                                or ""
+                            )
+                            corp_n = (
+                                item.get("corporationName")
+                                or item.get("corporation_name")
+                                or ""
+                            )
+                            all_n = (
+                                item.get("allianceName")
+                                or item.get("alliance_name")
+                                or ""
+                            )
                             s_name = item.get("shipName") or item.get("ship_name") or ""
                             add_pilot_candidate(
                                 c_id,
@@ -1496,13 +1926,29 @@ class ZKillClient:
                             )
 
         # 3. Parse TopLists Section
-        top_lists = data.get("topLists") or data.get("top_lists") or data.get("top") or []
+        top_lists = (
+            data.get("topLists") or data.get("top_lists") or data.get("top") or []
+        )
         tl_items = []
         if isinstance(top_lists, list):
             for entry in top_lists:
                 if isinstance(entry, dict):
-                    cat = (entry.get("type") or entry.get("title") or entry.get("category") or "").lower().strip()
-                    vals = entry.get("values") or entry.get("data") or entry.get("characters") or []
+                    cat = (
+                        (
+                            entry.get("type")
+                            or entry.get("title")
+                            or entry.get("category")
+                            or ""
+                        )
+                        .lower()
+                        .strip()
+                    )
+                    vals = (
+                        entry.get("values")
+                        or entry.get("data")
+                        or entry.get("characters")
+                        or []
+                    )
                     tl_items.append((cat, vals))
         elif isinstance(top_lists, dict):
             for cat, vals in top_lists.items():
@@ -1528,7 +1974,14 @@ class ZKillClient:
             is_super = "super" in cat or is_titan
             is_dread = "dread" in cat or "lancer" in cat
             is_fax = "fax" in cat or "force" in cat or "auxiliary" in cat
-            is_capital = is_titan or is_super or is_dread or is_fax or "carrier" in cat or "cap" in cat
+            is_capital = (
+                is_titan
+                or is_super
+                or is_dread
+                or is_fax
+                or "carrier" in cat
+                or "cap" in cat
+            )
             is_blops = "blops" in cat or "blackops" in cat or "black_ops" in cat
             is_cyno = "cyno" in cat
             is_top_combat = cat in (
@@ -1570,7 +2023,9 @@ class ZKillClient:
                 if isinstance(item, dict):
                     c_id = item.get("characterID") or item.get("character_id")
                     if not c_id and "id" in item:
-                        if not self.is_invalid_character_id(item["id"], item.get("name", "")):
+                        if not self.is_invalid_character_id(
+                            item["id"], item.get("name", "")
+                        ):
                             c_id = item["id"]
                         else:
                             continue
@@ -1578,8 +2033,17 @@ class ZKillClient:
                     if not c_id:
                         continue
 
-                    c_name = item.get("characterName") or item.get("character_name") or item.get("name") or ""
-                    corp_n = item.get("corporationName") or item.get("corporation_name") or ""
+                    c_name = (
+                        item.get("characterName")
+                        or item.get("character_name")
+                        or item.get("name")
+                        or ""
+                    )
+                    corp_n = (
+                        item.get("corporationName")
+                        or item.get("corporation_name")
+                        or ""
+                    )
                     all_n = item.get("allianceName") or item.get("alliance_name") or ""
                     s_name = item.get("shipName") or item.get("ship_name") or ""
                     kills_cnt = item.get("kills") or item.get("killsCount")
@@ -1588,11 +2052,11 @@ class ZKillClient:
                     stats_desc = ""
                     if is_top_combat:
                         if kills_cnt and losses_cnt:
-                            stats_desc = f"Rank #{idx+1} on combat board ({kills_cnt} kills, {losses_cnt} losses)."
+                            stats_desc = f"Rank #{idx + 1} on combat board ({kills_cnt} kills, {losses_cnt} losses)."
                         elif kills_cnt:
-                            stats_desc = f"Rank #{idx+1} on combat board ({kills_cnt} kills recorded)."
+                            stats_desc = f"Rank #{idx + 1} on combat board ({kills_cnt} kills recorded)."
                         else:
-                            stats_desc = f"Rank #{idx+1} on combat board."
+                            stats_desc = f"Rank #{idx + 1} on combat board."
 
                     add_pilot_candidate(
                         c_id,
@@ -1608,27 +2072,42 @@ class ZKillClient:
                         is_blops=is_blops,
                         is_cyno=is_cyno,
                         is_fc=is_top_combat,
-                        raw_labels=item.get("labels") or item.get("tags") or item.get("badges"),
+                        raw_labels=item.get("labels")
+                        or item.get("tags")
+                        or item.get("badges"),
                         role_label=role_lbl,
                         stats_desc=stats_desc,
                     )
 
         # 4. Parse Pilots / Characters Array
-        raw_pilots = data.get("pilots") or data.get("characters") or data.get("dossiers") or []
+        raw_pilots = (
+            data.get("pilots") or data.get("characters") or data.get("dossiers") or []
+        )
         if isinstance(raw_pilots, list):
             for item in raw_pilots:
                 if isinstance(item, dict):
                     c_id = item.get("characterID") or item.get("character_id")
                     if not c_id and "id" in item:
-                        if not self.is_invalid_character_id(item["id"], item.get("name", "")):
+                        if not self.is_invalid_character_id(
+                            item["id"], item.get("name", "")
+                        ):
                             c_id = item["id"]
                         else:
                             continue
                     if not c_id:
                         continue
 
-                    c_name = item.get("characterName") or item.get("character_name") or item.get("name") or ""
-                    corp_n = item.get("corporationName") or item.get("corporation_name") or ""
+                    c_name = (
+                        item.get("characterName")
+                        or item.get("character_name")
+                        or item.get("name")
+                        or ""
+                    )
+                    corp_n = (
+                        item.get("corporationName")
+                        or item.get("corporation_name")
+                        or ""
+                    )
                     all_n = item.get("allianceName") or item.get("alliance_name") or ""
                     s_name = item.get("shipName") or item.get("ship_name") or ""
                     add_pilot_candidate(
@@ -1661,18 +2140,24 @@ class ZKillClient:
                         is_logi=bool(item.get("is_logi_pilot")),
                         logi_count=item.get("logi_count", 0),
                         is_rookie=bool(item.get("is_rookie")),
-                        raw_labels=item.get("labels") or item.get("tags") or item.get("badges"),
+                        raw_labels=item.get("labels")
+                        or item.get("tags")
+                        or item.get("badges"),
                     )
 
         # 5. Bulk Character Affiliation Resolution
-        all_cids = [cid for cid, p in detected_pilots.items() if not self.is_invalid_character_id(cid, p.get("character_name", ""))]
+        all_cids = [
+            cid
+            for cid, p in detected_pilots.items()
+            if not self.is_invalid_character_id(cid, p.get("character_name", ""))
+        ]
         if all_cids:
             try:
                 affiliations = esi_client.post_characters_affiliation(all_cids)
                 corp_id_map = {}
                 alliance_id_map = {}
                 missing_name_ids = set()
-                for aff in (affiliations or []):
+                for aff in affiliations or []:
                     c_id = _get_val(aff, "character_id")
                     corp_id = _get_val(aff, "corporation_id")
                     all_id = _get_val(aff, "alliance_id")
@@ -1686,20 +2171,38 @@ class ZKillClient:
 
                 known_corps = {
                     int(c.corporation_id): c.corporation_name
-                    for c in HostileCorporation.objects.filter(corporation_id__in=missing_name_ids)
+                    for c in HostileCorporation.objects.filter(
+                        corporation_id__in=missing_name_ids
+                    )
                 }
                 known_alliances = {
                     int(a.alliance_id): a.alliance_name
-                    for a in HostileAlliance.objects.filter(alliance_id__in=missing_name_ids)
+                    for a in HostileAlliance.objects.filter(
+                        alliance_id__in=missing_name_ids
+                    )
                 }
                 try:
-                    from allianceauth.eveonline.models import EveAllianceInfo, EveCorporationInfo
+                    # Alliance Auth
+                    from allianceauth.eveonline.models import (
+                        EveAllianceInfo,
+                        EveCorporationInfo,
+                    )
 
-                    for ec in EveCorporationInfo.objects.filter(corporation_id__in=missing_name_ids):
-                        if int(ec.corporation_id) not in known_corps and ec.corporation_name:
+                    for ec in EveCorporationInfo.objects.filter(
+                        corporation_id__in=missing_name_ids
+                    ):
+                        if (
+                            int(ec.corporation_id) not in known_corps
+                            and ec.corporation_name
+                        ):
                             known_corps[int(ec.corporation_id)] = ec.corporation_name
-                    for ea in EveAllianceInfo.objects.filter(alliance_id__in=missing_name_ids):
-                        if int(ea.alliance_id) not in known_alliances and ea.alliance_name:
+                    for ea in EveAllianceInfo.objects.filter(
+                        alliance_id__in=missing_name_ids
+                    ):
+                        if (
+                            int(ea.alliance_id) not in known_alliances
+                            and ea.alliance_name
+                        ):
                             known_alliances[int(ea.alliance_id)] = ea.alliance_name
                 except Exception:
                     pass
@@ -1711,7 +2214,7 @@ class ZKillClient:
                 ]
                 if unresolved_ids:
                     names_data = esi_client.post_universe_names(unresolved_ids)
-                    for item in (names_data or []):
+                    for item in names_data or []:
                         i_id = _get_val(item, "id")
                         i_name = _get_val(item, "name")
                         i_cat = _get_val(item, "category")
@@ -1757,12 +2260,15 @@ class ZKillClient:
             char_name = (p["character_name"] or "").strip()
             if not char_name or char_name.startswith("Pilot #"):
                 try:
+                    # AA Hostile Intel
                     from hostile.services.entity_resolver import EntityResolver
 
                     resolved = EntityResolver.resolve_character(cid)
                     if resolved and resolved.get("character_name"):
                         char_name = resolved["character_name"]
-                        if not p["corporation_name"] and resolved.get("corporation_name"):
+                        if not p["corporation_name"] and resolved.get(
+                            "corporation_name"
+                        ):
                             p["corporation_name"] = resolved["corporation_name"]
                         if not p["alliance_name"] and resolved.get("alliance_name"):
                             p["alliance_name"] = resolved["alliance_name"]
@@ -1872,13 +2378,18 @@ class ZKillClient:
                     dossier.is_rookie = True
                     updated = True
                 if p.get("zkill_labels"):
-                    merged_labels = list(set((dossier.zkill_labels or []) + p["zkill_labels"]))
+                    merged_labels = list(
+                        set((dossier.zkill_labels or []) + p["zkill_labels"])
+                    )
                     if merged_labels != dossier.zkill_labels:
                         dossier.zkill_labels = merged_labels
                         updated = True
                 if p["is_out_of_corp"] and not dossier.is_out_of_corp:
                     dossier.is_out_of_corp = True
-                    if p.get("associated_alliance_name") and not dossier.associated_alliance_name:
+                    if (
+                        p.get("associated_alliance_name")
+                        and not dossier.associated_alliance_name
+                    ):
                         dossier.associated_alliance_name = p["associated_alliance_name"]
                     updated = True
                 if not dossier.alliance_name and p.get("alliance_name"):
@@ -1891,16 +2402,25 @@ class ZKillClient:
                 ):
                     dossier.corporation_name = p["corporation_name"]
                     updated = True
-                if char_name and (dossier.character_name.startswith("Pilot #") or not dossier.character_name):
+                if char_name and (
+                    dossier.character_name.startswith("Pilot #")
+                    or not dossier.character_name
+                ):
                     dossier.character_name = char_name
                     updated = True
 
                 # Link new ships to notes if not already mentioned
                 if flown_ships:
                     existing_notes = dossier.notes or ""
-                    new_ships = [s for s in flown_ships if s.lower() not in existing_notes.lower()]
+                    new_ships = [
+                        s
+                        for s in flown_ships
+                        if s.lower() not in existing_notes.lower()
+                    ]
                     if new_ships:
-                        ships_text = f"Auto-detected ships (zKillboard): {', '.join(new_ships)}."
+                        ships_text = (
+                            f"Auto-detected ships (zKillboard): {', '.join(new_ships)}."
+                        )
                         if existing_notes:
                             dossier.notes = f"{existing_notes}\n{ships_text}"
                         else:
@@ -1922,7 +2442,11 @@ class ZKillClient:
             else:
                 roles_list = []
                 if p["is_fc"]:
-                    lvl_str = f" ({p['fc_level'].capitalize()})" if p.get("fc_level") and p["fc_level"] != "CANDIDATE" else ""
+                    lvl_str = (
+                        f" ({p['fc_level'].capitalize()})"
+                        if p.get("fc_level") and p["fc_level"] != "CANDIDATE"
+                        else ""
+                    )
                     roles_list.append(f"Fleet Commander{lvl_str} / Top Combat Lead")
                 if p["is_titan_pilot"]:
                     roles_list.append("Titan Pilot")
@@ -1933,7 +2457,10 @@ class ZKillClient:
                 if p["is_fax_pilot"]:
                     roles_list.append("Force Auxiliary (FAX) Pilot")
                 if p["is_capital_pilot"] and not (
-                    p["is_titan_pilot"] or p["is_super_pilot"] or p["is_dread_pilot"] or p["is_fax_pilot"]
+                    p["is_titan_pilot"]
+                    or p["is_super_pilot"]
+                    or p["is_dread_pilot"]
+                    or p["is_fax_pilot"]
                 ):
                     roles_list.append("Carrier / Capital Pilot")
                 if p["is_blops_pilot"]:
@@ -1947,7 +2474,9 @@ class ZKillClient:
                 if p.get("is_faction_awox"):
                     roles_list.append(f"Faction AWOX ({p['faction_awox_count']})")
                 if p.get("is_bait"):
-                    roles_list.append(f"Bait ({p.get('bait_level', '')} {p['bait_count']})".strip())
+                    roles_list.append(
+                        f"Bait ({p.get('bait_level', '')} {p['bait_count']})".strip()
+                    )
                 if p.get("is_ganker"):
                     roles_list.append(f"Ganker ({p['ganker_count']})")
                 if p.get("is_logi_pilot"):
@@ -1963,7 +2492,9 @@ class ZKillClient:
                     note_parts.append(p["stats_desc"])
                 if p["corporation_name"]:
                     if p["is_out_of_corp"]:
-                        note_parts.append(f"Operating in holding/alt corp '{p['corporation_name']}'.")
+                        note_parts.append(
+                            f"Operating in holding/alt corp '{p['corporation_name']}'."
+                        )
                     else:
                         note_parts.append(f"Corporation: {p['corporation_name']}.")
                 if flown_ships:
@@ -2041,7 +2572,9 @@ class ZKillClient:
 
             self.ingest_pilots_from_zkill_data(data, alliance=alliance)
 
-            active_characters, weekly_kills, weekly_losses = self._extract_weekly_stats(data)
+            active_characters, weekly_kills, weekly_losses = self._extract_weekly_stats(
+                data
+            )
 
             # 1. Automatically determine operational Timezone from zKill distribution + timers
             activity_data = data.get("activity", {}) or data.get("hourly", {})
@@ -2068,7 +2601,11 @@ class ZKillClient:
                                 else m.get("characters", 0)
                             )
                             if not count and isinstance(m.get("activepvp"), dict):
-                                count = m.get("activepvp", {}).get("characters", {}).get("count", 0)
+                                count = (
+                                    m.get("activepvp", {})
+                                    .get("characters", {})
+                                    .get("count", 0)
+                                )
                             if isinstance(count, (int, float)) and count > 0:
                                 historical_characters.append(int(count))
             elif isinstance(months_data, list):
@@ -2123,12 +2660,26 @@ class ZKillClient:
             )
             total_caps = dread_count + fax_count + carrier_count
 
-            new_subcap = max(10, int(peak_characters * 0.6)) if peak_characters > 0 else (
-                max(1, int(alliance.member_count * 0.15)) if alliance.member_count > 0 else 0
+            new_subcap = (
+                max(10, int(peak_characters * 0.6))
+                if peak_characters > 0
+                else (
+                    max(1, int(alliance.member_count * 0.15))
+                    if alliance.member_count > 0
+                    else 0
+                )
             )
-            new_cap = total_caps if total_caps > 0 else (
-                max(5, int(peak_characters * 0.15)) if peak_characters >= 50 else (
-                    max(1, int(alliance.member_count * 0.03)) if alliance.member_count >= 50 else 0
+            new_cap = (
+                total_caps
+                if total_caps > 0
+                else (
+                    max(5, int(peak_characters * 0.15))
+                    if peak_characters >= 50
+                    else (
+                        max(1, int(alliance.member_count * 0.03))
+                        if alliance.member_count >= 50
+                        else 0
+                    )
                 )
             )
             new_super = total_supers
@@ -2148,16 +2699,10 @@ class ZKillClient:
                     "prev": alliance.prev_max_subcap_form,
                     "curr": new_subcap,
                 }
-            elif (
-                alliance.max_subcap_form == 0
-                or alliance.prev_max_subcap_form == 0
-            ):
+            elif alliance.max_subcap_form == 0 or alliance.prev_max_subcap_form == 0:
                 deltas.pop("subcap", None)
 
-            if (
-                alliance.prev_max_cap_form > 0
-                and new_cap != alliance.prev_max_cap_form
-            ):
+            if alliance.prev_max_cap_form > 0 and new_cap != alliance.prev_max_cap_form:
                 diff = new_cap - alliance.prev_max_cap_form
                 pct = int(round((diff / alliance.prev_max_cap_form) * 100))
                 sign = "+" if pct >= 0 else ""
@@ -2220,10 +2765,7 @@ class ZKillClient:
                 if inferred_tz and inferred_tz != "UNKNOWN":
                     alliance.primary_timezone = inferred_tz
 
-            if (
-                alliance.max_subcap_form == 0
-                or alliance.prev_max_subcap_form == 0
-            ):
+            if alliance.max_subcap_form == 0 or alliance.prev_max_subcap_form == 0:
                 alliance.prev_max_subcap_form = new_subcap
             else:
                 alliance.prev_max_subcap_form = alliance.max_subcap_form
@@ -2277,7 +2819,9 @@ class ZKillClient:
         and compiles a 3-month rolling activity heatmap.
         """
         lock_key_id = f"hostile-intel-zkill-syncing-{corporation.id}"
-        lock_key_corp_id = f"hostile-intel-zkill-syncing-corp-{corporation.corporation_id}"
+        lock_key_corp_id = (
+            f"hostile-intel-zkill-syncing-corp-{corporation.corporation_id}"
+        )
         cache.set(lock_key_id, True, 300)
         cache.set(lock_key_corp_id, True, 300)
         try:
@@ -2287,7 +2831,9 @@ class ZKillClient:
 
             self.ingest_pilots_from_zkill_data(data, corporation=corporation)
 
-            active_characters, weekly_kills, weekly_losses = self._extract_weekly_stats(data)
+            active_characters, weekly_kills, weekly_losses = self._extract_weekly_stats(
+                data
+            )
 
             # 1. Rolling 3-month lookback
             rolling_keys = self._get_rolling_3m_keys()
@@ -2305,7 +2851,11 @@ class ZKillClient:
                                 else m.get("characters", 0)
                             )
                             if not count and isinstance(m.get("activepvp"), dict):
-                                count = m.get("activepvp", {}).get("characters", {}).get("count", 0)
+                                count = (
+                                    m.get("activepvp", {})
+                                    .get("characters", {})
+                                    .get("count", 0)
+                                )
                             if isinstance(count, (int, float)) and count > 0:
                                 historical_characters.append(int(count))
             elif isinstance(months_data, list):
@@ -2358,12 +2908,26 @@ class ZKillClient:
             )
             total_caps = dread_count + fax_count + carrier_count
 
-            new_subcap = max(5, int(peak_characters * 0.6)) if peak_characters > 0 else (
-                max(1, int(corporation.member_count * 0.15)) if corporation.member_count > 0 else 0
+            new_subcap = (
+                max(5, int(peak_characters * 0.6))
+                if peak_characters > 0
+                else (
+                    max(1, int(corporation.member_count * 0.15))
+                    if corporation.member_count > 0
+                    else 0
+                )
             )
-            new_cap = total_caps if total_caps > 0 else (
-                max(3, int(peak_characters * 0.15)) if peak_characters >= 30 else (
-                    max(1, int(corporation.member_count * 0.03)) if corporation.member_count >= 50 else 0
+            new_cap = (
+                total_caps
+                if total_caps > 0
+                else (
+                    max(3, int(peak_characters * 0.15))
+                    if peak_characters >= 30
+                    else (
+                        max(1, int(corporation.member_count * 0.03))
+                        if corporation.member_count >= 50
+                        else 0
+                    )
                 )
             )
             new_super = total_supers
@@ -2401,10 +2965,7 @@ class ZKillClient:
                     "prev": corporation.prev_max_cap_form,
                     "curr": new_cap,
                 }
-            elif (
-                corporation.max_cap_form == 0
-                or corporation.prev_max_cap_form == 0
-            ):
+            elif corporation.max_cap_form == 0 or corporation.prev_max_cap_form == 0:
                 deltas.pop("cap", None)
 
             if (
@@ -2421,8 +2982,7 @@ class ZKillClient:
                     "curr": new_super,
                 }
             elif (
-                corporation.max_super_form == 0
-                or corporation.prev_max_super_form == 0
+                corporation.max_super_form == 0 or corporation.prev_max_super_form == 0
             ):
                 deltas.pop("super", None)
 
@@ -2437,18 +2997,12 @@ class ZKillClient:
             else:
                 corporation.prev_max_subcap_form = corporation.max_subcap_form
 
-            if (
-                corporation.max_cap_form == 0
-                or corporation.prev_max_cap_form == 0
-            ):
+            if corporation.max_cap_form == 0 or corporation.prev_max_cap_form == 0:
                 corporation.prev_max_cap_form = new_cap
             else:
                 corporation.prev_max_cap_form = corporation.max_cap_form
 
-            if (
-                corporation.max_super_form == 0
-                or corporation.prev_max_super_form == 0
-            ):
+            if corporation.max_super_form == 0 or corporation.prev_max_super_form == 0:
                 corporation.prev_max_super_form = new_super
             else:
                 corporation.prev_max_super_form = corporation.max_super_form

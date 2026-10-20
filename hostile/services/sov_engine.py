@@ -3,19 +3,19 @@ Sovereignty Intelligence and Operational Timezone Inference Engine
 """
 
 # Standard Library
+import re
 from collections import Counter
 from datetime import timedelta
-import re
-from typing import Any, Dict, List, Optional
+from typing import Any
+
+# Third Party
+from eve_sde.models import SolarSystem
 
 # Django
 from django.utils import dateparse, timezone
 
 # Alliance Auth
 from allianceauth.services.hooks import get_extension_logger
-
-# Third Party
-from eve_sde.models import SolarSystem
 
 # AA Hostile Intel
 from hostile.models import (
@@ -32,7 +32,11 @@ def _get_val(obj: Any, key: str, default: Any = None) -> Any:
     """Safely extracts a value from a dict, list, Pydantic model, Bravado object, or generic class instance."""
     if obj is None:
         return default
-    if isinstance(obj, (list, tuple)) and len(obj) > 0 and isinstance(obj[0], (dict, object)):
+    if (
+        isinstance(obj, (list, tuple))
+        and len(obj) > 0
+        and isinstance(obj[0], (dict, object))
+    ):
         obj = obj[0]
     if isinstance(obj, dict):
         return obj.get(key, default)
@@ -69,7 +73,7 @@ class SovAnalysisEngine:
         return "UNKNOWN"
 
     @classmethod
-    def infer_timezone(cls, hourly_distribution: Dict[str, int]) -> str:
+    def infer_timezone(cls, hourly_distribution: dict[str, int]) -> str:
         """Determines primary operational timezone based on vulnerability hourly clusters"""
         if not hourly_distribution:
             return "UNKNOWN"
@@ -77,7 +81,6 @@ class SovAnalysisEngine:
         ustz_count = 0  # 00:00 - 08:00 UTC
         autz_count = 0  # 08:00 - 14:00 UTC
         eutz_count = 0  # 14:00 - 22:00 UTC
-        ustz_count_extra = 0  # 22:00 - 24:00 UTC (late EUTZ / early USTZ)
 
         for hour_str, count in hourly_distribution.items():
             try:
@@ -109,20 +112,24 @@ class SovAnalysisEngine:
     @classmethod
     def infer_combined_timezone(
         cls,
-        activity_data: Optional[Dict[str, Any]] = None,
-        sov_distribution: Optional[Dict[str, Any]] = None,
+        activity_data: dict[str, Any] | None = None,
+        sov_distribution: dict[str, Any] | None = None,
     ) -> str:
         """Determines primary operational timezone combining zKill kill distribution and structure timers"""
-        combined: Dict[str, int] = {}
+        combined: dict[str, int] = {}
         if activity_data and isinstance(activity_data, dict):
-            if "matrix" in activity_data and isinstance(activity_data["matrix"], (list, tuple)):
+            if "matrix" in activity_data and isinstance(
+                activity_data["matrix"], (list, tuple)
+            ):
                 matrix = activity_data["matrix"]
                 for row in matrix:
                     if isinstance(row, (list, tuple)):
                         for h_int, val in enumerate(row):
                             try:
                                 if 0 <= h_int < 24 and isinstance(val, (int, float)):
-                                    combined[str(h_int)] = combined.get(str(h_int), 0) + int(val)
+                                    combined[str(h_int)] = combined.get(
+                                        str(h_int), 0
+                                    ) + int(val)
                             except (ValueError, TypeError):
                                 pass
             else:
@@ -131,14 +138,18 @@ class SovAnalysisEngine:
                         for hk, hv in v.items():
                             try:
                                 h_int = int(hk)
-                                combined[str(h_int)] = combined.get(str(h_int), 0) + int(hv)
+                                combined[str(h_int)] = combined.get(
+                                    str(h_int), 0
+                                ) + int(hv)
                             except (ValueError, TypeError):
                                 pass
                     elif isinstance(v, (list, tuple)):
                         for h_int, hv in enumerate(v):
                             try:
                                 if 0 <= h_int < 24 and isinstance(hv, (int, float)):
-                                    combined[str(h_int)] = combined.get(str(h_int), 0) + int(hv)
+                                    combined[str(h_int)] = combined.get(
+                                        str(h_int), 0
+                                    ) + int(hv)
                             except (ValueError, TypeError):
                                 pass
                     elif isinstance(v, (int, float)):
@@ -162,18 +173,20 @@ class SovAnalysisEngine:
     @classmethod
     def aggregate_alliance_vulnerability_windows(
         cls, alliance: HostileAlliance
-    ) -> Dict[str, int]:
+    ) -> dict[str, int]:
         """
         Aggregates crowd-sourced structure vulnerability windows for an alliance
         and updates its sov_timer_distribution profile.
         """
-        hours: List[int] = []
+        hours: list[int] = []
         structures = alliance.structures.all()
         for struct in structures:
             if struct.vulnerability_hour is not None:
                 hours.append(struct.vulnerability_hour)
             elif struct.vulnerability_window:
-                hour_match = re.search(r"\b(\d{1,2})(?::\d{2})?\b", struct.vulnerability_window)
+                hour_match = re.search(
+                    r"\b(\d{1,2})(?::\d{2})?\b", struct.vulnerability_window
+                )
                 if hour_match:
                     try:
                         h = int(hour_match.group(1))
@@ -190,23 +203,23 @@ class SovAnalysisEngine:
         alliance.sov_timer_distribution = distribution
         if not getattr(alliance, "override_timezone", False) and distribution:
             alliance.primary_timezone = cls.infer_timezone(distribution)
-        alliance.save(update_fields=["sov_timer_distribution", "primary_timezone", "updated_at"])
+        alliance.save(
+            update_fields=["sov_timer_distribution", "primary_timezone", "updated_at"]
+        )
         return distribution
 
     @classmethod
     def process_sovereignty_structures(
-        cls, sov_structures: List[Any]
-    ) -> Dict[int, Dict[str, Any]]:
+        cls, sov_structures: list[Any]
+    ) -> dict[int, dict[str, Any]]:
         """Aggregates structure vulnerability times for tracked alliances and updates vulnerability profiles"""
-        tracked_alliances = {
-            a.alliance_id: a for a in HostileAlliance.objects.all()
-        }
+        tracked_alliances = {a.alliance_id: a for a in HostileAlliance.objects.all()}
         if not tracked_alliances:
             return {}
 
-        alliance_timers: Dict[int, List[int]] = {}
+        alliance_timers: dict[int, list[int]] = {}
 
-        for s in (sov_structures or []):
+        for s in sov_structures or []:
             alliance_id = _get_val(s, "alliance_id")
             if not alliance_id:
                 continue
@@ -232,7 +245,7 @@ class SovAnalysisEngine:
                         alliance_timers[aid_int] = []
                     alliance_timers[aid_int].append(hour)
 
-        results: Dict[int, Dict[str, Any]] = {}
+        results: dict[int, dict[str, Any]] = {}
         for alliance_id, hours in alliance_timers.items():
             distribution = {str(h): count for h, count in Counter(hours).items()}
             primary_tz = cls.infer_timezone(distribution)
@@ -256,7 +269,7 @@ class SovAnalysisEngine:
     @classmethod
     def get_alliance_sovereignty_intel(
         cls, alliance: HostileAlliance
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Gathers complete sovereignty intelligence for a hostile alliance:
         systems held, ADMs, vulnerability windows, reinforced/contest status,
@@ -276,10 +289,10 @@ class SovAnalysisEngine:
         sov_structures_raw = esi_client.get_sovereignty_structures()
         sov_map_raw = esi_client.get_sovereignty_map()
 
-        systems_dict: Dict[int, Dict[str, Any]] = {}
+        systems_dict: dict[int, dict[str, Any]] = {}
 
         # 1. Parse modern sovereignty systems
-        for s in (sov_systems_raw or []):
+        for s in sov_systems_raw or []:
             if not isinstance(s, dict):
                 continue
             sys_id = s.get("solar_system_id")
@@ -312,7 +325,7 @@ class SovAnalysisEngine:
             }
 
         # 2. Augment from sovereignty structures (legacy or supplementary)
-        for struct in (sov_structures_raw or []):
+        for struct in sov_structures_raw or []:
             if not isinstance(struct, dict):
                 continue
             s_aid = struct.get("alliance_id")
@@ -342,13 +355,17 @@ class SovAnalysisEngine:
                     entry["adm"] = float(struct.get("vulnerability_occupancy_level"))
                 except (ValueError, TypeError):
                     pass
-            if struct.get("vulnerable_start_time") and not entry.get("vulnerable_start_time"):
+            if struct.get("vulnerable_start_time") and not entry.get(
+                "vulnerable_start_time"
+            ):
                 entry["vulnerable_start_time"] = struct.get("vulnerable_start_time")
-            if struct.get("vulnerable_end_time") and not entry.get("vulnerable_end_time"):
+            if struct.get("vulnerable_end_time") and not entry.get(
+                "vulnerable_end_time"
+            ):
                 entry["vulnerable_end_time"] = struct.get("vulnerable_end_time")
 
         # 3. Augment from sovereignty map
-        for m in (sov_map_raw or []):
+        for m in sov_map_raw or []:
             if not isinstance(m, dict):
                 continue
             s_aid = m.get("alliance_id")
@@ -405,12 +422,12 @@ class SovAnalysisEngine:
             .select_related("solar_system")
             .order_by("timer_datetime")
         )
-        timers_by_system: Dict[int, List[StructureTimer]] = {}
+        timers_by_system: dict[int, list[StructureTimer]] = {}
         for t in active_timers_qs:
             timers_by_system.setdefault(t.solar_system_id, []).append(t)
 
         # Build region grouping
-        regions_map: Dict[str, Dict[str, Any]] = {}
+        regions_map: dict[str, dict[str, Any]] = {}
         total_adm_sum = 0.0
         total_contests = 0
 
@@ -453,14 +470,18 @@ class SovAnalysisEngine:
                     v_end_dt = v_end
 
             if v_start_dt and v_end_dt:
-                v_display = f"{v_start_dt.strftime('%H:%M')} - {v_end_dt.strftime('%H:%M')} UTC"
+                v_display = (
+                    f"{v_start_dt.strftime('%H:%M')} - {v_end_dt.strftime('%H:%M')} UTC"
+                )
                 current_time_utc = now.time()
                 st = v_start_dt.time()
                 et = v_end_dt.time()
                 if st <= et:
                     is_vulnerable_now = st <= current_time_utc <= et
                 else:
-                    is_vulnerable_now = (current_time_utc >= st) or (current_time_utc <= et)
+                    is_vulnerable_now = (current_time_utc >= st) or (
+                        current_time_utc <= et
+                    )
             elif v_start_dt:
                 v_display = f"{v_start_dt.strftime('%H:%M')} UTC"
 
@@ -511,7 +532,11 @@ class SovAnalysisEngine:
                 else 1.0
             )
             r_data["systems"].sort(
-                key=lambda s: (not s["is_capital"], not s["is_reinforced"], s["solar_system_name"])
+                key=lambda s: (
+                    not s["is_capital"],
+                    not s["is_reinforced"],
+                    s["solar_system_name"],
+                )
             )
             sorted_regions.append(r_data)
 
@@ -531,12 +556,12 @@ class SovAnalysisEngine:
     @classmethod
     def get_alliance_hourly_schedule(
         cls, alliance: HostileAlliance
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Builds 24-hour UTC schedule groups of known structures and active structure timers
         with detailed items for clickable accordion expansion.
         """
-        hours_map: Dict[int, Dict[str, Any]] = {}
+        hours_map: dict[int, dict[str, Any]] = {}
         for h in range(24):
             hours_map[h] = {
                 "hour": h,
@@ -549,7 +574,9 @@ class SovAnalysisEngine:
             }
 
         # 1. Add known structures
-        for struct in alliance.structures.select_related("structure_type", "solar_system").all():
+        for struct in alliance.structures.select_related(
+            "structure_type", "solar_system"
+        ).all():
             vh = struct.vulnerability_hour
             if vh is None and struct.vulnerability_window:
                 m = re.search(r"\b(\d{1,2})(?::\d{2})?\b", struct.vulnerability_window)
@@ -561,53 +588,86 @@ class SovAnalysisEngine:
             if vh is not None and 0 <= vh <= 23:
                 hours_map[vh]["structures_count"] += 1
                 hours_map[vh]["count"] += 1
-                hours_map[vh]["items"].append({
-                    "item_type": "Structure",
-                    "id": struct.id,
-                    "name": struct.name,
-                    "system_name": struct.solar_system.name if struct.solar_system else "Unknown",
-                    "structure_type_name": struct.structure_type.name if struct.structure_type else "Structure",
-                    "state": struct.get_state_display(),
-                    "state_raw": struct.state,
-                    "core_status": struct.core_status,
-                    "details": struct.vulnerability_window or f"{vh:02d}:00 UTC (±3h)",
-                    "edit_url": f"/structures/{struct.id}/edit/",
-                    "is_timer": False,
-                })
+                hours_map[vh]["items"].append(
+                    {
+                        "item_type": "Structure",
+                        "id": struct.id,
+                        "name": struct.name,
+                        "system_name": (
+                            struct.solar_system.name
+                            if struct.solar_system
+                            else "Unknown"
+                        ),
+                        "structure_type_name": (
+                            struct.structure_type.name
+                            if struct.structure_type
+                            else "Structure"
+                        ),
+                        "state": struct.get_state_display(),
+                        "state_raw": struct.state,
+                        "core_status": struct.core_status,
+                        "details": struct.vulnerability_window
+                        or f"{vh:02d}:00 UTC (±3h)",
+                        "edit_url": f"/structures/{struct.id}/edit/",
+                        "is_timer": False,
+                    }
+                )
 
         # 2. Add active structure timers
         now = timezone.now()
-        for timer in StructureTimer.objects.filter(
-            structure__alliance=alliance,
-            timer_datetime__gte=now - timedelta(hours=24),
-        ).select_related("structure", "solar_system", "structure__structure_type").order_by("timer_datetime"):
+        for timer in (
+            StructureTimer.objects.filter(
+                structure__alliance=alliance,
+                timer_datetime__gte=now - timedelta(hours=24),
+            )
+            .select_related("structure", "solar_system", "structure__structure_type")
+            .order_by("timer_datetime")
+        ):
             if timer.timer_datetime:
                 th = timer.timer_datetime.hour
                 hours_map[th]["timers_count"] += 1
                 hours_map[th]["count"] += 1
-                hours_map[th]["items"].append({
-                    "item_type": "Active Timer",
-                    "id": timer.id,
-                    "name": timer.structure.name if timer.structure else timer.target_name,
-                    "system_name": timer.solar_system.name if timer.solar_system else "Unknown",
-                    "structure_type_name": timer.structure.structure_type.name if (timer.structure and timer.structure.structure_type) else timer.timer_type,
-                    "state": f"{timer.get_timer_type_display()} Timer",
-                    "state_raw": "ARMOR_REINFORCED" if timer.timer_type == "ARMOR" else "HULL_REINFORCED",
-                    "core_status": timer.structure.core_status if timer.structure else None,
-                    "details": timer.timer_datetime.strftime("%Y-%m-%d %H:%M UTC"),
-                    "timer_datetime": timer.timer_datetime,
-                    "is_expired": timer.is_expired,
-                    "edit_url": f"/timers/{timer.id}/edit/",
-                    "is_timer": True,
-                })
+                hours_map[th]["items"].append(
+                    {
+                        "item_type": "Active Timer",
+                        "id": timer.id,
+                        "name": (
+                            timer.structure.name
+                            if timer.structure
+                            else timer.target_name
+                        ),
+                        "system_name": (
+                            timer.solar_system.name if timer.solar_system else "Unknown"
+                        ),
+                        "structure_type_name": (
+                            timer.structure.structure_type.name
+                            if (timer.structure and timer.structure.structure_type)
+                            else timer.timer_type
+                        ),
+                        "state": f"{timer.get_timer_type_display()} Timer",
+                        "state_raw": (
+                            "ARMOR_REINFORCED"
+                            if timer.timer_type == "ARMOR"
+                            else "HULL_REINFORCED"
+                        ),
+                        "core_status": (
+                            timer.structure.core_status if timer.structure else None
+                        ),
+                        "details": timer.timer_datetime.strftime("%Y-%m-%d %H:%M UTC"),
+                        "timer_datetime": timer.timer_datetime,
+                        "is_expired": timer.is_expired,
+                        "edit_url": f"/timers/{timer.id}/edit/",
+                        "is_timer": True,
+                    }
+                )
 
         active_hours = [h_data for h_data in hours_map.values() if h_data["count"] > 0]
         return active_hours
 
     @classmethod
     def process_sovereignty_campaigns(
-        cls, campaigns: List[Any]
-    ) -> List[StructureTimer]:
+        cls, campaigns: list[Any]
+    ) -> list[StructureTimer]:
         """Creates or updates upcoming sovereignty contest timers from public campaign feed"""
         created_timers = []
         if not campaigns:
@@ -627,18 +687,35 @@ class SovAnalysisEngine:
         if defender_ids:
             for ha in HostileAlliance.objects.filter(alliance_id__in=defender_ids):
                 known_defenders[ha.alliance_id] = (ha.alliance_name, ha.ticker or "")
-            for hc in HostileCorporation.objects.filter(corporation_id__in=defender_ids):
+            for hc in HostileCorporation.objects.filter(
+                corporation_id__in=defender_ids
+            ):
                 if hc.corporation_id not in known_defenders:
-                    known_defenders[hc.corporation_id] = (hc.corporation_name, hc.ticker or "")
+                    known_defenders[hc.corporation_id] = (
+                        hc.corporation_name,
+                        hc.ticker or "",
+                    )
             try:
-                from allianceauth.eveonline.models import EveAllianceInfo, EveCorporationInfo
+                # Alliance Auth
+                from allianceauth.eveonline.models import (
+                    EveAllianceInfo,
+                    EveCorporationInfo,
+                )
 
                 for ea in EveAllianceInfo.objects.filter(alliance_id__in=defender_ids):
                     if ea.alliance_id not in known_defenders:
-                        known_defenders[ea.alliance_id] = (ea.alliance_name, ea.alliance_ticker or "")
-                for ec in EveCorporationInfo.objects.filter(corporation_id__in=defender_ids):
+                        known_defenders[ea.alliance_id] = (
+                            ea.alliance_name,
+                            ea.alliance_ticker or "",
+                        )
+                for ec in EveCorporationInfo.objects.filter(
+                    corporation_id__in=defender_ids
+                ):
                     if ec.corporation_id not in known_defenders:
-                        known_defenders[ec.corporation_id] = (ec.corporation_name, ec.corporation_ticker or "")
+                        known_defenders[ec.corporation_id] = (
+                            ec.corporation_name,
+                            ec.corporation_ticker or "",
+                        )
             except Exception:
                 pass
 
@@ -646,7 +723,7 @@ class SovAnalysisEngine:
             if missing_dids:
                 try:
                     names_data = esi_client.post_universe_names(missing_dids)
-                    for item in (names_data or []):
+                    for item in names_data or []:
                         i_id = _get_val(item, "id")
                         i_name = _get_val(item, "name")
                         if i_id and i_name:
@@ -704,9 +781,7 @@ class SovAnalysisEngine:
             defender_score_raw = _get_val(c, "defender_score", 0.6)
             try:
                 defender_score = (
-                    float(defender_score_raw)
-                    if defender_score_raw is not None
-                    else 0.6
+                    float(defender_score_raw) if defender_score_raw is not None else 0.6
                 )
             except (ValueError, TypeError):
                 defender_score = 0.6
@@ -781,7 +856,7 @@ class SovAnalysisEngine:
     @classmethod
     def sync_alliance_members_and_corps(
         cls, alliance: HostileAlliance
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Queries ESI for an alliance's member corporations and public corporation info (member_count).
         Stores member corporations, calculates total character member counts, and computes rolling deltas.
@@ -854,6 +929,7 @@ class SovAnalysisEngine:
                 )
 
             try:
+                # AA Hostile Intel
                 from hostile.services.zkill_client import zkill_client
 
                 zkill_client.update_corporation_stats(corp)
@@ -896,18 +972,13 @@ class SovAnalysisEngine:
                 "curr": total_members,
             }
             alliance.prev_member_count = prev_m_count
-        elif (
-            alliance.member_count == 0
-            and alliance.prev_member_count == 0
-        ):
+        elif alliance.member_count == 0 and alliance.prev_member_count == 0:
             # First load: do not generate fake 100% delta
             deltas.pop("members", None)
             alliance.prev_member_count = total_members
         else:
             alliance.prev_member_count = (
-                alliance.member_count
-                if alliance.member_count > 0
-                else total_members
+                alliance.member_count if alliance.member_count > 0 else total_members
             )
 
         alliance.member_count = total_members
@@ -953,10 +1024,7 @@ class SovAnalysisEngine:
                 "curr": new_held,
             }
             alliance.prev_systems_held_count = prev_held
-        elif (
-            alliance.systems_held_count == 0
-            and alliance.prev_systems_held_count == 0
-        ):
+        elif alliance.systems_held_count == 0 and alliance.prev_systems_held_count == 0:
             # First load: do not generate fake 100% delta
             deltas.pop("systems_held", None)
             alliance.prev_systems_held_count = new_held
@@ -981,9 +1049,7 @@ class SovAnalysisEngine:
         return alliance
 
     @classmethod
-    def sync_sovereignty_held(
-        cls, sov_map: Optional[List[Any]] = None
-    ) -> Dict[int, int]:
+    def sync_sovereignty_held(cls, sov_map: list[Any] | None = None) -> dict[int, int]:
         """
         Polls the public ESI sovereignty map and synchronizes systems_held_count across all tracked alliances.
         """
@@ -994,18 +1060,23 @@ class SovAnalysisEngine:
             logger.warning(
                 "Sovereignty map is empty or unavailable from ESI. Preserving existing systems held."
             )
-            return {a.alliance_id: a.systems_held_count for a in HostileAlliance.objects.all()}
+            return {
+                a.alliance_id: a.systems_held_count
+                for a in HostileAlliance.objects.all()
+            }
 
         held_counts = Counter()
         capitals = {}
-        for item in (sov_map or []):
+        for item in sov_map or []:
             aid = _get_val(item, "alliance_id")
             if aid:
                 try:
                     aid_int = int(aid)
                     held_counts[aid_int] += 1
                     if _get_val(item, "is_capital_system"):
-                        sys_id = _get_val(item, "solar_system_id") or _get_val(item, "system_id")
+                        sys_id = _get_val(item, "solar_system_id") or _get_val(
+                            item, "system_id"
+                        )
                         if sys_id:
                             capitals[aid_int] = int(sys_id)
                 except (ValueError, TypeError):
@@ -1028,7 +1099,7 @@ class SovAnalysisEngine:
 
     @classmethod
     def sync_alliance_sovereignty_held_single(
-        cls, alliance: HostileAlliance, sov_map: Optional[List[Any]] = None
+        cls, alliance: HostileAlliance, sov_map: list[Any] | None = None
     ) -> int:
         """Synchronizes systems held for a single alliance instance"""
         if sov_map is None:
@@ -1044,12 +1115,14 @@ class SovAnalysisEngine:
 
         count = 0
         cap_sys_id = None
-        for item in (sov_map or []):
+        for item in sov_map or []:
             aid = _get_val(item, "alliance_id")
             if aid and int(aid) == alliance.alliance_id:
                 count += 1
                 if _get_val(item, "is_capital_system"):
-                    sys_id = _get_val(item, "solar_system_id") or _get_val(item, "system_id")
+                    sys_id = _get_val(item, "solar_system_id") or _get_val(
+                        item, "system_id"
+                    )
                     if sys_id:
                         cap_sys_id = int(sys_id)
 
