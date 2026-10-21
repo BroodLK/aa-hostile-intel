@@ -11,7 +11,7 @@
         {% if perms.hostile.manage_intel %}
         <button type="button" class="btn btn-outline-info btn-sm fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#suspectedDuplicatesModal" title="{% translate 'Review potential duplicate structures and merge them' %}">
             <i class="fas fa-layer-group me-1"></i>{% translate "Suspected Duplicates" %}
-            {% if suspected_count %}<span class="badge bg-warning text-dark ms-1">{{ suspected_count }}</span>{% endif %}
+            <span class="badge bg-warning text-dark ms-1 {% if not suspected_count %}d-none{% endif %}" id="suspectedCountBadge">{{ suspected_count|default:0 }}</span>
         </button>
         <form action="{% url 'hostile:structure_auto_deduplicate' %}" method="post" class="d-inline" onsubmit="return confirm('{% translate "Are you sure you want to scan and merge all duplicate structures across all systems?" %}');">
             {% csrf_token %}
@@ -316,35 +316,6 @@
                                     <i class="fas fa-check"></i>
                                 </a>
                             {% endif %}
-
-                            <!-- Delete Structure Modal -->
-                            <div class="modal fade text-start" id="deleteStructureModal{{ struct.id }}" tabindex="-1" aria-hidden="true">
-                                <div class="modal-dialog">
-                                    <div class="modal-content bg-dark text-white border-secondary">
-                                        <div class="modal-header border-secondary">
-                                            <h5 class="modal-title fw-bold text-danger">
-                                                <i class="fas fa-exclamation-triangle me-2"></i>{% translate "Delete Structure" %}
-                                            </h5>
-                                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                                        </div>
-                                        <div class="modal-body text-light">
-                                            <p>{% blocktranslate with name=struct.name system=struct.solar_system.name %}Are you sure you want to permanently delete structure <strong>{{ name }}</strong> in <strong>{{ system }}</strong>?{% endblocktranslate %}</p>
-                                            <div class="alert alert-warning py-2 small mb-0">
-                                                <i class="fas fa-info-circle me-1"></i>{% translate "This action cannot be undone. All associated fittings and active timers will be removed." %}
-                                            </div>
-                                        </div>
-                                        <div class="modal-footer border-secondary">
-                                            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">{% translate "Cancel" %}</button>
-                                            <form action="{% url 'hostile:structure_delete' struct.id %}" method="post" class="d-inline">
-                                                {% csrf_token %}
-                                                <button type="submit" class="btn btn-danger btn-sm fw-bold">
-                                                    <i class="fas fa-trash-alt me-1"></i>{% translate "Delete Structure" %}
-                                                </button>
-                                            </form>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
                         </td>
                     </tr>
                     {% empty %}
@@ -379,13 +350,13 @@
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body p-3">
-                {% if suspected_duplicates %}
+                <div id="suspectedDuplicatesContent" class="{% if not suspected_duplicates %}d-none{% endif %}">
                     <p class="text-muted small mb-3">
                         {% translate "The following structure clusters have high similarity or matching characteristics in the same solar system. Review candidates and merge them into the verified primary structure." %}
                     </p>
-                    <div class="d-flex flex-column gap-3">
+                    <div id="suspectedClusterContainer" class="d-flex flex-column gap-3">
                         {% for group in suspected_duplicates %}
-                        <div class="card bg-black bg-opacity-50 border-secondary">
+                        <div class="card bg-black bg-opacity-50 border-secondary suspected-cluster-card" data-primary-id="{{ group.primary.id }}">
                             <div class="card-header bg-dark border-secondary d-flex justify-content-between align-items-center py-2">
                                 <div>
                                     <span class="badge bg-primary me-2"><i class="fas fa-solar-panel me-1"></i>{{ group.system.name }}</span>
@@ -395,7 +366,7 @@
                                     <span class="badge {% if group.confidence == 'HIGH' %}bg-danger{% else %}bg-warning text-dark{% endif %} me-2">
                                         {{ group.confidence }} {% translate "CONFIDENCE" %}
                                     </span>
-                                    <form action="{% url 'hostile:structure_merge' %}" method="post" class="d-inline" onsubmit="return confirm('{% translate "Merge these candidate structures into the primary structure?" %}');">
+                                    <form action="{% url 'hostile:structure_merge' %}" method="post" class="d-inline merge-cluster-form">
                                         {% csrf_token %}
                                         <input type="hidden" name="primary_structure_id" value="{{ group.primary.id }}">
                                         {% for d in group.duplicates %}
@@ -455,13 +426,12 @@
                         </div>
                         {% endfor %}
                     </div>
-                {% else %}
-                    <div class="text-center py-5 text-muted">
-                        <i class="fas fa-check-circle fa-3x text-success mb-3 d-block"></i>
-                        <h5 class="text-white">{% translate "No Suspected Duplicate Structures" %}</h5>
-                        <p class="small mb-0">{% translate "All tracked structure records in the database appear unique and consistent." %}</p>
-                    </div>
-                {% endif %}
+                </div>
+                <div id="suspectedEmptyState" class="text-center py-5 text-muted {% if suspected_duplicates %}d-none{% endif %}">
+                    <i class="fas fa-check-circle fa-3x text-success mb-3 d-block"></i>
+                    <h5 class="text-white">{% translate "No Suspected Duplicate Structures" %}</h5>
+                    <p class="small mb-0">{% translate "All tracked structure records in the database appear unique and consistent." %}</p>
+                </div>
             </div>
             <div class="modal-footer border-secondary">
                 <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">{% translate "Close" %}</button>
@@ -600,6 +570,39 @@
         </div>
     </div>
 </div>
+
+{% if perms.hostile.manage_intel %}
+{% for struct in structures %}
+<!-- Delete Structure Modal for {{ struct.name }} -->
+<div class="modal fade text-start" id="deleteStructureModal{{ struct.id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title fw-bold text-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>{% translate "Delete Structure" %}
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-light">
+                <p>{% blocktranslate with name=struct.name system=struct.solar_system.name %}Are you sure you want to permanently delete structure <strong>{{ name }}</strong> in <strong>{{ system }}</strong>?{% endblocktranslate %}</p>
+                <div class="alert alert-warning py-2 small mb-0">
+                    <i class="fas fa-info-circle me-1"></i>{% translate "This action cannot be undone. All associated fittings and active timers will be removed." %}
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">{% translate "Cancel" %}</button>
+                <form action="{% url 'hostile:structure_delete' struct.id %}" method="post" class="d-inline">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger btn-sm fw-bold">
+                        <i class="fas fa-trash-alt me-1"></i>{% translate "Delete Structure" %}
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% endif %}
 
 {% block extra_javascript %}
 {{ block.super }}
@@ -1336,6 +1339,104 @@ document.addEventListener("DOMContentLoaded", function() {
     }
 
     initEditableCells();
+
+    // AJAX handling for Suspected Duplicate Cluster Merging
+    document.querySelectorAll('.merge-cluster-form').forEach(form => {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            if (!confirm('{% translate "Merge these candidate structures into the primary structure?" %}')) {
+                return;
+            }
+            const submitBtn = form.querySelector('button[type="submit"]');
+            const originalBtnHtml = submitBtn ? submitBtn.innerHTML : '';
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>{% translate "Merging..." %}';
+            }
+
+            const formData = new FormData(form);
+
+            fetch(form.action, {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRFToken': getCsrfToken()
+                },
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    const clusterCard = form.closest('.suspected-cluster-card');
+                    if (clusterCard) {
+                        clusterCard.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+                        clusterCard.style.opacity = '0';
+                        clusterCard.style.transform = 'translateY(-10px)';
+                        setTimeout(() => {
+                            clusterCard.remove();
+                            const container = document.getElementById('suspectedClusterContainer');
+                            const remaining = container ? container.querySelectorAll('.suspected-cluster-card').length : 0;
+                            const badge = document.getElementById('suspectedCountBadge');
+                            if (badge) {
+                                if (remaining > 0) {
+                                    badge.textContent = remaining;
+                                    badge.classList.remove('d-none');
+                                } else {
+                                    badge.classList.add('d-none');
+                                }
+                            }
+                            if (remaining === 0) {
+                                const contentWrapper = document.getElementById('suspectedDuplicatesContent');
+                                const emptyState = document.getElementById('suspectedEmptyState');
+                                if (contentWrapper) {
+                                    contentWrapper.classList.add('d-none');
+                                }
+                                if (emptyState) {
+                                    emptyState.classList.remove('d-none');
+                                }
+                            }
+                        }, 300);
+                    }
+
+                    // Remove merged duplicate rows from the main table
+                    if (data.merged_ids && data.merged_ids.length > 0) {
+                        data.merged_ids.forEach(did => {
+                            const dRow = document.querySelector(`tr.structure-row[data-id="${did}"]`);
+                            if (dRow) {
+                                dRow.remove();
+                            }
+                        });
+                        const remainingRows = document.querySelectorAll('tr.structure-row').length;
+                        const totalBadge = document.getElementById('structureCountBadge');
+                        const visibleBadge = document.getElementById('structureVisibleCount');
+                        if (visibleBadge) visibleBadge.textContent = remainingRows;
+                        if (totalBadge) totalBadge.innerHTML = `<span id="structureVisibleCount">${remainingRows}</span> / ${remainingRows}`;
+                    }
+                } else {
+                    alert(data.error || 'Failed to merge cluster.');
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = originalBtnHtml;
+                    }
+                }
+            })
+            .catch(err => {
+                alert('A network error occurred while merging clusters.');
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalBtnHtml;
+                }
+            });
+        });
+    });
+
+    {% if open_suspected_modal %}
+    const suspectedModalEl = document.getElementById('suspectedDuplicatesModal');
+    if (suspectedModalEl) {
+        const modal = new bootstrap.Modal(suspectedModalEl);
+        modal.show();
+    }
+    {% endif %}
 });
 </script>
 {% endblock %}

@@ -572,6 +572,7 @@ def structure_suspected_duplicates(request: WSGIRequest) -> HttpResponse:
         "suspected_count": len(suspected_duplicates),
         "paste_form": SmartPasteForm(),
         "structure_form": HostileStructureForm(),
+        "open_suspected_modal": True,
     }
     return render(request, "hostile/structures.html", context)
 
@@ -1165,10 +1166,14 @@ def structure_auto_deduplicate(request: WSGIRequest) -> HttpResponse:
 @login_required
 @permission_required("hostile.manage_intel")
 def structure_merge(request: WSGIRequest) -> HttpResponse:
-    """Manually merges selected duplicate structures into a primary structure"""
+    """Manually merges selected duplicate structures into a primary structure with AJAX JSON support"""
     if request.method == "POST":
         primary_id = request.POST.get("primary_structure_id")
         duplicate_ids = request.POST.getlist("duplicate_structure_ids")
+        is_ajax = (
+            request.headers.get("x-requested-with") == "XMLHttpRequest"
+            or request.headers.get("Accept") == "application/json"
+        )
         if primary_id and duplicate_ids:
             try:
                 primary = HostileStructure.objects.get(id=int(primary_id))
@@ -1181,21 +1186,40 @@ def structure_merge(request: WSGIRequest) -> HttpResponse:
                     count = IntelManager.merge_structures(
                         primary, duplicates, user=request.user
                     )
-                    messages.success(
-                        request,
-                        f"Merged {count} structure(s) into '{primary.name}'.",
-                    )
+                    msg = f"Merged {count} structure(s) into '{primary.name}'."
+                    messages.success(request, msg)
+                    if is_ajax:
+                        remaining_suspected = len(
+                            IntelManager.find_suspected_duplicates()
+                        )
+                        return JsonResponse(
+                            {
+                                "success": True,
+                                "message": msg,
+                                "merged_count": count,
+                                "primary_id": primary.id,
+                                "primary_name": primary.name,
+                                "merged_ids": [d.id for d in duplicates],
+                                "remaining_suspected": remaining_suspected,
+                            }
+                        )
                 else:
-                    messages.warning(
-                        request, "No valid duplicate structures selected for merge."
-                    )
+                    msg = "No valid duplicate structures selected for merge."
+                    messages.warning(request, msg)
+                    if is_ajax:
+                        return JsonResponse(
+                            {"success": False, "error": msg}, status=400
+                        )
             except (HostileStructure.DoesNotExist, ValueError) as e:
-                messages.error(request, f"Error merging structures: {e}")
+                msg = f"Error merging structures: {e}"
+                messages.error(request, msg)
+                if is_ajax:
+                    return JsonResponse({"success": False, "error": msg}, status=400)
         else:
-            messages.warning(
-                request,
-                "Please specify a primary structure and at least one duplicate.",
-            )
+            msg = "Please specify a primary structure and at least one duplicate."
+            messages.warning(request, msg)
+            if is_ajax:
+                return JsonResponse({"success": False, "error": msg}, status=400)
     return redirect("hostile:structures")
 
 

@@ -268,3 +268,26 @@ class TestImprovements(TestCase):
         data = response.json()
         self.assertIn("suspected_groups", data)
         self.assertTrue(data["count"] >= 1)
+
+        # Test view HTML rendering includes open_suspected_modal
+        html_response = self.client.get(url)
+        self.assertEqual(html_response.status_code, 200)
+        self.assertTrue(html_response.context.get("open_suspected_modal"))
+
+        # Test structure merge via AJAX
+        merge_url = reverse("hostile:structure_merge")
+        merge_response = self.client.post(
+            merge_url,
+            {
+                "primary_structure_id": p1.id,
+                "duplicate_structure_ids": [p2.id],
+            },
+            headers={"x-requested-with": "XMLHttpRequest"},
+        )
+        self.assertEqual(merge_response.status_code, 200)
+        merge_data = merge_response.json()
+        self.assertTrue(merge_data["success"])
+        self.assertEqual(merge_data["merged_count"], 1)
+        self.assertEqual(merge_data["primary_id"], p1.id)
+        self.assertEqual(merge_data["merged_ids"], [p2.id])
+        self.assertFalse(HostileStructure.objects.filter(id=p2.id).exists())

@@ -303,7 +303,7 @@ a:hover .hostile-stat-card,
 .hostile-searchable-select:has(.dropdown-menu.show),
 .hostile-searchable-select:has(.hostile-searchable-menu.show) {
     position: relative !important;
-    z-index: 1070 !important;
+    z-index: 105 !important;
 }
 
 .hostile-searchable-toggle {
@@ -329,7 +329,7 @@ a:hover .hostile-stat-card,
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6) !important;
     border-radius: 0.375rem;
     min-width: 100%;
-    z-index: 1080 !important;
+    z-index: 110 !important;
 }
 
 .col:has(.dropdown-menu.show),
@@ -347,7 +347,7 @@ a:hover .hostile-stat-card,
 .row:has(.hostile-searchable-menu.show),
 .row.hostile-dropdown-active {
     position: relative !important;
-    z-index: 1060 !important;
+    z-index: 102 !important;
     overflow: visible !important;
 }
 
@@ -366,7 +366,6 @@ a:hover .hostile-stat-card,
 .hostile-card:focus-within:has(.hostile-searchable-select),
 .hostile-card:has(.dropdown-menu.show),
 .hostile-card:has(.hostile-searchable-select.show),
-.hostile-card:has(.show),
 .card.hostile-dropdown-active,
 .card:has(.hostile-searchable-menu.show),
 .card:has(.hostile-searchable-select.show),
@@ -375,8 +374,29 @@ a:hover .hostile-stat-card,
 .collapse.show:has(.hostile-searchable-select.show),
 .collapse.show.hostile-dropdown-active {
     position: relative !important;
-    z-index: 1050 !important;
+    z-index: 101 !important;
     overflow: visible !important;
+}
+
+/* Modals & Backdrop Stacking */
+.modal-backdrop {
+    z-index: 1050 !important;
+}
+
+.modal {
+    z-index: 1055 !important;
+}
+
+.modal .hostile-searchable-select.show,
+.modal .hostile-searchable-select:focus-within,
+.modal .hostile-searchable-select:has(.dropdown-menu.show),
+.modal .hostile-searchable-select:has(.hostile-searchable-menu.show) {
+    z-index: 1060 !important;
+}
+
+.modal .hostile-searchable-menu,
+.modal .dropdown-menu {
+    z-index: 1065 !important;
 }
 
 .collapse.show:has(.dropdown-menu.show) .card,
