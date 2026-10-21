@@ -75,9 +75,7 @@ class StructureQuerySet(models.QuerySet):
         # 2. Ansiblex bidirectional route matching
         if norm_name and "»" in norm_name:
             parts = [
-                p.strip().split()[0]
-                for p in norm_name.split("»")
-                if p.strip().split()
+                p.strip().split()[0] for p in norm_name.split("»") if p.strip().split()
             ]
             if len(parts) >= 2:
                 sys1, sys2 = parts[0].upper(), parts[1].upper()

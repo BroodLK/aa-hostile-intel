@@ -150,11 +150,15 @@ class TestStructureDeduplication(TestCase):
             "Factory Fort",
         )
         self.assertEqual(
-            extract_core_structure_name("[INIT] Staging Citadel (1DQ1-A)", solar_system="1DQ1-A"),
+            extract_core_structure_name(
+                "[INIT] Staging Citadel (1DQ1-A)", solar_system="1DQ1-A"
+            ),
             "Staging Citadel",
         )
         self.assertEqual(
-            extract_core_structure_name("Mercenary Den (BNX-AS)", solar_system=self.system_bnx),
+            extract_core_structure_name(
+                "Mercenary Den (BNX-AS)", solar_system=self.system_bnx
+            ),
             "Mercenary Den",
         )
         self.assertEqual(

@@ -665,9 +665,7 @@ class EntityResolver:
                     hostile_corp.alliance.id if hostile_corp.alliance else None
                 ),
                 "alliance_name": (
-                    hostile_corp.alliance.alliance_name
-                    if hostile_corp.alliance
-                    else ""
+                    hostile_corp.alliance.alliance_name if hostile_corp.alliance else ""
                 ),
                 "source": "internal_hostile_corp",
             }
