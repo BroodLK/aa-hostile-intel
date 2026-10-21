@@ -337,7 +337,9 @@
         </div>
     </div>
 </div>
+{% endblock %}
 
+{% block modals %}
 {% if perms.hostile.manage_intel %}
 <!-- Suspected Duplicates Review Queue Modal -->
 <div class="modal fade" id="suspectedDuplicatesModal" tabindex="-1" aria-hidden="true">
@@ -603,6 +605,7 @@
 </div>
 {% endfor %}
 {% endif %}
+{% endblock %}
 
 {% block extra_javascript %}
 {{ block.super }}
@@ -1439,5 +1442,4 @@ document.addEventListener("DOMContentLoaded", function() {
     {% endif %}
 });
 </script>
-{% endblock %}
 {% endblock %}
