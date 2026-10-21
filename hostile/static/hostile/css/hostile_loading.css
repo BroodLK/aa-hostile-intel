@@ -18,6 +18,15 @@
     backdrop-filter: blur(2px);
 }
 
+/* Bootstrap's .d-none is loaded before this stylesheet. Keep the hidden state
+ * authoritative so the overlay cannot intercept normal page interactions. */
+.hostile-page-loading-overlay.d-none,
+.me-page-loading-overlay.d-none,
+.hostile-page-loading-overlay[aria-hidden="true"],
+.me-page-loading-overlay[aria-hidden="true"] {
+    display: none !important;
+}
+
 .hostile-page-loading-dialog,
 .me-page-loading-dialog {
     display: flex;
