@@ -9,7 +9,7 @@
     position: fixed;
     inset: 0;
     /* Stay above the page, while allowing Bootstrap dialogs to remain usable. */
-    z-index: 1040;
+    z-index: 1030 !important;
     display: flex;
     align-items: center;
     justify-content: center;

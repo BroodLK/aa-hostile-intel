@@ -1,6 +1,6 @@
 """Initialize the app"""
 
-__version__ = "0.0.14"
+__version__ = "0.0.15"
 __title__ = "Hostile Intel"
 __appname__ = "aa-hostile-intel"
 __url__ = "https://github.com/BroodLK/aa-hostile-intel"

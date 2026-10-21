@@ -61,6 +61,13 @@
         overlay.setAttribute('aria-hidden', 'true');
     }
 
+    function hideOverlayForOpenModal() {
+        const modal = document.getElementById('suspectedDuplicatesModal');
+        if (modal && modal.classList.contains('show')) {
+            hideOverlay();
+        }
+    }
+
     function showFromTrigger(trigger) {
         const title = trigger.getAttribute('data-hostile-loading') ||
             trigger.getAttribute('data-loading-overlay') ||
@@ -120,6 +127,12 @@
             return;
         }
 
+        // AJAX forms manage their own progress state. Showing the global page
+        // overlay here blocks the modal while the request is still in flight.
+        if (form.classList.contains('merge-cluster-form')) {
+            return;
+        }
+
         // Look for custom loading attributes on either the submitter or the form itself
         const submitter = event.submitter;
         let title = '';
@@ -170,6 +183,8 @@
     // Returning through history (including the back/forward cache) must never restore the
     // page with the overlay still covering it.
     window.addEventListener('pageshow', hideOverlay);
+    document.addEventListener('shown.bs.modal', hideOverlayForOpenModal);
+    document.addEventListener('show.bs.modal', hideOverlayForOpenModal);
 
     // Escape hatch: if a request dies without navigating, let the user dismiss the overlay.
     document.addEventListener('keydown', function(event) {
