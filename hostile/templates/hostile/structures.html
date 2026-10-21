@@ -13,7 +13,7 @@
             <i class="fas fa-layer-group me-1"></i>{% translate "Suspected Duplicates" %}
             <span class="badge bg-warning text-dark ms-1 {% if not suspected_count %}d-none{% endif %}" id="suspectedCountBadge">{{ suspected_count|default:0 }}</span>
         </button>
-        <form action="{% url 'hostile:structure_auto_deduplicate' %}" method="post" class="d-inline" onsubmit="return confirm('{% translate "Are you sure you want to scan and merge all duplicate structures across all systems?" %}');">
+        <form action="{% url 'hostile:structure_auto_deduplicate' %}" method="post" class="d-inline" data-hostile-loading="{% translate 'Merging duplicate structures' %}" data-hostile-loading-detail="{% translate 'Scanning every solar system and consolidating duplicate records...' %}" onsubmit="return confirm('{% translate "Are you sure you want to scan and merge all duplicate structures across all systems?" %}');">
             {% csrf_token %}
             <button type="submit" class="btn btn-outline-warning btn-sm fw-bold shadow-sm" title="{% translate 'Scan and merge duplicate structures (Ansiblex variants, generic timer syncs, etc.)' %}">
                 <i class="fas fa-compress-alt me-1"></i>{% translate "Merge Duplicates" %}
@@ -368,7 +368,7 @@
                                     <span class="badge {% if group.confidence == 'HIGH' %}bg-danger{% else %}bg-warning text-dark{% endif %} me-2">
                                         {{ group.confidence }} {% translate "CONFIDENCE" %}
                                     </span>
-                                    <form action="{% url 'hostile:structure_merge' %}" method="post" class="d-inline merge-cluster-form">
+                                    <form action="{% url 'hostile:structure_merge' %}" method="post" class="d-inline merge-cluster-form" data-hostile-loading="{% translate 'Merging duplicate structures' %}" data-hostile-loading-detail="{% translate 'Consolidating the selected structure records...' %}">
                                         {% csrf_token %}
                                         <input type="hidden" name="primary_structure_id" value="{{ group.primary.id }}">
                                         {% for d in group.duplicates %}
