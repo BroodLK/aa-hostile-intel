@@ -142,6 +142,14 @@
 <script src="{% static 'hostile/js/hostile_searchable_select.js' %}"></script>
 <script src="{% static 'hostile/js/hostile_countdown.js' %}"></script>
 <script>
+// Bootstrap appends the backdrop to <body>; a modal left inside the AA content
+// wrapper can end up in a lower stacking context and render beneath it.
+document.addEventListener('show.bs.modal', function(event) {
+    if (event.target.parentElement !== document.body) {
+        document.body.appendChild(event.target);
+    }
+});
+
 function attachSolarSystemAutocomplete(inputId, selectId, datalistId, clearBtnId) {
     const inputEl = document.getElementById(inputId);
     const selectEl = document.getElementById(selectId);

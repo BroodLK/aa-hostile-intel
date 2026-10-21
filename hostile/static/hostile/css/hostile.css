@@ -332,20 +332,22 @@ a:hover .hostile-stat-card,
     z-index: 110 !important;
 }
 
-.col:has(.dropdown-menu.show),
-.col:has(.hostile-searchable-select.show),
-.col:has(.hostile-searchable-menu.show),
-.col:focus-within:has(.hostile-searchable-select),
+/* :not(.nav-padding) / :not(main) skip AllianceAuth's page layout wrappers: giving
+ * them a z-index traps modals beneath the body-level backdrop. */
+.col:not(.nav-padding):has(.dropdown-menu.show),
+.col:not(.nav-padding):has(.hostile-searchable-select.show),
+.col:not(.nav-padding):has(.hostile-searchable-menu.show),
+.col:not(.nav-padding):focus-within:has(.hostile-searchable-select),
 [class*="col-"]:has(.dropdown-menu.show),
 [class*="col-"]:has(.hostile-searchable-select.show),
 [class*="col-"]:has(.hostile-searchable-menu.show),
 [class*="col-"]:focus-within:has(.hostile-searchable-select),
-.col.hostile-dropdown-active,
+.col:not(.nav-padding).hostile-dropdown-active,
 [class*="col-"].hostile-dropdown-active,
-.row:has(.dropdown-menu.show),
-.row:has(.hostile-searchable-select.show),
-.row:has(.hostile-searchable-menu.show),
-.row.hostile-dropdown-active {
+.row:not(main):has(.dropdown-menu.show),
+.row:not(main):has(.hostile-searchable-select.show),
+.row:not(main):has(.hostile-searchable-menu.show),
+.row:not(main).hostile-dropdown-active {
     position: relative !important;
     z-index: 102 !important;
     overflow: visible !important;
