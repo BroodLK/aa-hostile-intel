@@ -16,7 +16,13 @@
 (function() {
     const OVERLAY_ID = 'hostilePageLoadingOverlay';
     const FALLBACK_OVERLAY_ID = 'mePageLoadingOverlay';
-    const TRIGGER_SELECTOR = '[data-hostile-loading], [data-indy-loading], [data-me-loading], [data-loading-overlay]';
+    // Click handling is for navigational controls only. Forms are handled by the
+    // submit listener below; matching a form here makes any click inside a form
+    // look like a page navigation and can leave the overlay over the modal.
+    const TRIGGER_SELECTOR = 'a[data-hostile-loading], button[data-hostile-loading], input[data-hostile-loading], ' +
+        'a[data-indy-loading], button[data-indy-loading], input[data-indy-loading], ' +
+        'a[data-me-loading], button[data-me-loading], input[data-me-loading], ' +
+        'a[data-loading-overlay], button[data-loading-overlay], input[data-loading-overlay]';
 
     function getOverlay() {
         return document.getElementById(OVERLAY_ID) || document.getElementById(FALLBACK_OVERLAY_ID);
@@ -93,7 +99,7 @@
 
     document.addEventListener('click', function(event) {
         const trigger = event.target.closest(TRIGGER_SELECTOR);
-        if (!trigger || trigger.tagName === 'FORM') {
+        if (!trigger) {
             return;
         }
         if (trigger.disabled || trigger.getAttribute('aria-disabled') === 'true') {
