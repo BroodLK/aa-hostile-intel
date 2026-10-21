@@ -4031,16 +4031,21 @@ def api_alliance_resolve(request: WSGIRequest) -> JsonResponse:
 @login_required
 @permission_required("hostile.basic_access")
 def api_corporation_search(request: WSGIRequest) -> JsonResponse:
-    """JSON API endpoint for fast corporation autocomplete by name, ticker, or ID"""
+    """JSON API endpoint for fast corporation autocomplete by name, ticker, or ID, optionally filtered by alliance"""
     q = request.GET.get("q", "").strip()
+    alliance_id = (
+        request.GET.get("alliance_id") or request.GET.get("alliance") or ""
+    ).strip()
     try:
-        limit = min(int(request.GET.get("limit", 15)), 50)
+        limit = min(int(request.GET.get("limit", 250 if alliance_id else 15)), 500)
     except ValueError:
-        limit = 15
+        limit = 250 if alliance_id else 15
     # AA Hostile Intel
     from hostile.services.entity_resolver import EntityResolver
 
-    results = EntityResolver.search_corporations(q, limit=limit)
+    results = EntityResolver.search_corporations(
+        query=q, alliance_id=alliance_id or None, limit=limit
+    )
     return JsonResponse({"results": results})
 
 

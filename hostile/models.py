@@ -5,6 +5,7 @@ Hostile Intelligence Models
 # Standard Library
 import re
 import uuid
+from typing import Any
 
 # Third Party
 from eve_sde.models import ItemType, SolarSystem
@@ -524,6 +525,28 @@ def normalize_structure_name(name: str) -> str:
     cleaned = re.sub(r"\s*»\s*", " » ", cleaned)
     cleaned = re.sub(r"\s+", " ", cleaned)
     return cleaned.strip()
+
+
+def extract_core_structure_name(name: str, solar_system: Any = None) -> str:
+    """
+    Extracts the core structure name for deduplication by:
+    1. Normalizing arrows and whitespace.
+    2. Stripping leading bracketed alliance/corporation tickers e.g. '[CONDI] Imperial Palace' -> 'Imperial Palace'.
+    3. Stripping trailing system name in parentheses if it matches solar_system e.g. 'Mercenary Den (BNX-AS)' -> 'Mercenary Den'.
+    """
+    if not name:
+        return ""
+    cleaned = normalize_structure_name(name)
+    # Strip leading bracketed ticker e.g. [CONDI], [TICKR], [ALLI] -
+    cleaned = re.sub(r"^\[[^\]]+\]\s*[-–—:]?\s*", "", cleaned).strip()
+
+    # Strip trailing (SolarSystemName) if solar_system provided
+    if solar_system:
+        sys_name = getattr(solar_system, "name", str(solar_system)).strip()
+        if sys_name and cleaned.lower().endswith(f"({sys_name.lower()})"):
+            cleaned = cleaned[: -len(f"({sys_name})")].strip()
+
+    return cleaned
 
 
 class HostileStructure(models.Model):

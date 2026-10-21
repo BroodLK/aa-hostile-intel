@@ -23,6 +23,7 @@ from hostile.models import (
     StructureFitting,
     StructureTimer,
     SystemObservation,
+    extract_core_structure_name,
     normalize_structure_name,
 )
 
@@ -573,7 +574,7 @@ class IntelManager:
                     if norm1 == norm2:
                         is_dup = True
                         reason = f"Exact normalized name match ('{norm1}')"
-                    # Ansiblex matching
+                    # Ansiblex bidirectional route matching
                     elif "»" in norm1 and "»" in norm2:
                         parts1 = [
                             p.strip().split()[0]
@@ -586,33 +587,22 @@ class IntelManager:
                             if p.strip().split()
                         ]
                         if len(parts1) >= 2 and len(parts2) >= 2:
-                            if (parts1[0] == parts2[0] and parts1[1] == parts2[1]) or (
-                                parts1[0] == parts2[1] and parts1[1] == parts2[0]
-                            ):
+                            pair1 = {parts1[0].upper(), parts1[1].upper()}
+                            pair2 = {parts2[0].upper(), parts2[1].upper()}
+                            if pair1 == pair2:
                                 is_dup = True
-                                reason = f"Ansiblex gate pair match ('{parts1[0]}' <-> '{parts1[1]}')"
-                    # Generic name vs System-suffixed name
-                    elif solar_sys:
-                        s_name = solar_sys.name.lower()
-                        if (
-                            norm1 == f"{norm2} ({s_name})"
-                            or norm2 == f"{norm1} ({s_name})"
-                        ):
+                                reason = f"Ansiblex gate pair match ('{parts1[0].upper()}' <-> '{parts1[1].upper()}')"
+                    # Ticker-stripped core name and system suffix matching
+                    else:
+                        core1 = extract_core_structure_name(
+                            s1.name, solar_system=solar_sys
+                        ).lower()
+                        core2 = extract_core_structure_name(
+                            s2.name, solar_system=solar_sys
+                        ).lower()
+                        if core1 and core2 and core1 == core2:
                             is_dup = True
-                            reason = f"System suffix name match with '{s_name}'"
-                        elif (
-                            s1.structure_type
-                            and s2.structure_type
-                            and s1.structure_type == s2.structure_type
-                        ):
-                            type_low = s1.structure_type.name.lower()
-                            if (
-                                norm1 == type_low or norm1 == f"{type_low} ({s_name})"
-                            ) or (
-                                norm2 == type_low or norm2 == f"{type_low} ({s_name})"
-                            ):
-                                is_dup = True
-                                reason = f"Generic {s1.structure_type.name} type match in {solar_sys.name}"
+                            reason = f"Core structure name match ('{core1}')"
 
                     if is_dup:
                         dups_for_s1.append(s2)
@@ -730,10 +720,20 @@ class IntelManager:
                     confidence = "MEDIUM"
 
                     tokens1 = set(
-                        re.findall(r"\w+", normalize_structure_name(s1.name).lower())
+                        re.findall(
+                            r"\w+",
+                            extract_core_structure_name(
+                                s1.name, solar_system=s1.solar_system
+                            ).lower(),
+                        )
                     )
                     tokens2 = set(
-                        re.findall(r"\w+", normalize_structure_name(s2.name).lower())
+                        re.findall(
+                            r"\w+",
+                            extract_core_structure_name(
+                                s2.name, solar_system=s2.solar_system
+                            ).lower(),
+                        )
                     )
                     common_tokens = tokens1.intersection(tokens2)
 

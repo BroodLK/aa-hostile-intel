@@ -45,12 +45,13 @@ class StructureQuerySet(models.QuerySet):
         Smart deduplication search for an existing structure:
         - Exact structure_id match if provided
         - Exact normalized name match in solar_system (or globally if no system)
-        - Ansiblex route matching (matching both endpoint systems in Ansiblex names)
+        - Ansiblex route matching (bidirectional endpoint matching e.g. 'A-YB15 » ZS-PNI' vs 'ZS-PNI » A-YB15')
+        - Ticker-stripped core name match within solar_system (e.g. '[ALLI] Staging Citadel' vs 'Staging Citadel')
         - Generic vs System-specific fallback matching ('Mercenary Den' vs 'Mercenary Den (BNX-AS)')
         - Coordinate/celestial matching
         """
         # AA Hostile Intel
-        from hostile.models import normalize_structure_name
+        from hostile.models import extract_core_structure_name, normalize_structure_name
 
         if structure_id:
             match = self.filter(structure_id=structure_id).first()
@@ -61,58 +62,74 @@ class StructureQuerySet(models.QuerySet):
             return None
 
         norm_name = normalize_structure_name(name) if name else ""
-        system_structures = (
+        system_structures = list(
             self.filter(solar_system=solar_system) if solar_system else self.all()
         )
 
         # 1. Exact case-insensitive match on normalized name
         if norm_name:
-            match = system_structures.filter(name__iexact=norm_name).first()
-            if match:
-                return match
+            for s in system_structures:
+                if s.name.lower() == norm_name.lower():
+                    return s
 
-        # 2. Ansiblex route matching
+        # 2. Ansiblex bidirectional route matching
         if norm_name and "»" in norm_name:
-            parts = [p.strip() for p in norm_name.split("»")]
+            parts = [
+                p.strip().split()[0]
+                for p in norm_name.split("»")
+                if p.strip().split()
+            ]
             if len(parts) >= 2:
-                sys1 = parts[0].split()[0] if parts[0].split() else ""
-                sys2 = parts[1].split()[0] if parts[1].split() else ""
+                sys1, sys2 = parts[0].upper(), parts[1].upper()
                 if sys1 and sys2:
-                    ansiblex_matches = system_structures.filter(
-                        models.Q(name__icontains=sys1) & models.Q(name__icontains=sys2)
-                    )
-                    if ansiblex_matches.exists():
-                        return ansiblex_matches.first()
+                    for s in system_structures:
+                        if "»" in s.name:
+                            s_parts = [
+                                p.strip().split()[0]
+                                for p in s.name.split("»")
+                                if p.strip().split()
+                            ]
+                            if len(s_parts) >= 2:
+                                s_pair = {s_parts[0].upper(), s_parts[1].upper()}
+                                if s_pair == {sys1, sys2}:
+                                    return s
+                        elif sys1 in s.name.upper() and sys2 in s.name.upper():
+                            return s
 
-        # 3. Generic deployable vs System-specific fallback name
-        if solar_system:
-            sys_name = getattr(solar_system, "name", str(solar_system))
-            type_name = getattr(structure_type, "name", "") if structure_type else ""
+        # 3. Ticker-stripped core name match (handles [TICKR] prefixes and (System) suffixes)
+        if norm_name:
+            core_name = extract_core_structure_name(
+                norm_name, solar_system=solar_system
+            ).lower()
+            if core_name:
+                for s in system_structures:
+                    s_core = extract_core_structure_name(
+                        s.name, solar_system=solar_system
+                    ).lower()
+                    if s_core == core_name:
+                        return s
 
-            # Check if norm_name is generic like "Mercenary Den"
-            if norm_name:
-                synth_name = f"{norm_name} ({sys_name})"
-                match = system_structures.filter(name__iexact=synth_name).first()
-                if match:
-                    return match
+        # 4. Generic hull type fallback matching ONLY if name is strictly generic
+        if solar_system and structure_type:
+            sys_name = getattr(solar_system, "name", str(solar_system)).strip()
+            type_name = getattr(structure_type, "name", "").strip()
+            if type_name and norm_name.lower() in [
+                type_name.lower(),
+                f"{type_name.lower()} ({sys_name.lower()})",
+            ]:
+                type_matches = [
+                    s
+                    for s in system_structures
+                    if s.name.lower()
+                    in [
+                        type_name.lower(),
+                        f"{type_name.lower()} ({sys_name.lower()})",
+                    ]
+                ]
+                if len(type_matches) == 1:
+                    return type_matches[0]
 
-                # Check if norm_name ends with f"({sys_name})" e.g. "Mercenary Den (BNX-AS)"
-                if norm_name.lower().endswith(f"({sys_name.lower()})"):
-                    base_name = norm_name[: -len(f"({sys_name})")].strip()
-                    match = system_structures.filter(name__iexact=base_name).first()
-                    if match:
-                        return match
-
-            # If structure_type is provided and norm_name is or contains type_name
-            if type_name:
-                type_synth = f"{type_name} ({sys_name})"
-                match = system_structures.filter(
-                    models.Q(name__iexact=type_name) | models.Q(name__iexact=type_synth)
-                ).first()
-                if match:
-                    return match
-
-        # 4. Global match if solar_system was not specified
+        # 5. Global match if solar_system was not specified
         if norm_name and not solar_system:
             match = self.filter(name__iexact=norm_name).first()
             if match:

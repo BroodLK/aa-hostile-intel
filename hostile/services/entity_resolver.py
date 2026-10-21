@@ -654,9 +654,21 @@ class EntityResolver:
 
         if hostile_corp:
             res = {
+                "id": hostile_corp.id,
                 "corporation_id": hostile_corp.corporation_id,
                 "corporation_name": hostile_corp.corporation_name,
                 "ticker": hostile_corp.ticker or "",
+                "alliance_id": (
+                    hostile_corp.alliance.alliance_id if hostile_corp.alliance else None
+                ),
+                "alliance_pk": (
+                    hostile_corp.alliance.id if hostile_corp.alliance else None
+                ),
+                "alliance_name": (
+                    hostile_corp.alliance.alliance_name
+                    if hostile_corp.alliance
+                    else ""
+                ),
                 "source": "internal_hostile_corp",
             }
             cache.set(cache_key, res, timeout=HOSTILE_CACHE_TTL_CORP)
@@ -809,36 +821,76 @@ class EntityResolver:
         return results[:limit]
 
     @classmethod
-    def search_corporations(cls, query: str, limit: int = 15) -> list[dict[str, Any]]:
+    def search_corporations(
+        cls,
+        query: str = "",
+        alliance_id: int | str | None = None,
+        limit: int = 15,
+    ) -> list[dict[str, Any]]:
         """
-        Fast autocomplete search for corporations by name, ticker, or ID.
+        Fast autocomplete search for corporations by name, ticker, or ID, optionally filtered by alliance.
         """
-        if not query or not query.strip():
+        q = query.strip() if query else ""
+        if not q and not alliance_id:
             return []
 
-        q = query.strip()
         results = []
         seen_ids = set()
 
+        alliance_obj = None
+        if alliance_id:
+            alliance_str = str(alliance_id).strip()
+            if alliance_str.isdigit():
+                aid_int = int(alliance_str)
+                alliance_obj = HostileAlliance.objects.filter(
+                    models.Q(id=aid_int) | models.Q(alliance_id=aid_int)
+                ).first()
+            if not alliance_obj:
+                alliance_obj = HostileAlliance.objects.filter(
+                    models.Q(alliance_name__iexact=alliance_str)
+                    | models.Q(ticker__iexact=alliance_str)
+                ).first()
+
         # 1. Search HostileCorporation
-        hc_qs = HostileCorporation.objects.filter(
-            models.Q(corporation_name__icontains=q) | models.Q(ticker__icontains=q)
-        )[:limit]
+        hc_qs = HostileCorporation.objects.all()
+        if alliance_obj:
+            hc_qs = hc_qs.filter(
+                models.Q(alliance=alliance_obj) | models.Q(main_alliance=alliance_obj)
+            )
+        elif alliance_id:
+            if str(alliance_id).strip().isdigit():
+                aid_val = int(str(alliance_id).strip())
+                hc_qs = hc_qs.filter(
+                    models.Q(alliance_id=aid_val)
+                    | models.Q(alliance__alliance_id=aid_val)
+                    | models.Q(main_alliance_id=aid_val)
+                    | models.Q(main_alliance__alliance_id=aid_val)
+                )
+
+        if q:
+            hc_qs = hc_qs.filter(
+                models.Q(corporation_name__icontains=q) | models.Q(ticker__icontains=q)
+            )
+
+        hc_qs = hc_qs.select_related("alliance").order_by("corporation_name")[:limit]
         for c in hc_qs:
             seen_ids.add(c.corporation_id)
             results.append(
                 {
+                    "id": c.id,
                     "corporation_id": c.corporation_id,
                     "corporation_name": c.corporation_name,
                     "ticker": c.ticker or "",
+                    "alliance_id": c.alliance.alliance_id if c.alliance else None,
+                    "alliance_pk": c.alliance.id if c.alliance else None,
                     "alliance_name": c.alliance.alliance_name if c.alliance else "",
                     "coalition": c.coalition or "",
                     "source": "hostile_corp",
                 }
             )
 
-        # 2. Search EveCorporationInfo
-        if len(results) < limit:
+        # 2. Search EveCorporationInfo (if not filtered by an alliance or query requested and room available)
+        if not alliance_id and q and len(results) < limit:
             ec_qs = EveCorporationInfo.objects.filter(
                 models.Q(corporation_name__icontains=q)
                 | models.Q(corporation_ticker__icontains=q)
@@ -848,9 +900,12 @@ class EntityResolver:
                     seen_ids.add(ec.corporation_id)
                     results.append(
                         {
+                            "id": None,
                             "corporation_id": ec.corporation_id,
                             "corporation_name": ec.corporation_name,
                             "ticker": ec.corporation_ticker or "",
+                            "alliance_id": None,
+                            "alliance_pk": None,
                             "alliance_name": "",
                             "coalition": "",
                             "source": "eve_corp",

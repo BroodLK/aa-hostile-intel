@@ -318,30 +318,81 @@ document.addEventListener("DOMContentLoaded", function() {
         }
     }
 
-    // Auto-fill ticker on alliance selection
-    if (allianceSelect && tickerInput) {
+    function updateCorporationDropdown(allianceId, preserveCorpId) {
+        if (!corpSelect) return;
+        const currentVal = preserveCorpId !== undefined ? preserveCorpId : corpSelect.value;
+        let url = `/hostile/api/corporations/?limit=250`;
+        if (allianceId) {
+            url += `&alliance_id=${encodeURIComponent(allianceId)}`;
+        }
+        fetch(url)
+            .then(r => r.json())
+            .then(data => {
+                const results = data.results || [];
+                const previousVal = currentVal;
+                corpSelect.innerHTML = '<option value="">---------</option>';
+                let foundPrevious = false;
+                results.forEach(corp => {
+                    const opt = document.createElement("option");
+                    opt.value = corp.id;
+                    opt.textContent = corp.ticker ? `${corp.corporation_name} [${corp.ticker}]` : corp.corporation_name;
+                    if (String(corp.id) === String(previousVal)) {
+                        opt.selected = true;
+                        foundPrevious = true;
+                    }
+                    corpSelect.appendChild(opt);
+                });
+                if (!foundPrevious && previousVal && allianceId) {
+                    corpSelect.value = "";
+                }
+                if (corpSelect.syncSearchableSelect) {
+                    corpSelect.syncSearchableSelect();
+                }
+            })
+            .catch(() => {});
+    }
+
+    // Auto-fill ticker on alliance selection and filter corporation dropdown
+    if (allianceSelect) {
         allianceSelect.addEventListener("change", function() {
-            if (allianceSelect.value) {
-                fetch(`/hostile/api/alliance-resolve/?query=${encodeURIComponent(allianceSelect.value)}`)
-                    .then(r => r.json())
-                    .then(data => {
-                        if (data.success && data.alliance && data.alliance.ticker) {
-                            tickerInput.value = data.alliance.ticker;
-                        }
-                    }).catch(() => {});
+            const allianceId = allianceSelect.value;
+            updateCorporationDropdown(allianceId);
+
+            if (tickerInput) {
+                if (allianceId) {
+                    fetch(`/hostile/api/alliance-resolve/?query=${encodeURIComponent(allianceId)}`)
+                        .then(r => r.json())
+                        .then(data => {
+                            if (data.success && data.alliance && data.alliance.ticker) {
+                                tickerInput.value = data.alliance.ticker;
+                            }
+                        }).catch(() => {});
+                } else {
+                    tickerInput.value = "";
+                }
             }
         });
     }
 
-    // Auto-fill ticker on corporation selection
-    if (corpSelect && tickerInput) {
+    // Auto-fill ticker and alliance on corporation selection
+    if (corpSelect) {
         corpSelect.addEventListener("change", function() {
-            if (corpSelect.value && (!tickerInput.value || !allianceSelect.value)) {
+            if (corpSelect.value) {
                 fetch(`/hostile/api/corporation-resolve/?query=${encodeURIComponent(corpSelect.value)}`)
                     .then(r => r.json())
                     .then(data => {
-                        if (data.success && data.corporation && data.corporation.ticker) {
-                            tickerInput.value = data.corporation.ticker;
+                        if (data.success && data.corporation) {
+                            if (tickerInput && (!tickerInput.value || (allianceSelect && !allianceSelect.value))) {
+                                if (data.corporation.ticker) {
+                                    tickerInput.value = data.corporation.ticker;
+                                }
+                            }
+                            if (allianceSelect && !allianceSelect.value && data.corporation.alliance_pk) {
+                                allianceSelect.value = String(data.corporation.alliance_pk);
+                                if (allianceSelect.syncSearchableSelect) {
+                                    allianceSelect.syncSearchableSelect();
+                                }
+                            }
                         }
                     }).catch(() => {});
             }

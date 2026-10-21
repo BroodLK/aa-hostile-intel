@@ -569,6 +569,18 @@ class HostileStructureForm(forms.ModelForm):
         required=True,
         widget=forms.Select(attrs={"class": "form-select", "id": "id_solar_system"}),
     )
+    alliance = forms.ModelChoiceField(
+        queryset=HostileAlliance.objects.all().order_by("alliance_name"),
+        required=False,
+        widget=forms.Select(attrs={"class": "form-select", "id": "id_alliance"}),
+        label="Alliance",
+    )
+    corporation = forms.ModelChoiceField(
+        queryset=HostileCorporation.objects.all().order_by("corporation_name"),
+        required=False,
+        widget=forms.Select(attrs={"class": "form-select", "id": "id_corporation"}),
+        label="Corporation",
+    )
     untracked_alliance = forms.CharField(
         required=False,
         widget=forms.TextInput(
@@ -691,6 +703,34 @@ class HostileStructureForm(forms.ModelForm):
             ),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        alliance_val = None
+        if self.is_bound and self.data.get("alliance"):
+            alliance_val = self.data.get("alliance")
+        elif self.instance and self.instance.pk and self.instance.alliance_id:
+            alliance_val = self.instance.alliance_id
+        elif "initial" in kwargs and kwargs["initial"].get("alliance"):
+            alliance_val = kwargs["initial"].get("alliance")
+
+        if alliance_val:
+            try:
+                aid = getattr(alliance_val, "pk", alliance_val)
+                aid = int(aid)
+                q = (
+                    models.Q(alliance_id=aid)
+                    | models.Q(alliance__alliance_id=aid)
+                    | models.Q(main_alliance_id=aid)
+                    | models.Q(main_alliance__alliance_id=aid)
+                )
+                if self.instance and self.instance.pk and self.instance.corporation_id:
+                    q |= models.Q(id=self.instance.corporation_id)
+                self.fields["corporation"].queryset = HostileCorporation.objects.filter(
+                    q
+                ).order_by("corporation_name")
+            except (ValueError, TypeError):
+                pass
+
     def clean(self):
         cleaned_data = super().clean()
         # AA Hostile Intel
@@ -717,6 +757,25 @@ class HostileStructureForm(forms.ModelForm):
             )
             if corp_obj:
                 cleaned_data["corporation"] = corp_obj
+
+        # Validate that corporation belongs to the selected alliance
+        alliance = cleaned_data.get("alliance")
+        corporation = cleaned_data.get("corporation")
+
+        if alliance and corporation:
+            if (
+                corporation.alliance != alliance
+                and corporation.main_alliance != alliance
+            ):
+                self.add_error(
+                    "corporation",
+                    f"Selected corporation '{corporation.corporation_name}' does not belong to alliance '{alliance.alliance_name}'.",
+                )
+        elif corporation and not alliance:
+            if corporation.alliance:
+                cleaned_data["alliance"] = corporation.alliance
+            elif corporation.main_alliance:
+                cleaned_data["alliance"] = corporation.main_alliance
 
         # Pre-fill owner_ticker from alliance or corporation if empty
         owner_ticker = cleaned_data.get("owner_ticker")
@@ -1341,6 +1400,30 @@ class StructureTimerForm(forms.ModelForm):
             "notes",
         ]
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        alliance_val = None
+        if self.is_bound and self.data.get("alliance"):
+            alliance_val = self.data.get("alliance")
+        elif "initial" in kwargs and kwargs["initial"].get("alliance"):
+            alliance_val = kwargs["initial"].get("alliance")
+
+        if alliance_val:
+            try:
+                aid = getattr(alliance_val, "pk", alliance_val)
+                aid = int(aid)
+                q = (
+                    models.Q(alliance_id=aid)
+                    | models.Q(alliance__alliance_id=aid)
+                    | models.Q(main_alliance_id=aid)
+                    | models.Q(main_alliance__alliance_id=aid)
+                )
+                self.fields["corporation"].queryset = HostileCorporation.objects.filter(
+                    q
+                ).order_by("corporation_name")
+            except (ValueError, TypeError):
+                pass
+
     def clean(self):
         cleaned_data = super().clean()
         structure = cleaned_data.get("structure")
@@ -1372,10 +1455,40 @@ class StructureTimerForm(forms.ModelForm):
             untracked_corporation = cleaned_data.get("untracked_corporation")
             if untracked_corporation and not cleaned_data.get("corporation"):
                 corp_obj = EntityResolver.get_or_create_corporation(
-                    untracked_corporation
+                    untracked_corporation, alliance=cleaned_data.get("alliance")
                 )
                 if corp_obj:
                     cleaned_data["corporation"] = corp_obj
+
+            # Validate alliance & corporation pairing
+            alliance = cleaned_data.get("alliance")
+            corporation = cleaned_data.get("corporation")
+
+            if alliance and corporation:
+                if (
+                    corporation.alliance != alliance
+                    and corporation.main_alliance != alliance
+                ):
+                    self.add_error(
+                        "corporation",
+                        f"Selected corporation '{corporation.corporation_name}' does not belong to alliance '{alliance.alliance_name}'.",
+                    )
+            elif corporation and not alliance:
+                if corporation.alliance:
+                    cleaned_data["alliance"] = corporation.alliance
+                elif corporation.main_alliance:
+                    cleaned_data["alliance"] = corporation.main_alliance
+
+            # Pre-fill owner_ticker from alliance or corporation if empty
+            owner_ticker = cleaned_data.get("owner_ticker")
+            if not owner_ticker:
+                if cleaned_data.get("alliance") and cleaned_data["alliance"].ticker:
+                    cleaned_data["owner_ticker"] = cleaned_data["alliance"].ticker
+                elif (
+                    cleaned_data.get("corporation")
+                    and cleaned_data["corporation"].ticker
+                ):
+                    cleaned_data["owner_ticker"] = cleaned_data["corporation"].ticker
 
             if not cleaned_data.get("core_status"):
                 cleaned_data["core_status"] = "UNKNOWN"

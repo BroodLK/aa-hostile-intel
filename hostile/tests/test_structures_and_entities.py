@@ -156,6 +156,96 @@ class TestStructuresAndEntities(TestCase):
         self.assertTrue(form_corp.is_valid(), form_corp.errors)
         self.assertEqual(form_corp.cleaned_data["owner_ticker"], "TCORP")
 
+    def test_structure_form_alliance_corporation_validation_and_scoping(self):
+        """Form must restrict corp queryset to owner alliance and reject mismatched pairs"""
+        alliance1 = HostileAlliance.objects.create(
+            alliance_id=99000701, alliance_name="Alliance Alpha", ticker="ALPHA"
+        )
+        alliance2 = HostileAlliance.objects.create(
+            alliance_id=99000702, alliance_name="Alliance Bravo", ticker="BRAVO"
+        )
+        corp_alpha = HostileCorporation.objects.create(
+            corporation_id=98000701,
+            corporation_name="Alpha Corp",
+            ticker="ACORP",
+            alliance=alliance1,
+        )
+        corp_bravo = HostileCorporation.objects.create(
+            corporation_id=98000702,
+            corporation_name="Bravo Corp",
+            ticker="BCORP",
+            alliance=alliance2,
+        )
+        corp_alt_alpha = HostileCorporation.objects.create(
+            corporation_id=98000703,
+            corporation_name="Alpha Alt Corp",
+            ticker="AALT",
+            is_alt_corp=True,
+            main_alliance=alliance1,
+        )
+
+        # 1. Scoping queryset in form initialization
+        form_scoped = HostileStructureForm(data={"alliance": alliance1.id})
+        corp_ids = list(
+            form_scoped.fields["corporation"].queryset.values_list("id", flat=True)
+        )
+        self.assertIn(corp_alpha.id, corp_ids)
+        self.assertIn(corp_alt_alpha.id, corp_ids)
+        self.assertNotIn(corp_bravo.id, corp_ids)
+
+        # 2. Matching alliance and corporation is valid
+        form_valid = HostileStructureForm(
+            data={
+                "name": "Alpha Astrahus",
+                "structure_type": self.astrahus.id,
+                "solar_system": self.system.id,
+                "alliance": alliance1.id,
+                "corporation": corp_alpha.id,
+                "state": "ONLINE",
+            }
+        )
+        self.assertTrue(form_valid.is_valid(), form_valid.errors)
+
+        # 3. Alt corporation with main alliance is valid
+        form_alt_valid = HostileStructureForm(
+            data={
+                "name": "Alpha Alt Astrahus",
+                "structure_type": self.astrahus.id,
+                "solar_system": self.system.id,
+                "alliance": alliance1.id,
+                "corporation": corp_alt_alpha.id,
+                "state": "ONLINE",
+            }
+        )
+        self.assertTrue(form_alt_valid.is_valid(), form_alt_valid.errors)
+
+        # 4. Mismatched alliance and corporation fails validation
+        form_invalid = HostileStructureForm(
+            data={
+                "name": "Mismatched Astrahus",
+                "structure_type": self.astrahus.id,
+                "solar_system": self.system.id,
+                "alliance": alliance1.id,
+                "corporation": corp_bravo.id,
+                "state": "ONLINE",
+            }
+        )
+        self.assertFalse(form_invalid.is_valid())
+        self.assertIn("corporation", form_invalid.errors)
+
+        # 5. Corporation specified without alliance auto-populates alliance
+        form_auto_alliance = HostileStructureForm(
+            data={
+                "name": "Auto Alliance Astrahus",
+                "structure_type": self.astrahus.id,
+                "solar_system": self.system.id,
+                "corporation": corp_alpha.id,
+                "state": "ONLINE",
+            }
+        )
+        self.assertTrue(form_auto_alliance.is_valid(), form_auto_alliance.errors)
+        self.assertEqual(form_auto_alliance.cleaned_data["alliance"], alliance1)
+
     def test_structure_form_untracked_alliance_and_corp(self):
         """Untracked alliance and corporation inputs should create new tracked entities"""
         form = HostileStructureForm(
@@ -279,14 +369,24 @@ class TestStructuresAndEntities(TestCase):
 
     def test_corporation_api_search_and_resolve(self):
         """API endpoints for corporation searching and resolution"""
+        alliance = HostileAlliance.objects.create(
+            alliance_id=99000888, alliance_name="Black Legion Alliance", ticker="BL"
+        )
         HostileCorporation.objects.create(
             corporation_id=98000888,
             corporation_name="Black Legion Holdings",
             ticker="MEN",
+            alliance=alliance,
+            coalition="WinterCo",
+        )
+        HostileCorporation.objects.create(
+            corporation_id=98000889,
+            corporation_name="Other Alliance Corp",
+            ticker="OAC",
             coalition="WinterCo",
         )
 
-        # Search endpoint
+        # Search endpoint without alliance
         search_res = self.client.get(
             reverse("hostile:api_corporation_search"), {"q": "Black"}
         )
@@ -296,6 +396,16 @@ class TestStructuresAndEntities(TestCase):
         self.assertEqual(
             data["results"][0]["corporation_name"], "Black Legion Holdings"
         )
+
+        # Search endpoint filtered by alliance ID
+        search_alliance_res = self.client.get(
+            reverse("hostile:api_corporation_search"), {"alliance_id": alliance.id}
+        )
+        self.assertEqual(search_alliance_res.status_code, 200)
+        alliance_data = search_alliance_res.json()
+        corp_names = [c["corporation_name"] for c in alliance_data.get("results", [])]
+        self.assertIn("Black Legion Holdings", corp_names)
+        self.assertNotIn("Other Alliance Corp", corp_names)
 
         # Resolve endpoint
         resolve_res = self.client.get(
@@ -308,6 +418,7 @@ class TestStructuresAndEntities(TestCase):
             res_data["corporation"]["corporation_name"], "Black Legion Holdings"
         )
         self.assertEqual(res_data["corporation"]["ticker"], "MEN")
+        self.assertEqual(res_data["corporation"]["alliance_pk"], alliance.id)
 
     def test_structures_and_alliances_pages_render(self):
         """Structure registry and Alliances & Sov pages render cleanly"""

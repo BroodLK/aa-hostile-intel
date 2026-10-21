@@ -26,6 +26,7 @@ from hostile.models import (
     IntelAuditLog,
     StructureFitting,
     StructureTimer,
+    extract_core_structure_name,
     normalize_structure_name,
 )
 from hostile.services.intel_manager import IntelManager
@@ -138,6 +139,30 @@ class TestStructureDeduplication(TestCase):
         )
         self.assertEqual(normalize_structure_name(""), "")
 
+    def test_extract_core_structure_name(self):
+        """Tests core structure name extraction with bracketed ticker stripping and system suffix removal"""
+        self.assertEqual(
+            extract_core_structure_name("[CONDI] Imperial Palace"),
+            "Imperial Palace",
+        )
+        self.assertEqual(
+            extract_core_structure_name("[GOONS] - Factory Fort"),
+            "Factory Fort",
+        )
+        self.assertEqual(
+            extract_core_structure_name("[INIT] Staging Citadel (1DQ1-A)", solar_system="1DQ1-A"),
+            "Staging Citadel",
+        )
+        self.assertEqual(
+            extract_core_structure_name("Mercenary Den (BNX-AS)", solar_system=self.system_bnx),
+            "Mercenary Den",
+        )
+        self.assertEqual(
+            extract_core_structure_name("Astrahus"),
+            "Astrahus",
+        )
+        self.assertEqual(extract_core_structure_name(""), "")
+
     def test_model_save_auto_normalizes_name(self):
         """Creating/saving a HostileStructure model automatically normalizes its name"""
         struct = HostileStructure.objects.create(
@@ -161,14 +186,20 @@ class TestStructureDeduplication(TestCase):
             structure_type=self.type_mercenary_den,
         )
 
-        # 1. Match Ansiblex by ASCII >> variation
+        # 1. Match Ansiblex by ASCII >> variation and reverse direction
         match_gate = HostileStructure.objects.find_matching(
             solar_system=self.system_ayb,
             name="A-YB15 >> ZS-PNI",
         )
         self.assertEqual(match_gate, gate)
 
-        # 2. Match generic "Mercenary Den" to existing "Mercenary Den (BNX-AS)"
+        match_gate_reversed = HostileStructure.objects.find_matching(
+            solar_system=self.system_ayb,
+            name="ZS-PNI » A-YB15",
+        )
+        self.assertEqual(match_gate_reversed, gate)
+
+        # 2. Match generic "Mercenary Den" or bracket-prefixed "[HOSTL] Mercenary Den" to existing "Mercenary Den (BNX-AS)"
         match_den = HostileStructure.objects.find_matching(
             solar_system=self.system_bnx,
             name="Mercenary Den",
@@ -176,7 +207,22 @@ class TestStructureDeduplication(TestCase):
         )
         self.assertEqual(match_den, den)
 
-        # 3. Different system should not match
+        match_den_bracket = HostileStructure.objects.find_matching(
+            solar_system=self.system_bnx,
+            name="[HOSTL] - Mercenary Den",
+            structure_type=self.type_mercenary_den,
+        )
+        self.assertEqual(match_den_bracket, den)
+
+        # 3. Unrelated custom name does not match generic den
+        match_custom = HostileStructure.objects.find_matching(
+            solar_system=self.system_bnx,
+            name="BNX-AS - p8m18",
+            structure_type=self.type_mercenary_den,
+        )
+        self.assertIsNone(match_custom)
+
+        # 4. Different system should not match
         match_other_sys = HostileStructure.objects.find_matching(
             solar_system=self.system_ayb,
             name="Mercenary Den",
@@ -299,15 +345,15 @@ class TestStructureDeduplication(TestCase):
 
     def test_auto_deduplicate_all_and_management_command(self):
         """auto_deduplicate_all scans all systems, picks best primary, and management command executes cleanly"""
-        # Create duplicates in BNX-AS
+        # Create duplicates in BNX-AS (bracket-prefixed vs base name)
         primary_den = HostileStructure.objects.create(
-            name="BNX-AS - p8m18",
+            name="[HOSTL] Metenox Moon Drill (BNX-AS)",
             solar_system=self.system_bnx,
             structure_type=self.type_metenox,
             is_verified=True,
         )
         duplicate_den = HostileStructure.objects.create(
-            name="Metenox Moon Drill (BNX-AS)",
+            name="Metenox Moon Drill",
             solar_system=self.system_bnx,
             structure_type=self.type_metenox,
             is_verified=False,
@@ -322,6 +368,28 @@ class TestStructureDeduplication(TestCase):
         )
         self.assertTrue(HostileStructure.objects.filter(id=primary_den.id).exists())
         self.assertFalse(HostileStructure.objects.filter(id=duplicate_den.id).exists())
+
+    def test_distinct_custom_named_structures_not_auto_merged(self):
+        """Distinct custom structures of identical hull type in same system are NOT merged"""
+        s1 = HostileStructure.objects.create(
+            name="BNX-AS - p8m18",
+            solar_system=self.system_bnx,
+            structure_type=self.type_metenox,
+            is_verified=True,
+        )
+        s2 = HostileStructure.objects.create(
+            name="BNX-AS - p4m2",
+            solar_system=self.system_bnx,
+            structure_type=self.type_metenox,
+            is_verified=False,
+        )
+        res = IntelManager.auto_deduplicate_all()
+        self.assertEqual(res["total_merged"], 0)
+        self.assertEqual(
+            HostileStructure.objects.filter(solar_system=self.system_bnx).count(), 2
+        )
+        self.assertTrue(HostileStructure.objects.filter(id=s1.id).exists())
+        self.assertTrue(HostileStructure.objects.filter(id=s2.id).exists())
 
     def test_structure_auto_deduplicate_and_merge_views(self):
         """POST to structure_auto_deduplicate and structure_merge views requires manage_intel permission and merges properly"""
