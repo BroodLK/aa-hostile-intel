@@ -14,8 +14,60 @@
         <i class="fas fa-trash-alt me-1"></i>{% translate "Delete Threat Scan" %}
     </a>
     {% endif %}
+    <button type="button" class="btn btn-sm btn-outline-info" onclick="copyScanUrl(this)">
+        <i class="fas fa-link me-1"></i><span>{% translate "Copy Scan URL" %}</span>
+    </button>
 </div>
 
+{% if is_dscan_only %}
+<div class="card bg-dark text-white border-secondary hostile-card shadow-sm mb-4">
+    <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+            <span class="text-muted small text-uppercase fw-bold">{% translate "D-Scan Ship Breakdown" %}</span>
+            <h2 class="mb-1 text-info fw-bold">
+                {% if scan.solar_system %}{{ scan.solar_system.name }}{% else %}{% translate "Unknown System" %}{% endif %}
+            </h2>
+            <span class="text-muted small"><i class="fas fa-clock me-1"></i>{{ scan.created_at|date:"Y-m-d H:i:s" }} UTC</span>
+        </div>
+        <span class="badge bg-primary fs-6 px-3 py-2">
+            {% if ship_profile.total_ships %}{{ ship_profile.total_ships }} {% translate "Hulls Detected" %}{% else %}{% translate "D-Scan" %}{% endif %}
+        </span>
+    </div>
+</div>
+
+<div class="card bg-dark text-white border-secondary hostile-card shadow-sm mb-4">
+    <div class="card-header bg-dark border-secondary">
+        <h5 class="mb-0 text-info fw-bold"><i class="fas fa-space-shuttle me-2"></i>{% translate "Ships Detected" %}</h5>
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            {% for cat in composition_summary.ship_categories %}
+            <div class="col-md-6 col-lg-4">
+                <div class="p-3 border border-secondary rounded bg-dark h-100">
+                    <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom border-secondary">
+                        <span class="fw-bold text-light"><i class="{{ cat.icon }} me-1"></i>{{ cat.category }}</span>
+                        <span class="badge bg-{{ cat.badge_color }}">{{ cat.count }}</span>
+                    </div>
+                    <div class="d-flex flex-wrap gap-1">
+                        {% for hull in cat.hulls %}
+                        <span class="badge bg-black border border-secondary text-light py-2 px-2"><span class="text-info fw-bold me-1">{{ hull.count }}x</span>{{ hull.type_name }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="col-12 text-center text-muted py-4">{% translate "No ships detected in this D-Scan." %}</div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<div class="d-flex justify-content-end mb-4">
+    <button type="button" class="btn btn-sm btn-outline-info" onclick="copyScanUrl(this)">
+        <i class="fas fa-link me-1"></i><span>{% translate "Copy Scan URL" %}</span>
+    </button>
+</div>
+{% else %}
 <!-- Threat Header & Drop Risk KPI Banner -->
 <div class="row g-3 mb-4">
     <!-- Main Threat Status Card -->
@@ -608,11 +660,39 @@
         </div>
     </div>
 </div>
+<div class="d-flex justify-content-end mb-4">
+    <button type="button" class="btn btn-sm btn-outline-info" onclick="copyScanUrl(this)">
+        <i class="fas fa-link me-1"></i><span>{% translate "Copy Scan URL" %}</span>
+    </button>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block extra_javascript %}
 {{ block.super }}
 <script>
+function copyScanUrl(button) {
+    const label = button.querySelector("span");
+    const originalLabel = label ? label.textContent : "Copy Scan URL";
+    const copied = () => {
+        if (label) label.textContent = "{% translate 'Copied!' %}";
+        setTimeout(() => { if (label) label.textContent = originalLabel; }, 1800);
+    };
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(window.location.href).then(copied);
+        return;
+    }
+    const input = document.createElement("textarea");
+    input.value = window.location.href;
+    input.style.position = "fixed";
+    input.style.opacity = "0";
+    document.body.appendChild(input);
+    input.select();
+    document.execCommand("copy");
+    input.remove();
+    copied();
+}
+
 document.addEventListener("DOMContentLoaded", function () {
     const scanId = "{{ scan.id }}";
     const apiUrl = "{% url 'hostile:api_threat_scan_pilot_intel' scan.id %}";

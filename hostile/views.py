@@ -3580,6 +3580,7 @@ def threat_scan_detail(request: WSGIRequest, scan_id) -> HttpResponse:
 
     context = {
         "scan": scan,
+        "is_dscan_only": not bool((scan.raw_local_text or "").strip()),
         "pilots": scan.pilots_data,
         "activity_profile": scan.activity_profile,
         "ship_profile": scan.ship_profile,
