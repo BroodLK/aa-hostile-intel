@@ -93,6 +93,7 @@ class LocalThreatScanForm(forms.Form):
     """Dedicated form for localthreat-style local intelligence and drop probability analysis"""
 
     local_text = forms.CharField(
+        required=False,
         widget=forms.Textarea(
             attrs={
                 "class": "form-control font-monospace",
@@ -123,6 +124,17 @@ class LocalThreatScanForm(forms.Form):
         label="Solar System (Optional)",
         help_text="System context for staging proximity and observation threat tags.",
     )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if (
+            not (cleaned_data.get("local_text") or "").strip()
+            and not (cleaned_data.get("dscan_text") or "").strip()
+        ):
+            raise forms.ValidationError(
+                "Paste Local chat, D-Scan, or both before submitting."
+            )
+        return cleaned_data
 
     def clean_solar_system(self):
         val = self.cleaned_data.get("solar_system")

@@ -373,6 +373,47 @@ class TestHostileViews(TestCase):
         self.assertContains(resp, "Corporations Breakdown")
         self.assertContains(resp, "Hostile Alliance")
 
+    def test_threat_scan_accepts_local_only_dscan_only_and_rejects_empty(self):
+        self.client.force_login(self.user_basic)
+        url = reverse("hostile:threat_scans")
+
+        local_only = self.client.post(
+            url,
+            {
+                "local_text": "LocalPilot\tHostile Corp\tHostile Alliance",
+                "dscan_text": "",
+                "solar_system": self.system_1dq.id,
+            },
+        )
+        self.assertEqual(local_only.status_code, 302)
+        local_scan = LocalThreatScan.objects.latest("created_at")
+        self.assertEqual(local_scan.pilot_count, 1)
+        self.assertEqual(local_scan.raw_dscan_text, "")
+
+        dscan_only = self.client.post(
+            url,
+            {
+                "local_text": "",
+                "dscan_text": "11993\tArazu\tArazu\t10 km",
+                "solar_system": self.system_1dq.id,
+            },
+        )
+        self.assertEqual(dscan_only.status_code, 302)
+        dscan_scan = LocalThreatScan.objects.latest("created_at")
+        self.assertEqual(dscan_scan.pilot_count, 0)
+        self.assertEqual(dscan_scan.pilots_data, [])
+        self.assertEqual(dscan_scan.ship_profile["total_ships"], 1)
+        self.assertEqual(dscan_scan.ship_profile["recons"][0]["type_name"], "Arazu")
+
+        empty = self.client.post(
+            url,
+            {"local_text": "", "dscan_text": "", "solar_system": ""},
+        )
+        self.assertEqual(empty.status_code, 200)
+        self.assertContains(
+            empty, "Paste Local chat, D-Scan, or both before submitting."
+        )
+
     def test_threat_scan_permission_isolation(self):
         """Tests that a user with ONLY threat_scan_access can access Intel Scanner but is denied from all other top nav sections"""
         self.client.force_login(self.user_threat_only)

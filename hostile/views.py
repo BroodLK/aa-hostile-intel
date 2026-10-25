@@ -76,6 +76,7 @@ from hostile.services.reinforcement_calculator import (
     TimerStage,
 )
 from hostile.services.sov_engine import SovAnalysisEngine
+from hostile.services.threat_engine import ThreatEngine
 from hostile.services.zkill_client import zkill_client
 
 logger = get_extension_logger(__name__)
@@ -3481,16 +3482,42 @@ def threat_scan_list(request: WSGIRequest) -> HttpResponse:
     if request.method == "POST":
         form = LocalThreatScanForm(request.POST)
         if form.is_valid():
-            local_text = form.cleaned_data["local_text"]
+            local_text = form.cleaned_data.get("local_text") or ""
             dscan_text = form.cleaned_data.get("dscan_text") or ""
             override_system = form.cleaned_data.get("solar_system")
 
-            data = LocalThreatParser.parse(
-                local_text,
-                dscan_text=dscan_text,
-                default_system=override_system,
-                fetch_zkill=False,
-            )
+            if local_text.strip():
+                data = LocalThreatParser.parse(
+                    local_text,
+                    dscan_text=dscan_text,
+                    default_system=override_system,
+                    fetch_zkill=False,
+                )
+            else:
+                # D-Scan-only submissions intentionally avoid Local parsing and
+                # pilot/enrichment work. Keep the report limited to detected hulls.
+                dscan_data = DScanParser.parse(
+                    dscan_text, default_system=override_system
+                )
+                ship_profile = ThreatEngine.categorize_dscan_ships(dscan_data)
+                threat_results = ThreatEngine.calculate_drop_probabilities(
+                    pilots=[],
+                    solar_system=dscan_data.get("solar_system") or override_system,
+                    dscan_data=dscan_data,
+                )
+                data = {
+                    "solar_system": dscan_data.get("solar_system"),
+                    "pilot_count": 0,
+                    "hostile_count": 0,
+                    "ignored_count": 0,
+                    "blops_drop_chance": threat_results["blops_drop_chance"],
+                    "cap_drop_chance": threat_results["cap_drop_chance"],
+                    "threat_level": threat_results["threat_level"],
+                    "threat_factors": threat_results["threat_factors"],
+                    "activity_profile": {},
+                    "pilots": [],
+                    "ship_profile": ship_profile,
+                }
             scan = LocalThreatScan.objects.create(
                 solar_system=data.get("solar_system") or override_system,
                 raw_local_text=local_text,

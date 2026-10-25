@@ -12,21 +12,27 @@
                 <h5 class="mb-0 text-info">
                     <i class="fas fa-radar me-2"></i>{% translate "Intel Scanner" %}
                 </h5>
-                <span class="badge bg-secondary">Dual Scan & Drop Risk</span>
+                <span class="badge bg-secondary">Local, D-Scan, or both</span>
             </div>
             <div class="card-body">
                 <p class="text-muted small mb-3">
-                    {% translate "Paste your Local chat window (Ctrl+A / Ctrl+C in member list or chat log) to automatically analyze hostile cyno alts, covert hunters, capital pilots, and calculate Black Ops / Capital drop chances. Optionally pair with D-Scan to match ships on grid." %}
+                    {% translate "Choose the data you have. Local identifies pilots and threat roles; D-Scan identifies ships. Submit either one, or use both for the fullest report." %}
                 </p>
+                <div class="alert alert-info bg-opacity-10 border-info py-2 small mb-3">
+                    <i class="fas fa-lightbulb me-1"></i>
+                    <strong>{% translate "Fastest option:" %}</strong>
+                    {% translate "D-Scan only gives a quick ship class and hull breakdown without pilot lookups." %}
+                </div>
                 <form method="post" action="{% url 'hostile:threat_scans' %}" data-hostile-loading="{% translate 'Analyzing Threat Scan' %}" data-hostile-loading-detail="{% translate 'Resolving pilots, querying zKillboard stats, and calculating drop risks...' %}">
                     {% csrf_token %}
+                    {% if form.non_field_errors %}<div class="alert alert-danger py-2 small">{{ form.non_field_errors }}</div>{% endif %}
                     <div class="mb-3">
-                        <label class="form-label text-light fw-bold">{{ form.local_text.label }}</label>
+                        <label class="form-label text-light fw-bold"><i class="fas fa-users text-info me-1"></i>{{ form.local_text.label }} <span class="text-muted fw-normal">(optional)</span></label>
                         {{ form.local_text }}
                         <div class="form-text text-muted">{{ form.local_text.help_text }}</div>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label text-light fw-bold">{{ form.dscan_text.label }}</label>
+                        <label class="form-label text-light fw-bold"><i class="fas fa-satellite-dish text-warning me-1"></i>D-Scan ship list <span class="text-muted fw-normal">(optional)</span></label>
                         {{ form.dscan_text }}
                         <div class="form-text text-muted">{{ form.dscan_text.help_text }}</div>
                     </div>
@@ -49,8 +55,8 @@
                             {{ form.solar_system.help_text }}
                         </div>
                     </div>
-                    <button type="submit" class="btn btn-info w-100 py-2 fw-bold text-dark">
-                        <i class="fas fa-search-location me-2"></i>{% translate "Analyze Threat Profile & Drop Risks" %}
+                    <button type="submit" class="btn btn-info w-100 py-2 fw-bold text-dark" id="submitScanBtn">
+                        <i class="fas fa-search-location me-2"></i>{% translate "Analyze Available Intel" %}
                     </button>
                 </form>
             </div>
