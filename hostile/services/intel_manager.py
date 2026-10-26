@@ -28,6 +28,19 @@ from hostile.models import (
 )
 
 
+def _drill_identity(structure: HostileStructure) -> tuple[str, object] | None:
+    """Return a high-confidence identity for a moon drill, if available."""
+    # AA Hostile Intel
+    from hostile.services.moonmining_integration import is_drill, structure_location
+
+    if not is_drill(structure) or not structure.solar_system:
+        return None
+    if structure.moonmining_moon_id:
+        return (structure.solar_system.name.lower(), structure.moonmining_moon_id)
+    location = structure_location(structure)
+    return (structure.solar_system.name.lower(), location) if location else None
+
+
 class IntelManager:
     """Handles operational moderation, verification lifecycle, audit logs, and automatic role tagging"""
 
@@ -577,6 +590,13 @@ class IntelManager:
                     if norm1 == norm2:
                         is_dup = True
                         reason = f"Exact normalized name match ('{norm1}')"
+                    # Moon drills have a stronger identity than their display name:
+                    # system + scanned moon (or parsed planet/moon location).
+                    elif _drill_identity(s1) and _drill_identity(s1) == _drill_identity(
+                        s2
+                    ):
+                        is_dup = True
+                        reason = "Same moon drill location in the same solar system"
                     # Ansiblex bidirectional route matching
                     elif "»" in norm1 and "»" in norm2:
                         parts1 = [

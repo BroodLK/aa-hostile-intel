@@ -156,8 +156,8 @@
                         <td class="small text-nowrap">
                             {% if struct.moonmining_match %}
                                 <span class="badge badge-subtle-info">Moon scan</span>
-                                <span class="text-info">{{ struct.moonmining_match.value|floatformat:0|intcomma }} ISK</span>
-                                <span class="text-muted">/ drill {{ struct.moonmining_match.drill_value|floatformat:0|intcomma }} ISK</span>
+                                <span class="text-info">{{ struct.moonmining_match.display_value }} ISK</span>
+                                <span class="text-muted">/ drill {{ struct.moonmining_match.display_drill_value }} ISK</span>
                             {% elif struct.moon_scan_options %}
                                 <select class="form-select form-select-sm bg-dark text-white border-secondary moon-correlation-select" data-structure-id="{{ struct.id }}" title="Correlate this drill with a moon scan">
                                     <option value="">Correlate moon scan…</option>

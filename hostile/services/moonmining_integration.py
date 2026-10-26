@@ -52,6 +52,20 @@ def is_drill(structure: Any) -> bool:
     return "metenox" in type_name.lower() or "moon drill" in type_name.lower()
 
 
+def format_isk(value: float | int | None) -> str:
+    """Format ISK compactly for registry display without changing the value."""
+    if value is None:
+        return "—"
+    value = float(value)
+    if abs(value) >= 1_000_000_000:
+        return f"{value / 1_000_000_000:.1f}b".rstrip("0").rstrip(".")
+    if abs(value) >= 1_000_000:
+        return f"{value / 1_000_000:.1f}m".rstrip("0").rstrip(".")
+    if abs(value) >= 1_000:
+        return f"{value / 1_000:.1f}k".rstrip("0").rstrip(".")
+    return f"{value:.0f}"
+
+
 def structure_location(structure: Any) -> tuple[int, int] | None:
     """Read PnMm from either the location annotation or the structure name."""
     return _location(getattr(structure, "location_details", "")) or _location(
@@ -124,6 +138,10 @@ def moon_data_for_structures(structures: Any) -> dict[int, dict[str, Any]]:
                 "name": structure_display_name(structure),
                 "value": value,
                 "drill_value": value * 0.4 if value is not None else None,
+                "display_value": format_isk(value),
+                "display_drill_value": (
+                    format_isk(value * 0.4) if value is not None else "—"
+                ),
             }
     return result
 
