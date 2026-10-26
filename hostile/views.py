@@ -3567,6 +3567,31 @@ def threat_scan_list(request: WSGIRequest) -> HttpResponse:
 
 @login_required
 @threat_scan_permission_required
+def moon_scan_upload(request: WSGIRequest) -> HttpResponse:
+    """Submit a moon survey through the installed moonmining app."""
+    if request.method == "POST":
+        scan = (request.POST.get("scan") or "").strip()
+        if not scan:
+            messages.error(request, "Moon scan submission failed.")
+            return redirect("hostile:moon_scan_upload")
+
+        try:
+            # Third Party
+            from moonmining import tasks
+
+            tasks.process_survey_input.delay(scan, request.user.pk)
+        except Exception:
+            logger.exception("Failed to queue moon survey submission")
+            messages.error(request, "Moon scan submission failed.")
+        else:
+            messages.success(request, "Moon scan submitted successfully.")
+        return redirect("hostile:threat_scans")
+
+    return render(request, "hostile/moon_scan_upload.html")
+
+
+@login_required
+@threat_scan_permission_required
 def threat_scan_detail(request: WSGIRequest, scan_id) -> HttpResponse:
     """localthreat.xyz / aa-intel-tool style detailed threat report with drop probabilities, entity breakdown, ship breakdown, and AJAX streaming"""
     scan = get_object_or_404(

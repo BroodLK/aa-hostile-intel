@@ -160,6 +160,11 @@ urlpatterns = [
     path("pilots/<int:pilot_id>/verify/", views.pilot_verify, name="pilot_verify"),
     path("threat-scans/", views.threat_scan_list, name="threat_scans"),
     path(
+        "threat-scans/moons/",
+        views.moon_scan_upload,
+        name="moon_scan_upload",
+    ),
+    path(
         "threat-scans/<uuid:scan_id>/",
         views.threat_scan_detail,
         name="threat_scan_detail",

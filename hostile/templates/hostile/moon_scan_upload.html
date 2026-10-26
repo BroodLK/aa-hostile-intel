@@ -1,0 +1,26 @@
+{% extends 'hostile/base.html' %}
+{% load i18n %}
+
+{% block content %}
+{{ block.super }}
+
+<div class="row justify-content-center">
+    <div class="col-lg-7">
+        <div class="card bg-dark text-white border-secondary hostile-card shadow-sm">
+            <div class="card-header bg-dark border-secondary">
+                <h5 class="mb-0 text-info"><i class="fas fa-moon me-2"></i>{% translate "Upload Moon Surveys" %}</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small">{% translate "Paste your moon scan results below. Moon Mining will process the submission in the background." %}</p>
+                <form method="post" action="{% url 'hostile:moon_scan_upload' %}">
+                    {% csrf_token %}
+                    <textarea class="form-control font-monospace bg-black text-light border-secondary" name="scan" rows="10" required></textarea>
+                    <button class="btn btn-info w-100 mt-3 fw-bold text-dark" type="submit">
+                        <i class="fas fa-upload me-2"></i>{% translate "Submit Moon Scans" %}
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
