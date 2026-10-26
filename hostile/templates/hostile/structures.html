@@ -93,6 +93,7 @@
                         <th class="sortable-th cursor-pointer user-select-none" data-sort="type" title="{% translate 'Click to sort by Type' %}">
                             {% translate "Type" %} <i class="fas fa-sort sort-icon text-muted ms-1"></i>
                         </th>
+                        <th>{% translate "Moon Value" %}</th>
                         <th class="sortable-th cursor-pointer user-select-none" data-sort="system" title="{% translate 'Click to sort by Solar System' %}">
                             {% translate "Solar System" %} <i class="fas fa-sort sort-icon text-muted ms-1"></i>
                         </th>
@@ -138,9 +139,9 @@
                             data-raw-value="{{ struct.name }}"
                             title="{% if perms.hostile.manage_intel or struct.created_by == request.user %}{% translate 'Click to edit structure name' %}{% endif %}">
                             <div class="cell-display-content">
-                                <span class="structure-name-text">{{ struct.name }}</span>
-                                {% if struct.location_details %}
-                                    <div class="small text-muted location-details-text">{{ struct.location_details }}</div>
+                                <span class="structure-name-text">{{ struct.registry_display_name|default:struct.name }}</span>
+                                {% if struct.location_details or struct.registry_location_details %}
+                                    <div class="small text-muted location-details-text">{{ struct.registry_location_details|default:struct.location_details }}</div>
                                 {% endif %}
                             </div>
                         </td>
@@ -151,6 +152,20 @@
                             {% else %}
                                 <span class="text-muted">Structure</span>
                             {% endif %}
+                        </td>
+                        <td class="small text-nowrap">
+                            {% if struct.moonmining_match %}
+                                <span class="badge badge-subtle-info">Moon scan</span>
+                                <span class="text-info">{{ struct.moonmining_match.value|floatformat:0|intcomma }} ISK</span>
+                                <span class="text-muted">/ drill {{ struct.moonmining_match.drill_value|floatformat:0|intcomma }} ISK</span>
+                            {% elif struct.moon_scan_options %}
+                                <select class="form-select form-select-sm bg-dark text-white border-secondary moon-correlation-select" data-structure-id="{{ struct.id }}" title="Correlate this drill with a moon scan">
+                                    <option value="">Correlate moon scan…</option>
+                                    {% for moon in struct.moon_scan_options %}
+                                    <option value="{{ moon.eve_moon_id }}">{{ moon.eve_moon.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            {% else %}<span class="text-muted">—</span>{% endif %}
                         </td>
                         <td class="text-info fw-bold font-mono">{{ struct.solar_system.name|default:"Unknown" }}</td>
                         <td class="{% if perms.hostile.manage_intel or struct.created_by == request.user %}editable-cell{% endif %}"
@@ -1392,6 +1407,20 @@ document.addEventListener("DOMContentLoaded", function() {
             cancelActiveEdit();
         });
     }
+
+    document.querySelectorAll('.moon-correlation-select').forEach(select => {
+        select.addEventListener('change', function() {
+            if (!this.value) return;
+            fetch(`/hostile/structures/${this.dataset.structureId}/inline-update/`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken()},
+                body: JSON.stringify({field: 'moonmining_moon', value: this.value})
+            }).then(response => response.json()).then(data => {
+                if (data.success) window.location.reload();
+                else alert(data.error || 'Failed to correlate moon scan.');
+            }).catch(() => alert('A network error occurred while correlating the moon scan.'));
+        });
+    });
 
     initEditableCells();
 

@@ -623,6 +623,11 @@ class HostileStructure(models.Model):
     location_details = models.CharField(
         max_length=254, blank=True, help_text="Celestial / Planet / Moon location"
     )
+    moonmining_moon_id = models.BigIntegerField(
+        null=True,
+        blank=True,
+        help_text="Manually correlated aa-moonmining EveMoon ID",
+    )
     notes = models.TextField(blank=True)
     is_verified = models.BooleanField(default=False)
     created_by = models.ForeignKey(

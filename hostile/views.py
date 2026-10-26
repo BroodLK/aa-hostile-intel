@@ -510,12 +510,45 @@ def structures_list(request: WSGIRequest) -> HttpResponse:
     if request.user.has_perm("hostile.manage_intel"):
         suspected_duplicates = IntelManager.find_suspected_duplicates()
 
+    moon_data = {}
+    moon_options = {}
+    try:
+        # AA Hostile Intel
+        from hostile.services import moonmining_integration
+        from hostile.services.moonmining_integration import (
+            moon_data_for_structures,
+            moon_options_for_structures,
+        )
+
+        moon_data = moon_data_for_structures(structures)
+        moon_options = moon_options_for_structures(structures)
+    except Exception:
+        logger.exception("Unable to load optional moonmining structure matches")
+        messages.warning(
+            request,
+            "Moon scan correlation is temporarily unavailable. Structure data is still shown.",
+        )
+    structures = list(structures)
+    for structure in structures:
+        match = moon_data.get(structure.id)
+        structure.moonmining_match = match
+        structure.moon_scan_options = (
+            moon_options.get(structure.solar_system.name.lower(), [])
+            if structure.solar_system and moonmining_integration.is_drill(structure)
+            else []
+        )
+        if match:
+            structure.registry_display_name = match["name"]
+            structure.registry_location_details = match["name"].split(" ", 1)[-1]
+
     context = {
         "structures": structures,
         "paste_form": paste_form,
         "structure_form": structure_form,
         "suspected_duplicates": suspected_duplicates,
         "suspected_count": len(suspected_duplicates),
+        "moon_data": moon_data,
+        "moon_options": moon_options,
     }
     return render(request, "hostile/structures.html", context)
 
@@ -964,6 +997,54 @@ def structure_inline_update(request: WSGIRequest, structure_id: int) -> JsonResp
             "EDIT",
             structure,
             f"Inline updated name from '{old_name}' to '{structure.name}'.",
+        )
+
+    elif field in ("moonmining_moon", "moon"):
+        if not value or value.lower() in ("none", "clear", "-"):
+            structure.moonmining_moon_id = None
+        else:
+            try:
+                moon_id = int(value)
+            except ValueError:
+                return JsonResponse(
+                    {"success": False, "error": "Invalid moon selection."}, status=400
+                )
+            try:
+                # Django
+                from django.apps import apps
+                from django.core.exceptions import ObjectDoesNotExist
+
+                if not apps.is_installed("moonmining"):
+                    raise LookupError
+                # Third Party
+                from moonmining.models import Moon
+
+                moon = Moon.objects.select_related(
+                    "eve_moon__eve_planet__eve_solar_system"
+                ).get(eve_moon_id=moon_id)
+                if (
+                    structure.solar_system_id
+                    != moon.eve_moon.eve_planet.eve_solar_system_id
+                ):
+                    return JsonResponse(
+                        {
+                            "success": False,
+                            "error": "Moon must be in the same solar system.",
+                        },
+                        status=400,
+                    )
+            except (LookupError, ObjectDoesNotExist):
+                return JsonResponse(
+                    {"success": False, "error": "Selected moon scan was not found."},
+                    status=400,
+                )
+            structure.moonmining_moon_id = moon_id
+        structure.save(update_fields=["moonmining_moon_id", "updated_at"])
+        IntelManager.record_audit(
+            request.user,
+            "EDIT",
+            structure,
+            f"Manually correlated moon scan to {structure.moonmining_moon_id or 'none'}.",
         )
 
     elif field in ("owner", "owner_ticker"):

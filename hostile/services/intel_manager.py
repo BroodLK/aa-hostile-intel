@@ -463,6 +463,9 @@ class IntelManager:
             if not primary.location_details and d.location_details:
                 primary.location_details = d.location_details
                 update_fields.append("location_details")
+            if primary.moonmining_moon_id is None and d.moonmining_moon_id is not None:
+                primary.moonmining_moon_id = d.moonmining_moon_id
+                update_fields.append("moonmining_moon_id")
             if primary.core_status == "UNKNOWN" and d.core_status != "UNKNOWN":
                 primary.core_status = d.core_status
                 update_fields.append("core_status")
