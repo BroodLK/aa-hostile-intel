@@ -737,6 +737,27 @@ class IntelManager:
                     if s2.id in processed_ids:
                         continue
 
+                    # Drills have a real celestial identity. Never group two
+                    # different moons merely because they share the same hull,
+                    # owner, or system tokens.
+                    drill1 = _drill_identity(s1)
+                    drill2 = _drill_identity(s2)
+                    same_normalized_name = (
+                        normalize_structure_name(s1.name).lower()
+                        == normalize_structure_name(s2.name).lower()
+                    )
+                    if (drill1 or drill2) and not same_normalized_name:
+                        if drill1 and drill1 == drill2:
+                            candidates.append(
+                                (
+                                    s2,
+                                    "Same moon drill location in the same solar system",
+                                    "HIGH",
+                                )
+                            )
+                            processed_ids.add(s2.id)
+                        continue
+
                     # Evaluate similarity
                     is_suspected = False
                     reason = ""
