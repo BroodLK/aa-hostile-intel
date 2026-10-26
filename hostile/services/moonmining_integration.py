@@ -1,16 +1,28 @@
 """Optional aa-moonmining integration for the hostile structure registry."""
 
+# Standard Library
 import re
 from typing import Any
 
+# Django
 from django.db.models import Q
-
 
 _LOCATION_RE = re.compile(
     r"(?:\bP\s*(\d+)\s*M\s*(\d+)\b|\bPlanet\s*(\d+)\s+Moon\s*(\d+)\b)",
     re.IGNORECASE,
 )
-_ROMAN = {"I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6, "VII": 7, "VIII": 8, "IX": 9, "X": 10}
+_ROMAN = {
+    "I": 1,
+    "II": 2,
+    "III": 3,
+    "IV": 4,
+    "V": 5,
+    "VI": 6,
+    "VII": 7,
+    "VIII": 8,
+    "IX": 9,
+    "X": 10,
+}
 
 
 def _location(value: str | None) -> tuple[int, int] | None:
@@ -26,7 +38,9 @@ def _location(value: str | None) -> tuple[int, int] | None:
 def _moon_location(moon: Any) -> tuple[int, int] | None:
     planet_name = getattr(getattr(moon.eve_moon, "eve_planet", None), "name", "")
     moon_name = getattr(moon.eve_moon, "name", "")
-    planet_match = re.search(r"\b(I|II|III|IV|V|VI|VII|VIII|IX|X)\b", planet_name.upper())
+    planet_match = re.search(
+        r"\b(I|II|III|IV|V|VI|VII|VIII|IX|X)\b", planet_name.upper()
+    )
     moon_match = re.search(r"(?:-|\s)(\d+)\s*$", moon_name)
     if not planet_match or not moon_match:
         return None
@@ -40,7 +54,9 @@ def is_drill(structure: Any) -> bool:
 
 def structure_location(structure: Any) -> tuple[int, int] | None:
     """Read PnMm from either the location annotation or the structure name."""
-    return _location(getattr(structure, "location_details", "")) or _location(getattr(structure, "name", ""))
+    return _location(getattr(structure, "location_details", "")) or _location(
+        getattr(structure, "name", "")
+    )
 
 
 def structure_display_name(structure: Any) -> str:
@@ -49,15 +65,22 @@ def structure_display_name(structure: Any) -> str:
         return structure.name
     location = structure_location(structure)
     system = getattr(getattr(structure, "solar_system", None), "name", "")
-    return f"{system} P{location[0]}M{location[1]}" if location and system else structure.name
+    return (
+        f"{system} P{location[0]}M{location[1]}"
+        if location and system
+        else structure.name
+    )
 
 
 def moon_data_for_structures(structures: Any) -> dict[int, dict[str, Any]]:
     """Match drills to aa-moonmining moons by system and planet/moon coordinates."""
     try:
+        # Django
         from django.apps import apps
+
         if not apps.is_installed("moonmining"):
             return {}
+        # Third Party
         from moonmining.models import Moon
     except (ImportError, LookupError):
         return {}
@@ -68,7 +91,9 @@ def moon_data_for_structures(structures: Any) -> dict[int, dict[str, Any]]:
     system_filter = Q()
     for system in systems:
         system_filter |= Q(eve_moon__eve_planet__eve_solar_system__name__iexact=system)
-    moons = Moon.objects.select_related("eve_moon__eve_planet__eve_solar_system").filter(system_filter)
+    moons = Moon.objects.select_related(
+        "eve_moon__eve_planet__eve_solar_system"
+    ).filter(system_filter)
     by_id = {m.eve_moon_id: m for m in moons}
     by_key = {
         (m.eve_moon.eve_planet.eve_solar_system.name.lower(), _moon_location(m)): m
@@ -89,7 +114,9 @@ def moon_data_for_structures(structures: Any) -> dict[int, dict[str, Any]]:
             # Do not display a stale/manual correlation from another system.
             moon = None
         if not moon:
-            moon = by_key.get((system.lower(), location)) if location and system else None
+            moon = (
+                by_key.get((system.lower(), location)) if location and system else None
+            )
         if moon:
             value = moon.value
             result[structure.id] = {
@@ -104,9 +131,12 @@ def moon_data_for_structures(structures: Any) -> dict[int, dict[str, Any]]:
 def moon_options_for_structures(structures: Any) -> dict[str, list[Any]]:
     """Return selectable scanned moons grouped by solar-system name."""
     try:
+        # Django
         from django.apps import apps
+
         if not apps.is_installed("moonmining"):
             return {}
+        # Third Party
         from moonmining.models import Moon
     except (ImportError, LookupError):
         return {}
@@ -116,7 +146,9 @@ def moon_options_for_structures(structures: Any) -> dict[str, list[Any]]:
     system_filter = Q()
     for system in systems:
         system_filter |= Q(eve_moon__eve_planet__eve_solar_system__name__iexact=system)
-    moons = Moon.objects.select_related("eve_moon__eve_planet__eve_solar_system").filter(system_filter)
+    moons = Moon.objects.select_related(
+        "eve_moon__eve_planet__eve_solar_system"
+    ).filter(system_filter)
     result = {}
     for moon in moons:
         system = moon.eve_moon.eve_planet.eve_solar_system.name

@@ -1,7 +1,10 @@
+# Standard Library
 from types import SimpleNamespace
 
+# Django
 from django.test import SimpleTestCase
 
+# AA Hostile Intel
 from hostile.services.moonmining_integration import (
     _location,
     is_drill,
