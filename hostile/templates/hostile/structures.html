@@ -1,11 +1,17 @@
 {% extends 'hostile/base.html' %}
-{% load i18n humanize %}
+{% load i18n humanize l10n static %}
+
+{% block extra_css %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'hostile/css/hostile_structures.css' %}">
+{% endblock %}
 
 {% block details %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="structure-registry">
+<div class="d-flex justify-content-between align-items-center mb-3">
     <div>
         <h4 class="mb-0 fw-bold"><i class="fas fa-monument text-info me-2"></i>{% translate "Hostile Structures Registry" %}</h4>
-        <p class="text-muted small mb-0">{% translate "Tracked hostile citadels, engineering complexes, refineries, and POSes." %}</p>
+        <p class="sr-muted small mb-0" id="structureSummary">{% translate "Tracked hostile citadels, engineering complexes, refineries, and POSes." %}</p>
     </div>
     <div class="d-flex gap-2">
         {% if perms.hostile.manage_intel %}
@@ -26,331 +32,287 @@
     </div>
 </div>
 
-<!-- Search, Filter & Quick Triage Controls -->
-<div class="card bg-dark text-white border-secondary hostile-card mb-3 shadow-sm">
-    <div class="card-body p-3">
-        <div class="row g-2 align-items-center">
-            <div class="col-12 col-md-4">
-                <div class="input-group input-group-sm">
-                    <span class="input-group-text bg-dark text-muted border-secondary"><i class="fas fa-search"></i></span>
-                    <input type="text" id="structureSearchInput" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="{% translate 'Search by name, system, owner, type, state...' %}" autofocus>
-                    <button class="btn btn-outline-secondary btn-sm d-none" type="button" id="clearStructureSearchBtn" title="{% translate 'Clear search' %}">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-            </div>
-            <div class="col-6 col-md-2">
-                <select id="structureStateFilter" class="form-select form-select-sm bg-dark text-white border-secondary">
-                    <option value="">{% translate "All States" %}</option>
-                    <option value="ONLINE">{% translate "Online" %}</option>
-                    <option value="LOW_POWER">{% translate "Low Power" %}</option>
-                    <option value="OFFLINE">{% translate "Offline" %}</option>
-                    <option value="ABANDONED">{% translate "Abandoned" %}</option>
-                    <option value="ANCHORING">{% translate "Anchoring" %}</option>
-                    <option value="UNANCHORING">{% translate "Unanchoring" %}</option>
-                    <option value="ARMOR">{% translate "Armor Reinforced" %}</option>
-                    <option value="HULL">{% translate "Hull Reinforced" %}</option>
-                    <option value="REINFORCED">{% translate "Reinforced" %}</option>
-                    <option value="DESTROYED">{% translate "Destroyed" %}</option>
-                </select>
-            </div>
-            <div class="col-6 col-md-2">
-                <select id="structureCoreFilter" class="form-select form-select-sm bg-dark text-white border-secondary">
-                    <option value="">{% translate "All Quantum Cores" %}</option>
-                    <option value="FITTED">{% translate "Fitted (Installed)" %}</option>
-                    <option value="UNFITTED">{% translate "No Core (Unfitted)" %}</option>
-                    <option value="UNKNOWN">{% translate "Unknown" %}</option>
-                </select>
-            </div>
-            <div class="col-6 col-md-2">
-                <select id="structureVerifiedFilter" class="form-select form-select-sm bg-dark text-white border-secondary">
-                    <option value="">{% translate "All Verification" %}</option>
-                    <option value="1">{% translate "Verified Only" %}</option>
-                    <option value="0">{% translate "Unverified Only" %}</option>
-                </select>
-            </div>
-            <div class="col-6 col-md-2 d-flex justify-content-between align-items-center">
-                <span class="badge bg-secondary small" id="structureCountBadge" title="{% translate 'Filtered / Total structures' %}">
-                    <span id="structureVisibleCount">{{ structures|length }}</span> / {{ structures|length }}
-                </span>
-                <button type="button" class="btn btn-outline-secondary btn-sm" id="resetStructureFiltersBtn" title="{% translate 'Reset all search & filters' %}">
-                    <i class="fas fa-undo me-1"></i>{% translate "Reset" %}
-                </button>
-            </div>
-        </div>
+<!-- Search, quick-filter chips, state/core filters and group depth -->
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <div class="input-group input-group-sm" style="max-width: 340px;">
+        <span class="input-group-text bg-transparent sr-muted"><i class="fas fa-search"></i></span>
+        <input type="text" id="structureSearchInput" class="form-control form-control-sm" placeholder="{% translate 'Search name, system, region, owner, type...' %}" autofocus>
+        <button class="btn btn-outline-secondary btn-sm d-none" type="button" id="clearStructureSearchBtn" title="{% translate 'Clear search' %}">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+    <div class="d-flex gap-1 flex-wrap" id="structureChips">
+        <span class="sr-chip active" data-filter="">{% translate "All" %}</span>
+        <span class="sr-chip" data-filter="ONLINE"><span class="dot s-ONLINE"></span>{% translate "Online" %}</span>
+        <span class="sr-chip" data-filter="LOW_POWER"><span class="dot s-LOW_POWER"></span>{% translate "Low Power" %}</span>
+        <span class="sr-chip" data-filter="DESTROYED"><span class="dot s-DESTROYED"></span>{% translate "Destroyed" %}</span>
+        <span class="sr-chip" data-filter="unverified" id="structureUnverifiedChip">{% translate "Unverified" %}</span>
+        <span class="sr-chip" data-filter="moon">{% translate "Has moon value" %}</span>
+    </div>
+    <select id="structureStateFilter" class="form-select form-select-sm w-auto no-searchable" title="{% translate 'Filter by any structure state' %}">
+        <option value="">{% translate "Any state" %}</option>
+        <option value="ONLINE">{% translate "Online" %}</option>
+        <option value="LOW_POWER">{% translate "Low Power" %}</option>
+        <option value="OFFLINE">{% translate "Offline" %}</option>
+        <option value="ABANDONED">{% translate "Abandoned" %}</option>
+        <option value="ANCHORING">{% translate "Anchoring" %}</option>
+        <option value="UNANCHORING">{% translate "Unanchoring" %}</option>
+        <option value="ARMOR">{% translate "Armor Reinforced" %}</option>
+        <option value="HULL">{% translate "Hull Reinforced" %}</option>
+        <option value="REINFORCED">{% translate "Reinforced" %}</option>
+        <option value="DESTROYED">{% translate "Destroyed" %}</option>
+    </select>
+    <select id="structureCoreFilter" class="form-select form-select-sm w-auto no-searchable" title="{% translate 'Filter by quantum core' %}">
+        <option value="">{% translate "Any core" %}</option>
+        <option value="FITTED">{% translate "Core fitted" %}</option>
+        <option value="UNFITTED">{% translate "No core" %}</option>
+        <option value="UNKNOWN">{% translate "Core unknown" %}</option>
+    </select>
+    <button type="button" class="btn btn-outline-secondary btn-sm" id="resetStructureFiltersBtn" title="{% translate 'Reset all search & filters' %}">
+        <i class="fas fa-undo me-1"></i>{% translate "Reset" %}
+    </button>
+    <span class="ms-auto sr-muted small">{% translate "Expand to" %}</span>
+    <div class="sr-depth" id="structureDepth">
+        <button type="button" data-depth="0">{% translate "Alliances" %}</button>
+        <button type="button" data-depth="1">{% translate "Regions" %}</button>
+        <button type="button" data-depth="2">{% translate "Systems" %}</button>
+        <button type="button" data-depth="3" class="on">{% translate "All" %}</button>
     </div>
 </div>
 
-<div class="card bg-dark text-white border-secondary hostile-card shadow-sm">
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-dark table-hover mb-0 align-middle" id="structuresTable">
-                <thead>
-                    <tr class="text-muted small text-uppercase">
-                        <th class="sortable-th cursor-pointer user-select-none" data-sort="name" title="{% translate 'Click to sort by Name' %}">
-                            {% translate "Name" %} <i class="fas fa-sort sort-icon text-muted ms-1"></i>
-                        </th>
-                        <th class="sortable-th cursor-pointer user-select-none" data-sort="type" title="{% translate 'Click to sort by Type' %}">
-                            {% translate "Type" %} <i class="fas fa-sort sort-icon text-muted ms-1"></i>
-                        </th>
-                        <th>{% translate "Moon Value" %}</th>
-                        <th class="sortable-th cursor-pointer user-select-none" data-sort="system" title="{% translate 'Click to sort by Solar System' %}">
-                            {% translate "Solar System" %} <i class="fas fa-sort sort-icon text-muted ms-1"></i>
-                        </th>
-                        <th class="sortable-th cursor-pointer user-select-none" data-sort="owner" title="{% translate 'Click to sort by Owner' %}">
-                            {% translate "Owner" %} <i class="fas fa-sort sort-icon text-muted ms-1"></i>
-                        </th>
-                        <th class="sortable-th cursor-pointer user-select-none" data-sort="vulnerability" title="{% translate 'Click to sort by Vulnerability' %}">
-                            {% translate "Vulnerability" %} <i class="fas fa-sort sort-icon text-muted ms-1"></i>
-                        </th>
-                        <th class="sortable-th cursor-pointer user-select-none" data-sort="core" title="{% translate 'Click to sort by Quantum Core' %}">
-                            {% translate "Quantum Core" %} <i class="fas fa-sort sort-icon text-muted ms-1"></i>
-                        </th>
-                        <th class="sortable-th cursor-pointer user-select-none" data-sort="state" title="{% translate 'Click to sort by State' %}">
-                            {% translate "State" %} <i class="fas fa-sort sort-icon text-muted ms-1"></i>
-                        </th>
-                        <th class="sortable-th cursor-pointer user-select-none" data-sort="verified" title="{% translate 'Click to sort by Verification' %}">
-                            {% translate "Verified" %} <i class="fas fa-sort sort-icon text-muted ms-1"></i>
-                        </th>
-                        <th class="sortable-th cursor-pointer user-select-none" data-sort="updated" title="{% translate 'Click to sort by Last Updated' %}">
-                            {% translate "Last Updated" %} <i class="fas fa-sort sort-icon text-muted ms-1"></i>
-                        </th>
-                        <th class="text-start">{% translate "Actions" %}</th>
-                    </tr>
-                </thead>
-                <tbody id="structuresTableBody" class="border-secondary">
-                    {% for struct in structures %}
-                    <tr class="structure-row"
-                        data-id="{{ struct.id }}"
-                        data-name="{{ struct.name|lower }}"
-                        data-type="{{ struct.structure_type.name|default:'structure'|lower }}"
-                        data-system="{{ struct.solar_system.name|default:'unknown'|lower }}"
-                        data-owner="{{ struct.owner_name|lower }} {{ struct.owner_ticker|default:''|lower }}"
-                        data-vuln-hour="{{ struct.vulnerability_hour|default:-1 }}"
-                        data-vuln="{{ struct.vulnerability_window|default:''|lower }}"
-                        data-core="{{ struct.core_status }}"
-                        data-state="{{ struct.state }}"
-                        data-verified="{{ struct.is_verified|yesno:'1,0' }}"
-                        data-updated="{{ struct.updated_at|date:'U' }}"
-                        data-search-text="{{ struct.name }} {{ struct.location_details|default:'' }} {{ struct.structure_type.name|default:'' }} {{ struct.solar_system.name|default:'' }} {{ struct.owner_name }} {{ struct.owner_ticker|default:'' }} {{ struct.vulnerability_window|default:'' }} {{ struct.state }} {{ struct.core_status }} {{ struct.updated_at|naturaltime }} {% if struct.is_verified %}verified{% else %}unverified{% endif %}">
-                        <td class="fw-bold {% if perms.hostile.manage_intel or struct.created_by == request.user %}editable-cell{% endif %}"
-                            data-field="name"
-                            data-structure-id="{{ struct.id }}"
-                            data-raw-value="{{ struct.name }}"
-                            title="{% if perms.hostile.manage_intel or struct.created_by == request.user %}{% translate 'Click to edit structure name' %}{% endif %}">
-                            <div class="cell-display-content">
-                                <span class="structure-name-text">{{ struct.registry_display_name|default:struct.name }}</span>
-                                {% if struct.location_details or struct.registry_location_details %}
-                                    <div class="small text-muted location-details-text">{{ struct.registry_location_details|default:struct.location_details }}</div>
-                                {% endif %}
-                            </div>
-                        </td>
-                        <td>
-                            {% if struct.structure_type %}
-                                <img src="https://images.evetech.net/types/{{ struct.structure_type.id }}/icon?size=32" alt="" class="me-1 rounded" style="width: 24px; height: 24px;">
-                                {{ struct.structure_type.name }}
-                            {% else %}
-                                <span class="text-muted">Structure</span>
-                            {% endif %}
-                        </td>
-                        <td class="small text-nowrap">
-                            {% if struct.moonmining_match %}
-                                <span class="badge badge-subtle-info">Moon scan</span>
-                                <span class="text-info">{{ struct.moonmining_match.display_value }} ISK</span>
-                                <span class="text-muted">/ drill {{ struct.moonmining_match.display_drill_value }} ISK</span>
-                            {% elif struct.moon_scan_options %}
-                                <select class="form-select form-select-sm bg-dark text-white border-secondary moon-correlation-select" data-structure-id="{{ struct.id }}" title="Correlate this drill with a moon scan">
-                                    <option value="">Correlate moon scan…</option>
-                                    {% for moon in struct.moon_scan_options %}
-                                    <option value="{{ moon.eve_moon_id }}">{{ moon.eve_moon.name }}</option>
-                                    {% endfor %}
-                                </select>
-                            {% else %}<span class="text-muted">—</span>{% endif %}
-                        </td>
-                        <td class="text-info fw-bold font-mono">{{ struct.solar_system.name|default:"Unknown" }}</td>
-                        <td class="{% if perms.hostile.manage_intel or struct.created_by == request.user %}editable-cell{% endif %}"
-                            data-field="owner"
-                            data-structure-id="{{ struct.id }}"
-                            data-raw-value="{% if struct.owner_ticker %}{{ struct.owner_ticker }}{% elif struct.alliance %}{{ struct.alliance.alliance_name }}{% elif struct.corporation %}{{ struct.corporation.corporation_name }}{% else %}{{ struct.owner_name }}{% endif %}"
-                            title="{% if perms.hostile.manage_intel or struct.created_by == request.user %}{% translate 'Click to edit owner / ticker' %}{% endif %}">
-                            <div class="cell-display-content">
-                                {% if struct.alliance %}
-                                    <a href="{% url 'hostile:alliance_detail' struct.alliance.id %}" class="text-light fw-bold text-decoration-none hover-primary owner-link">{{ struct.alliance.alliance_name }}</a>
-                                {% elif struct.corporation %}
-                                    <a href="{% url 'hostile:corporation_detail' struct.corporation.id %}" class="text-light fw-bold text-decoration-none hover-primary owner-link">{{ struct.corporation.corporation_name }}</a>
-                                {% else %}
-                                    <div class="owner-name-text">{{ struct.owner_name }}</div>
-                                {% endif %}
-                                {% if struct.owner_ticker %}
-                                    <span class="badge badge-subtle-secondary small owner-ticker-badge">[{{ struct.owner_ticker }}]</span>
-                                {% endif %}
-                            </div>
-                        </td>
-                        <td class="{% if perms.hostile.manage_intel or struct.created_by == request.user %}editable-cell{% endif %}"
-                            data-field="vulnerability"
-                            data-structure-id="{{ struct.id }}"
-                            data-raw-value="{% if struct.vulnerability_window %}{{ struct.vulnerability_window }}{% elif struct.vulnerability_hour is not None %}{{ struct.vulnerability_hour }}{% endif %}"
-                            title="{% if perms.hostile.manage_intel or struct.created_by == request.user %}{% translate 'Click to edit vulnerability' %}{% endif %}">
-                            <div class="cell-display-content">
-                                {% if struct.vulnerability_window %}
-                                    <span class="badge badge-subtle-warning"><i class="fas fa-shield-alt me-1"></i>{{ struct.vulnerability_window }}</span>
-                                {% elif struct.vulnerability_hour is not None %}
-                                    <span class="badge badge-subtle-warning"><i class="fas fa-shield-alt me-1"></i>{{ struct.vulnerability_hour }}:00 UTC</span>
-                                {% else %}
-                                    <span class="text-muted small">{% translate "Unknown" %}</span>
-                                {% endif %}
-                            </div>
-                        </td>
-                        <td class="{% if perms.hostile.manage_intel or struct.created_by == request.user %}editable-cell{% endif %}"
-                            data-field="core_status"
-                            data-structure-id="{{ struct.id }}"
-                            data-raw-value="{{ struct.core_status }}"
-                            title="{% if perms.hostile.manage_intel or struct.created_by == request.user %}{% translate 'Click to edit quantum core' %}{% endif %}">
-                            <div class="cell-display-content">
-                                {% if struct.core_status == "FITTED" %}
-                                    <span class="badge badge-subtle-teal"><i class="fas fa-check-circle me-1"></i>Fitted</span>
-                                {% elif struct.core_status == "UNFITTED" %}
-                                    <span class="badge badge-subtle-danger"><i class="fas fa-times-circle me-1"></i>No Core</span>
-                                {% else %}
-                                    <span class="badge badge-subtle-secondary">Unknown</span>
-                                {% endif %}
-                            </div>
-                        </td>
-                        <td class="{% if perms.hostile.manage_intel or struct.created_by == request.user %}editable-cell{% endif %}"
-                            data-field="state"
-                            data-structure-id="{{ struct.id }}"
-                            data-raw-value="{{ struct.state }}"
-                            title="{% if perms.hostile.manage_intel or struct.created_by == request.user %}{% translate 'Click to edit state' %}{% endif %}">
-                            <div class="cell-display-content">
-                                {% if struct.state == "ONLINE" %}
-                                    <span class="badge badge-subtle-success"><i class="fas fa-check-circle me-1"></i>Online</span>
-                                {% elif struct.state == "LOW_POWER" %}
-                                    <span class="badge badge-subtle-warning"><i class="fas fa-bolt me-1"></i>Low Power</span>
-                                {% elif struct.state == "OFFLINE" %}
-                                    <span class="badge badge-subtle-secondary"><i class="fas fa-power-off me-1"></i>Offline</span>
-                                {% elif struct.state == "ABANDONED" %}
-                                    <span class="badge badge-subtle-danger"><i class="fas fa-exclamation-triangle me-1"></i>Abandoned</span>
-                                {% elif struct.state == "ANCHORING" %}
-                                    <span class="badge badge-subtle-warning"><i class="fas fa-anchor me-1"></i>Anchoring</span>
-                                {% elif struct.state == "UNANCHORING" %}
-                                    <span class="badge badge-subtle-secondary"><i class="fas fa-box-open me-1"></i>Unanchoring</span>
-                                {% elif struct.state == "ARMOR" or struct.state == "HULL" or struct.state == "REINFORCED" %}
-                                    <span class="badge badge-subtle-danger"><i class="fas fa-stopwatch me-1"></i>{{ struct.get_state_display }}</span>
-                                {% elif struct.state == "DESTROYED" %}
-                                    <span class="badge bg-danger text-light"><i class="fas fa-skull me-1"></i>Destroyed</span>
-                                {% else %}
-                                    <span class="badge badge-subtle-secondary">{{ struct.state }}</span>
-                                {% endif %}
-                            </div>
-                        </td>
-                        <td>
-                            {% if struct.is_verified %}
-                                <span class="badge badge-subtle-teal"><i class="fas fa-check"></i> Verified</span>
-                            {% else %}
-                                <span class="badge badge-subtle-warning"><i class="fas fa-clock"></i> Unverified</span>
-                            {% endif %}
-                        </td>
-                        <td class="small text-muted structure-updated-cell">{{ struct.updated_at|naturaltime }}</td>
-                        <td class="text-start text-nowrap">
-                            <div class="dropdown d-inline-block me-1">
-                                <button class="btn btn-outline-secondary btn-xs py-0 px-2 dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" title="{% translate 'Change Structure State' %}">
-                                    <i class="fas fa-exchange-alt me-1"></i>State
-                                </button>
-                                <ul class="dropdown-menu dropdown-menu-dark shadow border-secondary" style="z-index: 1080;">
-                                    <li><h6 class="dropdown-header small text-uppercase">{% translate "Change Structure State" %}</h6></li>
-                                    <li>
-                                        <form action="{% url 'hostile:structure_set_state' struct.id %}" method="post" class="m-0 p-0">
-                                            {% csrf_token %}
-                                            <input type="hidden" name="state" value="ONLINE">
-                                            <button type="submit" class="dropdown-item small text-success py-1"><i class="fas fa-check-circle me-2"></i>{% translate "Online" %}</button>
-                                        </form>
-                                    </li>
-                                    <li>
-                                        <form action="{% url 'hostile:structure_set_state' struct.id %}" method="post" class="m-0 p-0">
-                                            {% csrf_token %}
-                                            <input type="hidden" name="state" value="LOW_POWER">
-                                            <button type="submit" class="dropdown-item small text-warning py-1"><i class="fas fa-bolt me-2"></i>{% translate "Low Power" %}</button>
-                                        </form>
-                                    </li>
-                                    <li>
-                                        <form action="{% url 'hostile:structure_set_state' struct.id %}" method="post" class="m-0 p-0">
-                                            {% csrf_token %}
-                                            <input type="hidden" name="state" value="OFFLINE">
-                                            <button type="submit" class="dropdown-item small text-secondary py-1"><i class="fas fa-power-off me-2"></i>{% translate "Offline" %}</button>
-                                        </form>
-                                    </li>
-                                    <li>
-                                        <form action="{% url 'hostile:structure_set_state' struct.id %}" method="post" class="m-0 p-0">
-                                            {% csrf_token %}
-                                            <input type="hidden" name="state" value="ABANDONED">
-                                            <button type="submit" class="dropdown-item small text-warning py-1"><i class="fas fa-exclamation-triangle me-2"></i>{% translate "Abandoned" %}</button>
-                                        </form>
-                                    </li>
-                                    <li>
-                                        <form action="{% url 'hostile:structure_set_state' struct.id %}" method="post" class="m-0 p-0">
-                                            {% csrf_token %}
-                                            <input type="hidden" name="state" value="ARMOR">
-                                            <button type="submit" class="dropdown-item small text-danger py-1"><i class="fas fa-shield-alt me-2"></i>{% translate "Armor Reinforced" %}</button>
-                                        </form>
-                                    </li>
-                                    <li>
-                                        <form action="{% url 'hostile:structure_set_state' struct.id %}" method="post" class="m-0 p-0">
-                                            {% csrf_token %}
-                                            <input type="hidden" name="state" value="HULL">
-                                            <button type="submit" class="dropdown-item small text-danger py-1"><i class="fas fa-stopwatch me-2"></i>{% translate "Hull Reinforced" %}</button>
-                                        </form>
-                                    </li>
-                                    <li><hr class="dropdown-divider border-secondary my-1"></li>
-                                    <li>
-                                        <form action="{% url 'hostile:structure_set_state' struct.id %}" method="post" class="m-0 p-0">
-                                            {% csrf_token %}
-                                            <input type="hidden" name="state" value="DESTROYED">
-                                            <button type="submit" class="dropdown-item small text-danger fw-bold py-1"><i class="fas fa-skull me-2"></i>{% translate "Destroyed" %}</button>
-                                        </form>
-                                    </li>
-                                </ul>
-                            </div>
-                            <a href="{% url 'hostile:calculator' %}?structure_id={{ struct.id }}" class="btn btn-outline-warning btn-xs py-0 px-2 me-1" title="{% translate 'Calculate Reinforce Exit Window' %}" data-hostile-loading="{% translate 'Loading Timer Calculator' %}" data-hostile-loading-detail="{% translate 'Importing structure vulnerability and geometry into calculation engine...' %}">
-                                <i class="fas fa-calculator me-1"></i>{% translate "Calc" %}
-                            </a>
-                            <button type="button" class="btn btn-outline-info btn-xs py-0 px-2 me-1" onclick="loadFittingModal({{ struct.id }})">
-                                <i class="fas fa-crosshairs me-1"></i>{% translate "Fit" %}
-                            </button>
-                            {% if perms.hostile.manage_intel or struct.created_by == request.user %}
-                            <a href="{% url 'hostile:structure_edit' struct.id %}" class="btn btn-outline-primary btn-xs py-0 px-2 me-1" title="{% translate 'Edit Structure' %}">
-                                <i class="fas fa-edit me-1"></i>{% translate "Edit" %}
-                            </a>
-                            {% endif %}
-                            {% if perms.hostile.manage_intel %}
-                            <button type="button" class="btn btn-outline-danger btn-xs py-0 px-2 me-1" data-bs-toggle="modal" data-bs-target="#deleteStructureModal{{ struct.id }}" title="{% translate 'Delete Structure' %}">
-                                <i class="fas fa-trash-alt"></i>
-                            </button>
-                            {% endif %}
-                            {% if perms.hostile.manage_intel and not struct.is_verified %}
-                                <a href="{% url 'hostile:structure_verify' struct.id %}" class="btn btn-outline-success btn-xs py-0 px-2">
-                                    <i class="fas fa-check"></i>
-                                </a>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="10" class="text-center py-5 text-muted">
-                            <i class="fas fa-monument fa-3x mb-3 text-secondary"></i>
-                            <p>{% translate "No structures recorded yet. Add structures manually or use the universal Smart Ingest button." %}</p>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                    <tr id="noStructureMatchRow" class="d-none">
-                        <td colspan="10" class="text-center py-4 text-muted">
-                            <i class="fas fa-search fa-2x mb-2 text-secondary d-block"></i>
-                            <span>{% translate "No structures match the current search & filter criteria." %}</span>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
+<div class="sr-scroll">
+<div class="sr-scroll-inner">
+{% if structures %}
+<!-- Sticky column header: sorts rows within every system group -->
+<div class="sr-sort-head">
+    <table class="sr-table">
+        <colgroup id="structureColgroup">
+            <col style="width: 26%;"><col style="width: 8%;"><col style="width: 11%;"><col style="width: 13%;">
+            <col style="width: 7%;"><col style="width: 12%;"><col style="width: 8%;"><col style="width: 15%;">
+        </colgroup>
+        <thead>
+            <tr>
+                <th class="sr-col-name sortable-th" data-sort="name" title="{% translate 'Click to sort by Name' %}">{% translate "Name" %} <i class="fas fa-sort sort-icon ms-1"></i></th>
+                <th class="sortable-th" data-sort="owner" title="{% translate 'Click to sort by Owner' %}">{% translate "Owner" %} <i class="fas fa-sort sort-icon ms-1"></i></th>
+                <th class="sortable-th" data-sort="state" title="{% translate 'Click to sort by State' %}">{% translate "State" %} <i class="fas fa-sort sort-icon ms-1"></i></th>
+                <th class="sortable-th" data-sort="vulnerability" title="{% translate 'Click to sort by Vulnerability' %}">{% translate "Vulnerability" %} <i class="fas fa-sort sort-icon ms-1"></i></th>
+                <th class="sortable-th" data-sort="core" title="{% translate 'Click to sort by Quantum Core' %}">{% translate "Core" %} <i class="fas fa-sort sort-icon ms-1"></i></th>
+                <th class="sortable-th" data-sort="moon" title="{% translate 'Click to sort by Moon Value' %}">{% translate "Moon Value" %} <i class="fas fa-sort sort-icon ms-1"></i></th>
+                <th class="sortable-th" data-sort="updated" title="{% translate 'Click to sort by Last Updated' %}">{% translate "Updated" %} <i class="fas fa-sort sort-icon ms-1"></i></th>
+                <th class="text-end">{% translate "Actions" %}</th>
+            </tr>
+        </thead>
+    </table>
+</div>
+{% endif %}
+
+<div id="structureGroups">
+    {% if not structures %}
+    <div class="sr-empty">
+        <i class="fas fa-monument fa-3x mb-3 d-block"></i>
+        <p class="mb-0">{% translate "No structures recorded yet. Add structures manually or use the universal Smart Ingest button." %}</p>
     </div>
+    {% endif %}
+</div>
+</div>
+</div>
+<div id="noStructureMatchRow" class="sr-empty d-none">
+    <i class="fas fa-search fa-2x mb-2 d-block"></i>
+    <span>{% translate "No structures match the current search & filter criteria." %}</span>
+</div>
+
+<!-- Server-rendered rows; the grouping script moves them into Alliance › Region › System groups -->
+<table class="sr-table d-none">
+    <tbody id="structureRowPool">
+        {% for struct in structures %}
+        <tr class="structure-row{% if struct.state == 'DESTROYED' %} is-destroyed{% endif %}"
+            data-id="{{ struct.id }}"
+            data-order="{{ forloop.counter0 }}"
+            data-name="{{ struct.name|lower }}"
+            data-type="{{ struct.structure_type.name|default:'structure'|lower }}"
+            data-system="{{ struct.solar_system.name|default:'unknown'|lower }}"
+            data-system-name="{{ struct.solar_system.name|default:'Unknown System' }}"
+            data-region="{{ struct.registry_region }}"
+            data-group-key="{{ struct.registry_group_key }}"
+            data-group-name="{{ struct.registry_group_name }}"
+            data-group-ticker="{{ struct.registry_group_ticker }}"
+            data-group-url="{% if struct.alliance %}{% url 'hostile:alliance_detail' struct.alliance.id %}{% elif struct.corporation %}{% url 'hostile:corporation_detail' struct.corporation.id %}{% endif %}"
+            data-owner="{{ struct.owner_name|lower }} {{ struct.owner_ticker|default:''|lower }}"
+            data-vuln-hour="{{ struct.vulnerability_hour|default_if_none:-1 }}"
+            data-vuln="{{ struct.vulnerability_window|default:''|lower }}"
+            data-core="{{ struct.core_status }}"
+            data-state="{{ struct.state }}"
+            data-verified="{{ struct.is_verified|yesno:'1,0' }}"
+            data-moon-value="{{ struct.registry_moon_value|unlocalize }}"
+            data-updated="{{ struct.updated_at|date:'U' }}"
+            data-search-text="{{ struct.name }} {{ struct.location_details|default:'' }} {{ struct.structure_type.name|default:'' }} {{ struct.solar_system.name|default:'' }} {{ struct.registry_region }} {{ struct.owner_name }} {{ struct.owner_ticker|default:'' }} {{ struct.vulnerability_window|default:'' }} {{ struct.state }} {{ struct.core_status }} {% if struct.is_verified %}verified{% else %}unverified{% endif %}">
+            <td class="sr-col-name {% if perms.hostile.manage_intel or struct.created_by == request.user %}editable-cell{% endif %}"
+                data-field="name"
+                data-structure-id="{{ struct.id }}"
+                data-raw-value="{{ struct.name }}"
+                title="{% if perms.hostile.manage_intel or struct.created_by == request.user %}{% translate 'Click to edit structure name' %}{% endif %}">
+                <div class="cell-display-content d-flex align-items-center gap-2" style="min-width: 0;">
+                    {% if struct.structure_type %}
+                        <img src="https://images.evetech.net/types/{{ struct.structure_type.id }}/icon?size=32" alt="" class="sr-type-icon">
+                    {% else %}
+                        <i class="fas fa-building sr-muted text-center" style="width: 28px;"></i>
+                    {% endif %}
+                    <div style="min-width: 0;">
+                        <div class="text-truncate">
+                            <span class="structure-name-text">{{ struct.registry_display_name|default:struct.name }}</span>
+                            {% if struct.is_verified %}<i class="fas fa-circle-check sr-verified ms-1" title="{% translate 'Verified' %}"></i>{% endif %}
+                        </div>
+                        <div class="sr-sub">{{ struct.structure_type.name|default:"Structure" }}<span class="location-details-text">{% if struct.location_details or struct.registry_location_details %} · {{ struct.registry_location_details|default:struct.location_details }}{% endif %}</span></div>
+                    </div>
+                </div>
+            </td>
+            <td class="{% if perms.hostile.manage_intel or struct.created_by == request.user %}editable-cell{% endif %}"
+                data-field="owner"
+                data-structure-id="{{ struct.id }}"
+                data-raw-value="{% if struct.owner_ticker %}{{ struct.owner_ticker }}{% elif struct.alliance %}{{ struct.alliance.alliance_name }}{% elif struct.corporation %}{{ struct.corporation.corporation_name }}{% else %}{{ struct.owner_name }}{% endif %}"
+                title="{{ struct.owner_name }}{% if perms.hostile.manage_intel or struct.created_by == request.user %} · {% translate 'Click to edit owner / ticker' %}{% endif %}">
+                <div class="cell-display-content">
+                    <span class="sr-ticker owner-ticker-badge">{% if struct.registry_group_ticker %}[{{ struct.registry_group_ticker }}]{% else %}{{ struct.owner_name }}{% endif %}</span>
+                </div>
+            </td>
+            <td class="{% if perms.hostile.manage_intel or struct.created_by == request.user %}editable-cell{% endif %}"
+                data-field="state"
+                data-structure-id="{{ struct.id }}"
+                data-raw-value="{{ struct.state }}"
+                title="{% if perms.hostile.manage_intel or struct.created_by == request.user %}{% translate 'Click to edit state' %}{% endif %}">
+                <div class="cell-display-content">
+                    <span class="sr-state"><span class="dot s-{{ struct.state }}"></span>{{ struct.get_state_display }}</span>
+                </div>
+            </td>
+            <td class="{% if perms.hostile.manage_intel or struct.created_by == request.user %}editable-cell{% endif %}"
+                data-field="vulnerability"
+                data-structure-id="{{ struct.id }}"
+                data-raw-value="{% if struct.vulnerability_window %}{{ struct.vulnerability_window }}{% elif struct.vulnerability_hour is not None %}{{ struct.vulnerability_hour }}{% endif %}"
+                title="{% if perms.hostile.manage_intel or struct.created_by == request.user %}{% translate 'Click to edit vulnerability' %}{% endif %}">
+                <div class="cell-display-content">
+                    {% if struct.vulnerability_window %}
+                        <span class="sr-vuln"><i class="fas fa-shield-alt me-1"></i>{{ struct.vulnerability_window }}</span>
+                    {% elif struct.vulnerability_hour is not None %}
+                        <span class="sr-vuln"><i class="fas fa-shield-alt me-1"></i>{{ struct.vulnerability_hour }}:00 UTC</span>
+                    {% else %}
+                        <span class="sr-muted">—</span>
+                    {% endif %}
+                </div>
+            </td>
+            <td class="{% if perms.hostile.manage_intel or struct.created_by == request.user %}editable-cell{% endif %}"
+                data-field="core_status"
+                data-structure-id="{{ struct.id }}"
+                data-raw-value="{{ struct.core_status }}"
+                title="{% if perms.hostile.manage_intel or struct.created_by == request.user %}{% translate 'Click to edit quantum core' %}{% endif %}">
+                <div class="cell-display-content">
+                    {% if struct.core_status == "FITTED" %}
+                        <span class="text-info small" title="{% translate 'Quantum core fitted' %}"><i class="fas fa-atom me-1"></i>{% translate "Core" %}</span>
+                    {% elif struct.core_status == "UNFITTED" %}
+                        <span class="text-danger small">{% translate "No core" %}</span>
+                    {% else %}
+                        <span class="sr-muted">—</span>
+                    {% endif %}
+                </div>
+            </td>
+            <td class="small">
+                {% if struct.moonmining_match %}
+                    <span class="sr-isk">{{ struct.moonmining_match.display_value }}</span>
+                    <span class="sr-muted">/ {% translate "drill" %} {{ struct.moonmining_match.display_drill_value }}</span>
+                {% elif struct.moon_scan_options %}
+                    <select class="form-select form-select-sm moon-correlation-select no-searchable" data-structure-id="{{ struct.id }}" title="{% translate 'Correlate this drill with a moon scan' %}">
+                        <option value="">{% translate "Correlate moon scan…" %}</option>
+                        {% for moon in struct.moon_scan_options %}
+                        <option value="{{ moon.eve_moon_id }}">{{ moon.eve_moon.name }}</option>
+                        {% endfor %}
+                    </select>
+                {% else %}<span class="sr-muted">—</span>{% endif %}
+            </td>
+            <td class="sr-updated structure-updated-cell" title="{{ struct.updated_at|date:'Y-m-d H:i' }} UTC">{{ struct.updated_at|naturaltime|cut:" ago" }}</td>
+            <td class="sr-actions">
+                <div class="dropdown d-inline-block">
+                    <button class="sr-act" type="button" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" title="{% translate 'Change Structure State' %}">
+                        <i class="fas fa-exchange-alt"></i>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-dark shadow border-secondary" style="z-index: 1080;">
+                        <li><h6 class="dropdown-header small text-uppercase">{% translate "Change Structure State" %}</h6></li>
+                        <li>
+                            <form action="{% url 'hostile:structure_set_state' struct.id %}" method="post" class="m-0 p-0">
+                                {% csrf_token %}
+                                <input type="hidden" name="state" value="ONLINE">
+                                <button type="submit" class="dropdown-item small text-success py-1"><i class="fas fa-check-circle me-2"></i>{% translate "Online" %}</button>
+                            </form>
+                        </li>
+                        <li>
+                            <form action="{% url 'hostile:structure_set_state' struct.id %}" method="post" class="m-0 p-0">
+                                {% csrf_token %}
+                                <input type="hidden" name="state" value="LOW_POWER">
+                                <button type="submit" class="dropdown-item small text-warning py-1"><i class="fas fa-bolt me-2"></i>{% translate "Low Power" %}</button>
+                            </form>
+                        </li>
+                        <li>
+                            <form action="{% url 'hostile:structure_set_state' struct.id %}" method="post" class="m-0 p-0">
+                                {% csrf_token %}
+                                <input type="hidden" name="state" value="OFFLINE">
+                                <button type="submit" class="dropdown-item small text-secondary py-1"><i class="fas fa-power-off me-2"></i>{% translate "Offline" %}</button>
+                            </form>
+                        </li>
+                        <li>
+                            <form action="{% url 'hostile:structure_set_state' struct.id %}" method="post" class="m-0 p-0">
+                                {% csrf_token %}
+                                <input type="hidden" name="state" value="ABANDONED">
+                                <button type="submit" class="dropdown-item small text-warning py-1"><i class="fas fa-exclamation-triangle me-2"></i>{% translate "Abandoned" %}</button>
+                            </form>
+                        </li>
+                        <li>
+                            <form action="{% url 'hostile:structure_set_state' struct.id %}" method="post" class="m-0 p-0">
+                                {% csrf_token %}
+                                <input type="hidden" name="state" value="ARMOR">
+                                <button type="submit" class="dropdown-item small text-danger py-1"><i class="fas fa-shield-alt me-2"></i>{% translate "Armor Reinforced" %}</button>
+                            </form>
+                        </li>
+                        <li>
+                            <form action="{% url 'hostile:structure_set_state' struct.id %}" method="post" class="m-0 p-0">
+                                {% csrf_token %}
+                                <input type="hidden" name="state" value="HULL">
+                                <button type="submit" class="dropdown-item small text-danger py-1"><i class="fas fa-stopwatch me-2"></i>{% translate "Hull Reinforced" %}</button>
+                            </form>
+                        </li>
+                        <li><hr class="dropdown-divider border-secondary my-1"></li>
+                        <li>
+                            <form action="{% url 'hostile:structure_set_state' struct.id %}" method="post" class="m-0 p-0">
+                                {% csrf_token %}
+                                <input type="hidden" name="state" value="DESTROYED">
+                                <button type="submit" class="dropdown-item small text-danger fw-bold py-1"><i class="fas fa-skull me-2"></i>{% translate "Destroyed" %}</button>
+                            </form>
+                        </li>
+                    </ul>
+                </div>
+                <a href="{% url 'hostile:calculator' %}?structure_id={{ struct.id }}" class="sr-act warn" title="{% translate 'Calculate Reinforce Exit Window' %}" data-hostile-loading="{% translate 'Loading Timer Calculator' %}" data-hostile-loading-detail="{% translate 'Importing structure vulnerability and geometry into calculation engine...' %}">
+                    <i class="fas fa-calculator"></i>
+                </a>
+                <button type="button" class="sr-act" onclick="loadFittingModal({{ struct.id }})" title="{% translate 'Fitting' %}">
+                    <i class="fas fa-crosshairs"></i>
+                </button>
+                {% if perms.hostile.manage_intel or struct.created_by == request.user %}
+                <a href="{% url 'hostile:structure_edit' struct.id %}" class="sr-act" title="{% translate 'Edit Structure' %}">
+                    <i class="fas fa-edit"></i>
+                </a>
+                {% endif %}
+                {% if perms.hostile.manage_intel and not struct.is_verified %}
+                <a href="{% url 'hostile:structure_verify' struct.id %}" class="sr-act ok" title="{% translate 'Verify Structure' %}">
+                    <i class="fas fa-check"></i>
+                </a>
+                {% endif %}
+                {% if perms.hostile.manage_intel %}
+                <button type="button" class="sr-act danger" data-bs-toggle="modal" data-bs-target="#deleteStructureModal{{ struct.id }}" title="{% translate 'Delete Structure' %}">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
 </div>
 {% endblock %}
 
@@ -881,186 +843,387 @@ document.addEventListener("DOMContentLoaded", function() {
     updateAvailableTimerStages();
 
     // ==========================================
-    // 1. Client-Side Search & Multi-Facet Filter
+    // 1. Alliance › Region › System Grouping, Search & Filters
     // ==========================================
+    // Server-rendered rows live in #structureRowPool; render() moves the row elements into
+    // generated group containers, so their inline-edit listeners and action forms survive.
+    const groupsEl = document.getElementById("structureGroups");
+    const rowPool = document.getElementById("structureRowPool");
+    const colgroupTemplate = document.getElementById("structureColgroup");
     const searchInput = document.getElementById("structureSearchInput");
     const clearSearchBtn = document.getElementById("clearStructureSearchBtn");
     const stateFilter = document.getElementById("structureStateFilter");
     const coreFilter = document.getElementById("structureCoreFilter");
-    const verifiedFilter = document.getElementById("structureVerifiedFilter");
+    const chipsEl = document.getElementById("structureChips");
+    const depthEl = document.getElementById("structureDepth");
     const resetFiltersBtn = document.getElementById("resetStructureFiltersBtn");
-    const visibleCountEl = document.getElementById("structureVisibleCount");
+    const summaryEl = document.getElementById("structureSummary");
     const noMatchRow = document.getElementById("noStructureMatchRow");
 
-    function filterStructures() {
-        const query = (searchInput ? searchInput.value : "").toLowerCase().trim();
-        const selectedState = stateFilter ? stateFilter.value.toUpperCase().trim() : "";
-        const selectedCore = coreFilter ? coreFilter.value.toUpperCase().trim() : "";
-        const selectedVerified = verifiedFilter ? verifiedFilter.value.trim() : "";
+    const I18N = {
+        active: "{{ _('active')|escapejs }}",
+        destroyed: "{{ _('destroyed')|escapejs }}",
+        region: "{{ _('region')|escapejs }}",
+        regions: "{{ _('regions')|escapejs }}",
+        system: "{{ _('system')|escapejs }}",
+        systems: "{{ _('systems')|escapejs }}",
+        structure: "{{ _('structure')|escapejs }}",
+        structures: "{{ _('structures')|escapejs }}",
+        alliance: "{{ _('owner')|escapejs }}",
+        alliances: "{{ _('owners')|escapejs }}",
+        shared: "{{ _('shared')|escapejs }}",
+        sharedSystem: "{{ _('shared system')|escapejs }}",
+        sharedSystems: "{{ _('shared systems')|escapejs }}",
+        also: "{{ _('also')|escapejs }}",
+        of: "{{ _('of')|escapejs }}",
+        iskPerMonth: "{{ _('ISK/mo')|escapejs }}",
+        alsoHere: "{{ _('Other owners also have structures in this system')|escapejs }}",
+        clickToJump: "{{ _('Click to jump.')|escapejs }}",
+        openOwner: "{{ _('Open owner intel')|escapejs }}",
+        noStructures: "{{ _('No structures recorded yet. Add structures manually or use the universal Smart Ingest button.')|escapejs }}",
+    };
 
-        if (clearSearchBtn) {
-            clearSearchBtn.classList.toggle("d-none", query.length === 0);
-        }
+    // Amber is reserved for the shared-system indicator, so it is not an owner accent.
+    const ACCENTS = ["#58a6ff", "#d2a8ff", "#f778ba", "#3fb950", "#56d4dd", "#ff7b72"];
+    const LEVELS = ["alliance", "region", "system"];
 
-        const terms = query ? query.split(/\s+/).filter(t => t.length > 0) : [];
-        let visibleCount = 0;
-        const rows = document.querySelectorAll("tr.structure-row");
-
-        rows.forEach(row => {
-            const rowText = (row.dataset.searchText || "").toLowerCase();
-            const rowState = (row.dataset.state || "").toUpperCase();
-            const rowCore = (row.dataset.core || "").toUpperCase();
-            const rowVerified = row.dataset.verified || "";
-
-            let matchesSearch = true;
-            if (terms.length > 0) {
-                matchesSearch = terms.every(term => rowText.includes(term));
-            }
-
-            let matchesState = true;
-            if (selectedState) {
-                matchesState = (rowState === selectedState);
-            }
-
-            let matchesCore = true;
-            if (selectedCore) {
-                matchesCore = (rowCore === selectedCore);
-            }
-
-            let matchesVerified = true;
-            if (selectedVerified) {
-                matchesVerified = (rowVerified === selectedVerified);
-            }
-
-            if (matchesSearch && matchesState && matchesCore && matchesVerified) {
-                row.classList.remove("d-none");
-                visibleCount++;
-            } else {
-                row.classList.add("d-none");
-            }
-        });
-
-        if (visibleCountEl) {
-            visibleCountEl.textContent = visibleCount;
-        }
-
-        if (noMatchRow) {
-            noMatchRow.classList.toggle("d-none", visibleCount > 0 || rows.length === 0);
-        }
-    }
-
-    if (searchInput) {
-        searchInput.addEventListener("input", filterStructures);
-    }
-    if (clearSearchBtn) {
-        clearSearchBtn.addEventListener("click", function() {
-            if (searchInput) {
-                searchInput.value = "";
-                searchInput.focus();
-            }
-            filterStructures();
-        });
-    }
-    if (stateFilter) stateFilter.addEventListener("change", filterStructures);
-    if (coreFilter) coreFilter.addEventListener("change", filterStructures);
-    if (verifiedFilter) verifiedFilter.addEventListener("change", filterStructures);
-    if (resetFiltersBtn) {
-        resetFiltersBtn.addEventListener("click", function() {
-            if (searchInput) searchInput.value = "";
-            if (stateFilter) stateFilter.value = "";
-            if (coreFilter) coreFilter.value = "";
-            if (verifiedFilter) verifiedFilter.value = "";
-            filterStructures();
-        });
-    }
-
-    // ==========================================
-    // 2. Table Column Sorting
-    // ==========================================
+    let activeChip = "";
+    let depth = 3;          // groups at level >= depth start collapsed
+    let overrides = {};     // group key -> collapsed, set by clicking a header; cleared when depth changes
     let currentSortColumn = null;
     let currentSortDir = "asc";
+    let OWNER_INFO = {};    // group key -> {accent, name, ticker, url}
+    let SYSTEM_OWNERS = {}; // system name -> {group key -> structure count}
 
+    function allRows() {
+        return Array.from(document.querySelectorAll("tr.structure-row"));
+    }
+
+    function plural(n, one, many) {
+        return `${n} ${n === 1 ? one : many}`;
+    }
+
+    // Mirrors format_isk() in hostile/services/moonmining_integration.py
+    function formatIsk(value) {
+        const trim = s => s.replace(/\.0$/, "");
+        const abs = Math.abs(value);
+        if (abs >= 1e9) return trim((value / 1e9).toFixed(1)) + "b";
+        if (abs >= 1e6) return trim((value / 1e6).toFixed(1)) + "m";
+        if (abs >= 1e3) return trim((value / 1e3).toFixed(1)) + "k";
+        return value.toFixed(0);
+    }
+
+    function moonValue(row) {
+        return parseFloat(row.dataset.moonValue) || 0;
+    }
+
+    function moonTotal(rows) {
+        return rows.reduce((sum, r) => sum + moonValue(r), 0);
+    }
+
+    function isDestroyed(row) {
+        return row.dataset.state === "DESTROYED";
+    }
+
+    // Mirrors _registry_owner_group() in hostile/views.py
+    function registryGroupKey(data) {
+        if (data.alliance_id) return `a${data.alliance_id}`;
+        if (data.corporation_id) return `c${data.corporation_id}`;
+        if (data.owner_ticker) return `t${data.owner_ticker.toLowerCase()}`;
+        return "unknown";
+    }
+
+    // Groups items by keyFn preserving first-seen order; returns [[key, items], ...]
+    function groupBy(items, keyFn) {
+        const map = new Map();
+        items.forEach(item => {
+            const k = keyFn(item);
+            if (!map.has(k)) map.set(k, []);
+            map.get(k).push(item);
+        });
+        return Array.from(map.entries());
+    }
+
+    // Owner colours and system ownership come from every row, not just the visible ones,
+    // so accents stay stable and shared-system context survives filtering.
+    function rebuildOwnership() {
+        const rows = allRows();
+        OWNER_INFO = {};
+        groupBy(rows, r => r.dataset.groupKey)
+            .sort((a, b) => b[1].length - a[1].length || a[1][0].dataset.groupName.localeCompare(b[1][0].dataset.groupName))
+            .forEach(([key, list], i) => {
+                const first = list[0].dataset;
+                OWNER_INFO[key] = {
+                    accent: ACCENTS[i % ACCENTS.length],
+                    name: first.groupName,
+                    ticker: first.groupTicker,
+                    url: first.groupUrl,
+                };
+            });
+        SYSTEM_OWNERS = {};
+        rows.forEach(r => {
+            const system = r.dataset.systemName;
+            if (r.dataset.system === "unknown") return;
+            const owners = SYSTEM_OWNERS[system] = SYSTEM_OWNERS[system] || {};
+            owners[r.dataset.groupKey] = (owners[r.dataset.groupKey] || 0) + 1;
+        });
+    }
+
+    function otherOwners(system, ownerKey) {
+        return Object.entries(SYSTEM_OWNERS[system] || {})
+            .filter(([key]) => key !== ownerKey)
+            .sort((a, b) => b[1] - a[1]);
+    }
+
+    function sharedSystemCount(rows, ownerKey) {
+        return new Set(rows.map(r => r.dataset.systemName).filter(sys => otherOwners(sys, ownerKey).length)).size;
+    }
+
+    function sharedBadge(system, region, ownerKey) {
+        const others = otherOwners(system, ownerKey);
+        if (!others.length) return "";
+        const chips = others.map(([key, n]) => {
+            const info = OWNER_INFO[key];
+            const label = info.ticker ? `[${escapeHtml(info.ticker)}]` : escapeHtml(info.name);
+            return `<span class="owner-chip" style="--c:${info.accent}" data-jump="${escapeHtml(`${key}|${region}|${system}`)}"
+                title="${escapeHtml(info.name)}: ${plural(n, I18N.structure, I18N.structures)}. ${I18N.clickToJump}">${label}<span class="n">${n}</span></span>`;
+        }).join('<span class="sep">·</span>');
+        return `<span class="shared" title="${I18N.alsoHere}"><i class="fas fa-exchange-alt me-1"></i>${I18N.also} ${chips}</span>`;
+    }
+
+    function activeMeta(rows) {
+        const alive = rows.filter(r => !isDestroyed(r)).length;
+        const dead = rows.length - alive;
+        return `<span><b>${alive}</b> ${I18N.active}${dead ? ` · ${dead} ${I18N.destroyed}` : ""}</span>`;
+    }
+
+    function moonMeta(rows, suffix) {
+        const total = moonTotal(rows);
+        return total ? `<span><i class="fas fa-moon me-1"></i><b class="sr-isk">${formatIsk(total)}</b>${suffix ? " " + I18N.iskPerMonth : ""}</span>` : "";
+    }
+
+    function pips(rows) {
+        return `<span class="state-pips">${rows.map(r => `<span class="s-${escapeHtml(r.dataset.state)}" title="${escapeHtml(r.querySelector(".structure-name-text")?.textContent || "")}"></span>`).join("")}</span>`;
+    }
+
+    function isCollapsed(key, level) {
+        return key in overrides ? overrides[key] : level >= depth;
+    }
+
+    function groupHtml(level, key, headInner, bodyInner) {
+        return `<div class="grp lvl-${LEVELS[level]}${isCollapsed(key, level) ? " collapsed" : ""}" data-key="${escapeHtml(key)}">
+            <div class="grp-head"><i class="fas fa-chevron-down caret"></i>${headInner}</div>
+            <div class="grp-body">${bodyInner}</div>
+        </div>`;
+    }
+
+    function rowMatches(row, terms) {
+        const text = (row.dataset.searchText || "").toLowerCase();
+        if (!terms.every(t => text.includes(t))) return false;
+        if (activeChip === "unverified" && row.dataset.verified !== "0") return false;
+        if (activeChip === "moon" && !moonValue(row)) return false;
+        if (activeChip && activeChip === activeChip.toUpperCase() && row.dataset.state !== activeChip) return false;
+        if (stateFilter && stateFilter.value && row.dataset.state !== stateFilter.value) return false;
+        if (coreFilter && coreFilter.value && row.dataset.core !== coreFilter.value) return false;
+        return true;
+    }
+
+    function compareRows(a, b) {
+        const dir = currentSortDir === "asc" ? 1 : -1;
+        const text = key => (a.dataset[key] || "").localeCompare(b.dataset[key] || "") * dir;
+        const num = (key, fallback) => (parseFloat(a.dataset[key] || fallback) - parseFloat(b.dataset[key] || fallback)) * dir;
+        switch (currentSortColumn) {
+            case "name": return text("name");
+            case "owner": return text("owner");
+            case "state": return text("state");
+            case "core": return text("core");
+            case "vulnerability": return num("vulnHour", "-1") || text("vuln");
+            case "moon": return (moonValue(a) - moonValue(b)) * dir;
+            case "updated": return num("updated", "0");
+            default: return parseInt(a.dataset.order, 10) - parseInt(b.dataset.order, 10);
+        }
+    }
+
+    function render() {
+        const query = (searchInput ? searchInput.value : "").toLowerCase().trim();
+        if (clearSearchBtn) clearSearchBtn.classList.toggle("d-none", query.length === 0);
+        const terms = query ? query.split(/\s+/).filter(Boolean) : [];
+
+        const rows = allRows();
+        // Park every row back in the pool before the group containers are replaced.
+        rows.forEach(r => rowPool.appendChild(r));
+        const visible = rows.filter(r => rowMatches(r, terms)).sort(compareRows);
+
+        const bodies = [];  // [tbodyId, rows] filled into the skeleton after it is inserted
+        const owners = groupBy(visible, r => r.dataset.groupKey)
+            .sort((a, b) => b[1].length - a[1].length || OWNER_INFO[a[0]].name.localeCompare(OWNER_INFO[b[0]].name));
+
+        const html = owners.map(([ownerKey, oRows]) => {
+            const info = OWNER_INFO[ownerKey];
+            const regions = groupBy(oRows, r => r.dataset.region).sort((a, b) => a[0].localeCompare(b[0]));
+
+            const regionsHtml = regions.map(([region, rRows]) => {
+                const rKey = `${ownerKey}|${region}`;
+                const systems = groupBy(rRows, r => r.dataset.systemName).sort((a, b) => a[0].localeCompare(b[0]));
+                const rShared = sharedSystemCount(rRows, ownerKey);
+
+                const systemsHtml = systems.map(([system, sRows]) => {
+                    const bodyId = `srBody${bodies.length}`;
+                    bodies.push([bodyId, sRows]);
+                    return groupHtml(2, `${rKey}|${system}`,
+                        `<span class="sys-name">${escapeHtml(system)}</span>
+                        <span class="meta">${activeMeta(sRows)}${moonMeta(sRows, false)}</span>
+                        ${sharedBadge(system, region, ownerKey)}
+                        ${pips(sRows)}`,
+                        `<table class="sr-table">${colgroupTemplate.outerHTML.replace(/ id="[^"]*"/, "")}<tbody id="${bodyId}"></tbody></table>`);
+                }).join("");
+
+                return groupHtml(1, rKey,
+                    `<span class="r-name"><i class="fas fa-map me-2"></i>${escapeHtml(region)}</span>
+                    <span class="meta">
+                        <span>${plural(systems.length, I18N.system, I18N.systems)}</span>
+                        <span>${plural(rRows.length, I18N.structure, I18N.structures)}</span>
+                        ${moonMeta(rRows, true)}
+                        ${rShared ? `<span class="shared-count"><i class="fas fa-exchange-alt me-1"></i>${rShared} ${I18N.shared}</span>` : ""}
+                    </span>
+                    ${pips(rRows)}`,
+                    systemsHtml);
+            }).join("");
+
+            const systemCount = new Set(oRows.map(r => r.dataset.systemName)).size;
+            const aShared = sharedSystemCount(oRows, ownerKey);
+            const showTicker = info.ticker && info.ticker !== info.name;
+            return `<div style="--accent:${info.accent}">${groupHtml(0, ownerKey,
+                `<div>
+                    <span class="a-swatch"></span><span class="a-name">${escapeHtml(info.name)}</span>${showTicker ? `<span class="a-ticker">[${escapeHtml(info.ticker)}]</span>` : ""}
+                    ${info.url ? `<a href="${escapeHtml(info.url)}" class="a-link" title="${I18N.openOwner}"><i class="fas fa-external-link-alt"></i></a>` : ""}
+                    <div class="meta mt-1">
+                        ${activeMeta(oRows)}
+                        <span>${plural(regions.length, I18N.region, I18N.regions)} · ${plural(systemCount, I18N.system, I18N.systems)}</span>
+                        ${moonMeta(oRows, true)}
+                        ${aShared ? `<span class="shared-count"><i class="fas fa-exchange-alt me-1"></i>${aShared} ${aShared === 1 ? I18N.sharedSystem : I18N.sharedSystems}</span>` : ""}
+                    </div>
+                </div>
+                ${pips(oRows)}`,
+                regionsHtml)}</div>`;
+        }).join("");
+
+        if (!rows.length) {
+            groupsEl.innerHTML = `<div class="sr-empty"><i class="fas fa-monument fa-3x mb-3 d-block"></i><p class="mb-0">${I18N.noStructures}</p></div>`;
+        } else {
+            groupsEl.innerHTML = html;
+            bodies.forEach(([id, list]) => {
+                const tbody = document.getElementById(id);
+                list.forEach(r => tbody.appendChild(r));
+            });
+        }
+        if (noMatchRow) noMatchRow.classList.toggle("d-none", visible.length > 0 || rows.length === 0);
+
+        if (summaryEl && rows.length) {
+            const regionCount = new Set(visible.map(r => r.dataset.region)).size;
+            const systemCount = new Set(visible.map(r => r.dataset.systemName)).size;
+            summaryEl.innerHTML = `<span id="structureVisibleCount">${visible.length}</span> ${I18N.of} ${plural(rows.length, I18N.structure, I18N.structures)}
+                · ${plural(owners.length, I18N.alliance, I18N.alliances)} · ${plural(regionCount, I18N.region, I18N.regions)} · ${plural(systemCount, I18N.system, I18N.systems)}`;
+        }
+    }
+
+    // Expands the path to owner|region|system, clearing filters if they hide it, then scrolls there.
+    function jumpTo(key) {
+        const parts = key.split("|");
+        for (let i = 1; i <= parts.length; i++) overrides[parts.slice(0, i).join("|")] = false;
+        render();
+        const find = () => document.querySelector(`.grp[data-key="${CSS.escape(key)}"]`);
+        let target = find();
+        if (!target) {
+            resetFilters(false);
+            render();
+            target = find();
+        }
+        if (!target) return;
+        target.scrollIntoView({behavior: "smooth", block: "center"});
+        target.classList.remove("flash");
+        void target.offsetWidth;
+        target.classList.add("flash");
+    }
+
+    function resetFilters(rerender = true) {
+        if (searchInput) searchInput.value = "";
+        if (stateFilter) stateFilter.value = "";
+        if (coreFilter) coreFilter.value = "";
+        activeChip = "";
+        if (chipsEl) chipsEl.querySelectorAll(".sr-chip").forEach(c => c.classList.toggle("active", c.dataset.filter === ""));
+        if (rerender) render();
+    }
+
+    if (groupsEl) {
+        groupsEl.addEventListener("click", function(e) {
+            const chip = e.target.closest(".owner-chip");
+            if (chip) {
+                e.stopPropagation();
+                jumpTo(chip.dataset.jump);
+                return;
+            }
+            if (e.target.closest("a")) return;
+            const head = e.target.closest(".grp-head");
+            if (!head) return;
+            const grp = head.parentElement;
+            overrides[grp.dataset.key] = grp.classList.toggle("collapsed");
+        });
+    }
+    if (chipsEl) {
+        chipsEl.addEventListener("click", function(e) {
+            const chip = e.target.closest(".sr-chip");
+            if (!chip) return;
+            activeChip = chip.dataset.filter;
+            chipsEl.querySelectorAll(".sr-chip").forEach(c => c.classList.toggle("active", c === chip));
+            render();
+        });
+    }
+    if (depthEl) {
+        depthEl.addEventListener("click", function(e) {
+            const btn = e.target.closest("button");
+            if (!btn) return;
+            depth = parseInt(btn.dataset.depth, 10);
+            overrides = {};
+            depthEl.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === btn));
+            render();
+        });
+    }
+    if (searchInput) searchInput.addEventListener("input", () => render());
+    if (clearSearchBtn) {
+        clearSearchBtn.addEventListener("click", function() {
+            searchInput.value = "";
+            searchInput.focus();
+            render();
+        });
+    }
+    if (stateFilter) stateFilter.addEventListener("change", () => render());
+    if (coreFilter) coreFilter.addEventListener("change", () => render());
+    if (resetFiltersBtn) resetFiltersBtn.addEventListener("click", () => resetFilters());
+
+    // ==========================================
+    // 2. Column Sorting (within each system group)
+    // ==========================================
     const sortHeaders = document.querySelectorAll(".sortable-th");
-    const tbody = document.getElementById("structuresTableBody");
-
     sortHeaders.forEach(th => {
         th.addEventListener("click", function() {
             const sortKey = this.dataset.sort;
-            if (!sortKey || !tbody) return;
-
+            if (!sortKey) return;
             if (currentSortColumn === sortKey) {
-                currentSortDir = (currentSortDir === "asc") ? "desc" : "asc";
+                currentSortDir = currentSortDir === "asc" ? "desc" : "asc";
             } else {
                 currentSortColumn = sortKey;
                 currentSortDir = "asc";
             }
-
             sortHeaders.forEach(header => {
                 header.classList.remove("active-sort");
                 const icon = header.querySelector(".sort-icon");
-                if (icon) {
-                    icon.className = "fas fa-sort sort-icon text-muted ms-1";
-                }
+                if (icon) icon.className = "fas fa-sort sort-icon ms-1";
             });
-
             this.classList.add("active-sort");
             const icon = this.querySelector(".sort-icon");
-            if (icon) {
-                icon.className = `fas fa-sort-${currentSortDir === 'asc' ? 'up' : 'down'} sort-icon ms-1`;
-            }
-
-            const rows = Array.from(tbody.querySelectorAll("tr.structure-row"));
-            rows.sort((a, b) => {
-                let valA, valB;
-                switch(sortKey) {
-                    case "name":
-                        valA = (a.dataset.name || "").toLowerCase();
-                        valB = (b.dataset.name || "").toLowerCase();
-                        return currentSortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
-                    case "type":
-                        valA = (a.dataset.type || "").toLowerCase();
-                        valB = (b.dataset.type || "").toLowerCase();
-                        return currentSortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
-                    case "system":
-                        valA = (a.dataset.system || "").toLowerCase();
-                        valB = (b.dataset.system || "").toLowerCase();
-                        return currentSortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
-                    case "owner":
-                        valA = (a.dataset.owner || "").toLowerCase();
-                        valB = (b.dataset.owner || "").toLowerCase();
-                        return currentSortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
-                    case "vulnerability":
-                        valA = parseInt(a.dataset.vulnHour || "-1", 10);
-                        valB = parseInt(b.dataset.vulnHour || "-1", 10);
-                        if (valA === valB) {
-                            valA = (a.dataset.vuln || "").toLowerCase();
-                            valB = (b.dataset.vuln || "").toLowerCase();
-                            return currentSortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
-                        }
-                        return currentSortDir === "asc" ? valA - valB : valB - valA;
-                    case "core":
-                        valA = (a.dataset.core || "").toLowerCase();
-                        valB = (b.dataset.core || "").toLowerCase();
-                        return currentSortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
-                    case "state":
-                        valA = (a.dataset.state || "").toLowerCase();
-                        valB = (b.dataset.state || "").toLowerCase();
-                        return currentSortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
-                    case "verified":
-                        valA = parseInt(a.dataset.verified || "0", 10);
-                        valB = parseInt(b.dataset.verified || "0", 10);
-                        return currentSortDir === "asc" ? valA - valB : valB - valA;
-                    case "updated":
-                        valA = parseInt(a.dataset.updated || "0", 10);
-                        valB = parseInt(b.dataset.updated || "0", 10);
-                        return currentSortDir === "asc" ? valA - valB : valB - valA;
-                    default:
-                        return 0;
-                }
-            });
-
-            rows.forEach(row => tbody.appendChild(row));
-            if (noMatchRow) tbody.appendChild(noMatchRow);
+            if (icon) icon.className = `fas fa-sort-${currentSortDir === "asc" ? "up" : "down"} sort-icon ms-1`;
+            render();
         });
     });
 
@@ -1104,78 +1267,52 @@ document.addEventListener("DOMContentLoaded", function() {
     });
 
     function renderStateBadge(state, stateDisplay) {
-        if (state === "ONLINE") {
-            return `<span class="badge badge-subtle-success"><i class="fas fa-check-circle me-1"></i>Online</span>`;
-        } else if (state === "LOW_POWER") {
-            return `<span class="badge badge-subtle-warning"><i class="fas fa-bolt me-1"></i>Low Power</span>`;
-        } else if (state === "OFFLINE") {
-            return `<span class="badge badge-subtle-secondary"><i class="fas fa-power-off me-1"></i>Offline</span>`;
-        } else if (state === "ABANDONED") {
-            return `<span class="badge badge-subtle-danger"><i class="fas fa-exclamation-triangle me-1"></i>Abandoned</span>`;
-        } else if (state === "ANCHORING") {
-            return `<span class="badge badge-subtle-warning"><i class="fas fa-anchor me-1"></i>Anchoring</span>`;
-        } else if (state === "UNANCHORING") {
-            return `<span class="badge badge-subtle-secondary"><i class="fas fa-box-open me-1"></i>Unanchoring</span>`;
-        } else if (["ARMOR", "HULL", "REINFORCED"].includes(state)) {
-            return `<span class="badge badge-subtle-danger"><i class="fas fa-stopwatch me-1"></i>${escapeHtml(stateDisplay || state)}</span>`;
-        } else if (state === "DESTROYED") {
-            return `<span class="badge bg-danger text-light"><i class="fas fa-skull me-1"></i>Destroyed</span>`;
-        } else {
-            return `<span class="badge badge-subtle-secondary">${escapeHtml(stateDisplay || state)}</span>`;
-        }
+        return `<span class="sr-state"><span class="dot s-${escapeHtml(state)}"></span>${escapeHtml(stateDisplay || state)}</span>`;
     }
 
     function renderCoreBadge(coreStatus) {
         if (coreStatus === "FITTED") {
-            return `<span class="badge badge-subtle-teal"><i class="fas fa-check-circle me-1"></i>Fitted</span>`;
+            return `<span class="text-info small" title="{{ _('Quantum core fitted')|escapejs }}"><i class="fas fa-atom me-1"></i>{{ _('Core')|escapejs }}</span>`;
         } else if (coreStatus === "UNFITTED") {
-            return `<span class="badge badge-subtle-danger"><i class="fas fa-times-circle me-1"></i>No Core</span>`;
-        } else {
-            return `<span class="badge badge-subtle-secondary">Unknown</span>`;
+            return `<span class="text-danger small">{{ _('No core')|escapejs }}</span>`;
         }
+        return `<span class="sr-muted">—</span>`;
     }
 
     function renderVulnBadge(vulnDisplay) {
         if (vulnDisplay && vulnDisplay !== "Unknown") {
-            return `<span class="badge badge-subtle-warning"><i class="fas fa-shield-alt me-1"></i>${escapeHtml(vulnDisplay)}</span>`;
-        } else {
-            return `<span class="text-muted small">Unknown</span>`;
+            return `<span class="sr-vuln"><i class="fas fa-shield-alt me-1"></i>${escapeHtml(vulnDisplay)}</span>`;
         }
+        return `<span class="sr-muted">—</span>`;
     }
 
     function renderOwnerContent(data) {
-        let html = '';
-        if (data.alliance_name) {
-            html += `<a href="/hostile/alliances/${data.alliance_id}/" class="text-light fw-bold text-decoration-none hover-primary owner-link">${escapeHtml(data.alliance_name)}</a>`;
-        } else if (data.corporation_name) {
-            html += `<a href="/hostile/corporations/${data.corporation_id}/" class="text-light fw-bold text-decoration-none hover-primary owner-link">${escapeHtml(data.corporation_name)}</a>`;
-        } else {
-            html += `<div class="owner-name-text">${escapeHtml(data.owner_name || 'Unknown')}</div>`;
-        }
-        if (data.owner_ticker) {
-            html += ` <span class="badge badge-subtle-secondary small owner-ticker-badge">[${escapeHtml(data.owner_ticker)}]</span>`;
-        }
-        return html;
+        const label = data.owner_ticker ? `[${escapeHtml(data.owner_ticker)}]` : escapeHtml(data.owner_name || "Unknown");
+        return `<span class="sr-ticker owner-ticker-badge">${label}</span>`;
     }
 
-    function renderNameContent(data) {
-        let html = `<span class="structure-name-text">${escapeHtml(data.name)}</span>`;
-        if (data.location_details) {
-            html += `<div class="small text-muted location-details-text">${escapeHtml(data.location_details)}</div>`;
-        }
-        return html;
+    // The name cell also holds the type icon and type name, so restore it and patch the text.
+    function patchNameContent(cell, data) {
+        cell.innerHTML = cell.dataset.originalHtml || "";
+        const nameEl = cell.querySelector(".structure-name-text");
+        if (nameEl) nameEl.textContent = data.name;
+        const locEl = cell.querySelector(".location-details-text");
+        if (locEl) locEl.textContent = data.location_details ? ` · ${data.location_details}` : "";
     }
 
     function updateRowSearchText(row) {
         if (!row) return;
-        const name = row.dataset.name || "";
-        const type = row.dataset.type || "";
-        const system = row.dataset.system || "";
-        const owner = row.dataset.owner || "";
-        const vuln = row.dataset.vuln || "";
-        const state = row.dataset.state || "";
-        const core = row.dataset.core || "";
-        row.dataset.searchText = `${name} ${type} ${system} ${owner} ${vuln} ${state} ${core}`;
+        const d = row.dataset;
+        const verified = d.verified === "1" ? "verified" : "unverified";
+        row.dataset.searchText = [d.name, d.type, d.system, d.region, d.groupName, d.owner, d.vuln, d.state, d.core, verified].join(" ");
+    }
+
+    // Re-render after a state/owner edit, keeping the edited row's groups open and flashing it.
+    function regroupAfterEdit(row) {
+        const key = `${row.dataset.groupKey}|${row.dataset.region}|${row.dataset.systemName}`;
+        const parts = key.split("|");
+        for (let i = 1; i <= parts.length; i++) overrides[parts.slice(0, i).join("|")] = false;
+        render();
     }
 
     function initEditableCells() {
@@ -1344,7 +1481,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
                 if (field === "name") {
                     cell.dataset.rawValue = data.name;
-                    cell.innerHTML = `<div class="cell-display-content">${renderNameContent(data)}</div>`;
+                    patchNameContent(cell, data);
                     if (row) {
                         row.dataset.name = data.name.toLowerCase();
                         updateRowSearchText(row);
@@ -1352,9 +1489,17 @@ document.addEventListener("DOMContentLoaded", function() {
                 } else if (field === "owner") {
                     cell.dataset.rawValue = data.owner_ticker || data.alliance_name || data.corporation_name || data.owner_name;
                     cell.innerHTML = `<div class="cell-display-content">${renderOwnerContent(data)}</div>`;
+                    cell.title = data.owner_name || "";
                     if (row) {
                         row.dataset.owner = `${data.owner_name || ''} ${data.owner_ticker || ''}`.toLowerCase();
+                        row.dataset.groupKey = registryGroupKey(data);
+                        row.dataset.groupName = data.owner_name || "Unknown";
+                        row.dataset.groupTicker = data.owner_ticker || "";
+                        row.dataset.groupUrl = data.alliance_id ? `/hostile/alliances/${data.alliance_id}/`
+                            : data.corporation_id ? `/hostile/corporations/${data.corporation_id}/` : "";
                         updateRowSearchText(row);
+                        rebuildOwnership();
+                        regroupAfterEdit(row);
                     }
                 } else if (field === "vulnerability") {
                     cell.dataset.rawValue = data.vulnerability_window || (data.vulnerability_hour !== null ? String(data.vulnerability_hour) : '');
@@ -1369,6 +1514,7 @@ document.addEventListener("DOMContentLoaded", function() {
                     cell.innerHTML = `<div class="cell-display-content">${renderStateBadge(data.state, data.state_display)}</div>`;
                     if (row) {
                         row.dataset.state = data.state;
+                        row.classList.toggle("is-destroyed", data.state === "DESTROYED");
                         updateRowSearchText(row);
                         if (data.state === "ANCHORING") {
                             const coreCell = row.querySelector('[data-field="core_status"]');
@@ -1378,6 +1524,7 @@ document.addEventListener("DOMContentLoaded", function() {
                                 row.dataset.core = "UNFITTED";
                             }
                         }
+                        regroupAfterEdit(row);
                     }
                 } else if (field === "core_status") {
                     cell.dataset.rawValue = data.core_status;
@@ -1394,7 +1541,7 @@ document.addEventListener("DOMContentLoaded", function() {
                 if (row && data.updated_at_display) {
                     const updatedCell = row.querySelector(".structure-updated-cell");
                     if (updatedCell) {
-                        updatedCell.textContent = data.updated_at_display;
+                        updatedCell.textContent = data.updated_at_display.replace(/\s+ago$/, "");
                     }
                 }
             } else {
@@ -1423,6 +1570,8 @@ document.addEventListener("DOMContentLoaded", function() {
     });
 
     initEditableCells();
+    rebuildOwnership();
+    render();
 
     // AJAX handling for Suspected Duplicate Cluster Merging
     document.querySelectorAll('.merge-cluster-form').forEach(form => {
@@ -1490,11 +1639,8 @@ document.addEventListener("DOMContentLoaded", function() {
                                 dRow.remove();
                             }
                         });
-                        const remainingRows = document.querySelectorAll('tr.structure-row').length;
-                        const totalBadge = document.getElementById('structureCountBadge');
-                        const visibleBadge = document.getElementById('structureVisibleCount');
-                        if (visibleBadge) visibleBadge.textContent = remainingRows;
-                        if (totalBadge) totalBadge.innerHTML = `<span id="structureVisibleCount">${remainingRows}</span> / ${remainingRows}`;
+                        rebuildOwnership();
+                        render();
                     }
                 } else {
                     alert(data.error || 'Failed to merge cluster.');

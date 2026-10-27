@@ -492,30 +492,66 @@ def index(request: WSGIRequest) -> HttpResponse:
     return render(request, "hostile/index.html", context)
 
 
-@login_required
-@permission_required("hostile.basic_access")
-def structures_list(request: WSGIRequest) -> HttpResponse:
-    """Structure registry view with filtering, suspected duplicates review queue, and fitting preview"""
-    structures = (
+def _registry_structures_queryset():
+    return (
         HostileStructure.objects.all()
         .select_related(
-            "structure_type", "solar_system", "alliance", "corporation", "created_by"
+            "structure_type",
+            "solar_system__constellation__region",
+            "alliance",
+            "corporation",
+            "created_by",
         )
         .prefetch_related("fittings")
     )
-    paste_form = SmartPasteForm()
-    structure_form = HostileStructureForm()
 
-    suspected_duplicates = []
-    if request.user.has_perm("hostile.manage_intel"):
-        suspected_duplicates = IntelManager.find_suspected_duplicates()
 
+def _registry_owner_group(structure: HostileStructure) -> tuple[str, str, str]:
+    """Return (key, name, ticker) used to group a structure under its owner in the registry.
+
+    The key format is mirrored by ``registryGroupKey`` in structures.html so inline owner
+    edits regroup rows client-side.
+    """
+    if structure.alliance_id:
+        return (
+            f"a{structure.alliance_id}",
+            structure.owner_name,
+            structure.alliance.ticker or structure.owner_ticker,
+        )
+    if structure.corporation_id:
+        return (
+            f"c{structure.corporation_id}",
+            structure.owner_name,
+            structure.corporation.ticker or structure.owner_ticker,
+        )
+    if structure.owner_ticker:
+        return (
+            f"t{structure.owner_ticker.lower()}",
+            structure.owner_ticker,
+            structure.owner_ticker,
+        )
+    return "unknown", "Unknown", ""
+
+
+def _registry_region_name(structure: HostileStructure) -> str:
+    system = structure.solar_system
+    constellation = getattr(system, "constellation", None) if system else None
+    region = getattr(constellation, "region", None) if constellation else None
+    return region.name if region else "Unknown Region"
+
+
+def _prepare_registry_structures(request: WSGIRequest, structures) -> tuple:
+    """Annotate structures with moon data and Alliance › Region › System grouping fields.
+
+    Returns (structures, moon_data, moon_options).
+    """
     moon_data = {}
     moon_options = {}
+    is_drill = None
     try:
         # AA Hostile Intel
-        from hostile.services import moonmining_integration
         from hostile.services.moonmining_integration import (
+            is_drill,
             moon_data_for_structures,
             moon_options_for_structures,
         )
@@ -534,12 +570,38 @@ def structures_list(request: WSGIRequest) -> HttpResponse:
         structure.moonmining_match = match
         structure.moon_scan_options = (
             moon_options.get(structure.solar_system.name.lower(), [])
-            if structure.solar_system and moonmining_integration.is_drill(structure)
+            if structure.solar_system and is_drill and is_drill(structure)
             else []
         )
         if match:
             structure.registry_display_name = match["name"]
             structure.registry_location_details = match["name"].split(" ", 1)[-1]
+        structure.registry_moon_value = (
+            match["value"] if match and match.get("value") is not None else ""
+        )
+        (
+            structure.registry_group_key,
+            structure.registry_group_name,
+            structure.registry_group_ticker,
+        ) = _registry_owner_group(structure)
+        structure.registry_region = _registry_region_name(structure)
+    return structures, moon_data, moon_options
+
+
+@login_required
+@permission_required("hostile.basic_access")
+def structures_list(request: WSGIRequest) -> HttpResponse:
+    """Structure registry view with filtering, suspected duplicates review queue, and fitting preview"""
+    paste_form = SmartPasteForm()
+    structure_form = HostileStructureForm()
+
+    suspected_duplicates = []
+    if request.user.has_perm("hostile.manage_intel"):
+        suspected_duplicates = IntelManager.find_suspected_duplicates()
+
+    structures, moon_data, moon_options = _prepare_registry_structures(
+        request, _registry_structures_queryset()
+    )
 
     context = {
         "structures": structures,
@@ -593,15 +655,13 @@ def structure_suspected_duplicates(request: WSGIRequest) -> HttpResponse:
             )
         return JsonResponse({"suspected_groups": data, "count": len(data)})
 
-    structures = (
-        HostileStructure.objects.all()
-        .select_related(
-            "structure_type", "solar_system", "alliance", "corporation", "created_by"
-        )
-        .prefetch_related("fittings")
+    structures, moon_data, moon_options = _prepare_registry_structures(
+        request, _registry_structures_queryset()
     )
     context = {
         "structures": structures,
+        "moon_data": moon_data,
+        "moon_options": moon_options,
         "suspected_duplicates": suspected_duplicates,
         "suspected_count": len(suspected_duplicates),
         "paste_form": SmartPasteForm(),

@@ -1,0 +1,509 @@
+/* Structure registry: Alliance › Region › System grouped layout */
+
+.structure-registry {
+    --sr-border: var(--bs-border-color-translucent, #21262d);
+    --sr-head-1: var(--bs-tertiary-bg, #1c2128);
+    --sr-head-2: var(--bs-secondary-bg, #181d24);
+    --sr-panel: var(--bs-body-bg, #161b22);
+    --sr-hover: rgba(255, 255, 255, 0.035);
+    --sr-muted: var(--bs-secondary-color, #8b949e);
+    --sr-shared: #e3b341;
+    --sr-isk: #79c0ff;
+    --sr-vuln: #d29922;
+    font-size: 0.875rem;
+}
+
+.structure-registry .sr-muted {
+    color: var(--sr-muted);
+}
+
+/* Toolbar */
+.structure-registry .sr-chip {
+    border: 1px solid var(--sr-border);
+    background: transparent;
+    color: var(--sr-muted);
+    border-radius: 999px;
+    padding: 0.2rem 0.7rem;
+    font-size: 0.78rem;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.structure-registry .sr-chip.active {
+    border-color: #58a6ff;
+    color: #58a6ff;
+    background: rgba(88, 166, 255, 0.08);
+}
+
+.structure-registry .sr-chip .dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    margin-right: 0.35rem;
+    vertical-align: middle;
+}
+
+.structure-registry .sr-depth {
+    display: inline-flex;
+    border: 1px solid var(--sr-border);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.structure-registry .sr-depth button {
+    background: transparent;
+    border: 0;
+    color: var(--sr-muted);
+    font-size: 0.75rem;
+    padding: 0.2rem 0.6rem;
+}
+
+.structure-registry .sr-depth button + button {
+    border-left: 1px solid var(--sr-border);
+}
+
+.structure-registry .sr-depth button.on {
+    background: rgba(31, 111, 235, 0.2);
+    color: #58a6ff;
+}
+
+/* Shared table geometry: header and every system table use the same fixed columns */
+.structure-registry table.sr-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    margin: 0;
+}
+
+.structure-registry .sr-table td,
+.structure-registry .sr-table th {
+    padding: 0.45rem 0.75rem;
+    vertical-align: middle;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.structure-registry .sr-table td {
+    border-top: 1px solid var(--sr-border);
+}
+
+.structure-registry .sr-table .sr-col-name {
+    padding-left: 4.6rem;
+}
+
+.structure-registry .sr-sort-head {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: var(--sr-panel);
+    border: 1px solid var(--sr-border);
+    border-radius: 8px 8px 0 0;
+    margin-bottom: 0.5rem;
+}
+
+.structure-registry .sr-sort-head th {
+    color: var(--sr-muted);
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+}
+
+.structure-registry .sortable-th {
+    cursor: pointer;
+    user-select: none;
+}
+
+.structure-registry .sortable-th:hover,
+.structure-registry .sortable-th.active-sort {
+    color: #58a6ff;
+}
+
+/* Group mechanics: any .grp collapses only its own body */
+.structure-registry .grp-head {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    cursor: pointer;
+    user-select: none;
+}
+
+.structure-registry .grp-head .caret {
+    transition: transform 0.15s;
+    color: var(--sr-muted);
+    width: 12px;
+    flex-shrink: 0;
+}
+
+.structure-registry .grp.collapsed > .grp-head .caret {
+    transform: rotate(-90deg);
+}
+
+.structure-registry .grp.collapsed > .grp-body {
+    display: none;
+}
+
+.structure-registry .grp.flash > .grp-head {
+    animation: sr-flash 1.2s ease-out;
+}
+
+@keyframes sr-flash {
+    from {
+        background: rgba(227, 179, 65, 0.2);
+    }
+}
+
+.structure-registry .meta {
+    color: var(--sr-muted);
+    font-size: 0.78rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1rem;
+}
+
+.structure-registry .meta b {
+    color: var(--bs-body-color, #c9d1d9);
+    font-weight: 600;
+}
+
+.structure-registry .state-pips {
+    display: flex;
+    gap: 3px;
+    margin-left: auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    max-width: 260px;
+}
+
+.structure-registry .state-pips span {
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+}
+
+/* Level 1: alliance */
+.structure-registry .lvl-alliance {
+    background: var(--sr-panel);
+    border: 1px solid var(--sr-border);
+    border-radius: 8px;
+    margin-bottom: 1rem;
+}
+
+/* No overflow clipping on the block: inline editors float outside narrow cells */
+.structure-registry .lvl-alliance > .grp-head {
+    padding: 0.8rem 1rem;
+    background: var(--sr-head-1);
+    border-radius: 8px 8px 0 0;
+}
+
+.structure-registry .lvl-alliance.collapsed > .grp-head {
+    border-radius: 8px;
+}
+
+.structure-registry .lvl-alliance > .grp-head:hover {
+    background: var(--sr-head-2);
+}
+
+.structure-registry .a-name {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--bs-emphasis-color, #f0f6fc);
+}
+
+.structure-registry .a-swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+    background: var(--accent);
+    margin-right: 0.5rem;
+    vertical-align: 1px;
+}
+
+.structure-registry .a-ticker {
+    color: var(--accent);
+    font-weight: 600;
+    font-size: 0.85rem;
+    margin-left: 0.35rem;
+}
+
+.structure-registry .a-link {
+    color: var(--sr-muted);
+    font-size: 0.75rem;
+    margin-left: 0.5rem;
+}
+
+.structure-registry .a-link:hover {
+    color: var(--accent);
+}
+
+/* Level 2: region */
+.structure-registry .lvl-region > .grp-head {
+    padding: 0.5rem 1rem 0.5rem 2rem;
+    border-top: 1px solid var(--sr-border);
+    background: var(--sr-head-2);
+}
+
+.structure-registry .lvl-region > .grp-head:hover {
+    background: var(--sr-head-1);
+}
+
+.structure-registry .r-name {
+    font-weight: 600;
+}
+
+.structure-registry .r-name i {
+    color: var(--accent);
+    opacity: 0.8;
+}
+
+/* Level 3: system */
+.structure-registry .lvl-system > .grp-head {
+    padding: 0.4rem 1rem 0.4rem 3.5rem;
+    border-top: 1px solid var(--sr-border);
+}
+
+.structure-registry .lvl-system > .grp-head:hover {
+    background: var(--sr-hover);
+}
+
+.structure-registry .sys-name {
+    font-family: ui-monospace, Consolas, monospace;
+    font-weight: 700;
+    color: #58a6ff;
+    font-size: 0.9rem;
+    letter-spacing: 0.03em;
+}
+
+/* Mixed ownership */
+.structure-registry .shared {
+    color: var(--sr-shared);
+    font-size: 0.78rem;
+}
+
+.structure-registry .shared .sep {
+    color: #484f58;
+    margin: 0 0.3rem;
+}
+
+.structure-registry .owner-chip {
+    font-weight: 700;
+    color: var(--c);
+    cursor: pointer;
+}
+
+.structure-registry .owner-chip:hover {
+    text-decoration: underline;
+}
+
+.structure-registry .owner-chip .n {
+    color: var(--sr-muted);
+    font-weight: 400;
+    margin-left: 0.25rem;
+}
+
+.structure-registry .shared-count {
+    color: var(--sr-shared);
+}
+
+/* Rows */
+.structure-registry tr.structure-row:hover {
+    background: var(--sr-hover);
+}
+
+.structure-registry tr.structure-row.is-destroyed {
+    opacity: 0.45;
+}
+
+.structure-registry tr.structure-row.is-destroyed .structure-name-text {
+    text-decoration: line-through;
+    text-decoration-color: #da3633;
+}
+
+.structure-registry .structure-name-text {
+    font-weight: 600;
+    color: var(--bs-emphasis-color, #e6edf3);
+}
+
+.structure-registry .sr-sub {
+    font-size: 0.75rem;
+    color: var(--sr-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.structure-registry .sr-type-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+
+.structure-registry .sr-verified {
+    color: #3fb950;
+    font-size: 0.75rem;
+}
+
+.structure-registry .sr-ticker {
+    color: var(--sr-muted);
+    font-size: 0.78rem;
+}
+
+.structure-registry .sr-state {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
+
+.structure-registry .sr-state .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.structure-registry .sr-vuln {
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 0.8rem;
+    color: var(--sr-vuln);
+    white-space: nowrap;
+}
+
+.structure-registry .sr-isk {
+    font-family: ui-monospace, Consolas, monospace;
+    color: var(--sr-isk);
+    font-weight: 600;
+}
+
+.structure-registry .sr-updated {
+    font-size: 0.78rem;
+    color: var(--sr-muted);
+}
+
+.structure-registry .sr-table td.sr-actions {
+    white-space: nowrap;
+    text-align: right;
+    overflow: visible;
+    text-overflow: clip;
+}
+
+.structure-registry .sr-actions > * {
+    opacity: 0;
+    transition: opacity 0.1s;
+}
+
+.structure-registry tr.structure-row:hover .sr-actions > *,
+.structure-registry .sr-actions .show,
+.structure-registry .sr-actions:focus-within > * {
+    opacity: 1;
+}
+
+.structure-registry .sr-act {
+    background: none;
+    border: 0;
+    color: var(--sr-muted);
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+    display: inline-block;
+    line-height: 1.2;
+}
+
+.structure-registry .sr-act:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--bs-emphasis-color, #e6edf3);
+}
+
+.structure-registry .sr-act.danger:hover {
+    color: #f85149;
+}
+
+.structure-registry .sr-act.ok:hover {
+    color: #3fb950;
+}
+
+.structure-registry .sr-act.warn:hover {
+    color: #e3b341;
+}
+
+.structure-registry .moon-correlation-select {
+    font-size: 0.75rem;
+    padding-top: 0.1rem;
+    padding-bottom: 0.1rem;
+}
+
+/* Inline editing */
+.structure-registry .editable-cell {
+    cursor: pointer;
+}
+
+.structure-registry .editable-cell:hover:not(.is-editing) {
+    box-shadow: inset 0 -1px 0 rgba(88, 166, 255, 0.5);
+}
+
+.structure-registry .editable-cell.is-editing {
+    overflow: visible;
+    position: relative;
+}
+
+/* Narrow columns can't hold the editor, so it floats over the row instead */
+.structure-registry .editable-cell.is-editing > .input-group {
+    position: absolute;
+    top: 50%;
+    left: 0.5rem;
+    transform: translateY(-50%);
+    z-index: 20;
+    width: max-content;
+    min-width: 260px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+.structure-registry .editable-cell-flash {
+    animation: sr-flash 1.2s ease-out;
+}
+
+.structure-registry .sr-empty {
+    text-align: center;
+    color: var(--sr-muted);
+    padding: 3rem 1rem;
+}
+
+/* State colours shared by row dots, filter chips and header pips */
+.structure-registry .s-ONLINE { background: #3fb950; }
+.structure-registry .s-LOW_POWER,
+.structure-registry .s-ANCHORING { background: #d29922; }
+.structure-registry .s-ABANDONED { background: #f0883e; }
+.structure-registry .s-OFFLINE,
+.structure-registry .s-UNANCHORING { background: #8b949e; }
+.structure-registry .s-ARMOR,
+.structure-registry .s-HULL,
+.structure-registry .s-REINFORCED { background: #f85149; }
+.structure-registry .s-DESTROYED { background: #da3633; }
+
+/* Touch devices can't hover, so row actions are always visible there */
+@media (hover: none) {
+    .structure-registry .sr-actions > * {
+        opacity: 1;
+    }
+}
+
+/* Narrow screens scroll sideways instead of squashing the fixed columns. */
+/* Sticky positioning doesn't work inside a scroll container, so the header stops sticking here. */
+@media (max-width: 1199.98px) {
+    .structure-registry .sr-scroll {
+        overflow-x: auto;
+    }
+
+    .structure-registry .sr-scroll-inner {
+        min-width: 1100px;
+    }
+
+    .structure-registry .sr-sort-head {
+        position: static;
+    }
+}

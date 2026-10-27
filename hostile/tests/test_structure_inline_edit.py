@@ -7,7 +7,14 @@ and click-to-edit inline cell editing.
 import json
 
 # Third Party
-from eve_sde.models import ItemCategory, ItemGroup, ItemType, SolarSystem
+from eve_sde.models import (
+    Constellation,
+    ItemCategory,
+    ItemGroup,
+    ItemType,
+    Region,
+    SolarSystem,
+)
 
 # Django
 from django.test import Client, TestCase
@@ -137,7 +144,8 @@ class StructureInlineEditTests(TestCase):
         self.assertIn("structureSearchInput", content)
         self.assertIn("structureStateFilter", content)
         self.assertIn("structureCoreFilter", content)
-        self.assertIn("structureVerifiedFilter", content)
+        self.assertIn("structureUnverifiedChip", content)
+        self.assertIn("structureDepth", content)
         self.assertIn("sortable-th", content)
         self.assertIn("editable-cell", content)
         self.assertIn('data-sort="name"', content)
@@ -149,6 +157,91 @@ class StructureInlineEditTests(TestCase):
         self.assertIn('data-field="vulnerability"', content)
         self.assertIn('data-field="state"', content)
         self.assertIn('data-field="core_status"', content)
+
+    def test_structures_rows_carry_registry_grouping_attributes(self):
+        """Rows expose owner group, region and system data used by the Alliance › Region › System grouping"""
+        corp_struct = HostileStructure.objects.create(
+            name="Kadeshi Yard",
+            solar_system=self.system_jita,
+            corporation=self.corp_kadeshi,
+            state="ONLINE",
+        )
+        homeless = HostileStructure.objects.create(name="Lost Beacon", state="OFFLINE")
+
+        self.client.force_login(self.user_officer)
+        response = self.client.get(reverse("hostile:structures"))
+        self.assertEqual(response.status_code, 200)
+
+        by_id = {s.id: s for s in response.context["structures"]}
+
+        alliance_row = by_id[self.struct_1.id]
+        self.assertEqual(alliance_row.registry_group_key, f"a{self.alliance_goons.id}")
+        self.assertEqual(alliance_row.registry_group_name, "Goonswarm Federation")
+        self.assertEqual(alliance_row.registry_group_ticker, "CONDI")
+
+        corp_row = by_id[corp_struct.id]
+        self.assertEqual(corp_row.registry_group_key, f"c{self.corp_kadeshi.id}")
+        self.assertEqual(corp_row.registry_group_ticker, "KAD")
+
+        ticker_row = by_id[self.struct_scout.id]
+        self.assertEqual(ticker_row.registry_group_key, "tunkwn")
+        self.assertEqual(ticker_row.registry_group_name, "UNKWN")
+
+        no_owner_row = by_id[homeless.id]
+        self.assertEqual(no_owner_row.registry_group_key, "unknown")
+        # Test systems have no constellation, and this one has no system at all
+        self.assertEqual(no_owner_row.registry_region, "Unknown Region")
+        self.assertEqual(alliance_row.registry_region, "Unknown Region")
+
+        self.assertContains(response, f'data-group-key="a{self.alliance_goons.id}"')
+        self.assertContains(response, 'data-region="Unknown Region"')
+        self.assertContains(response, 'data-system-name="1DQ1-A"')
+        self.assertContains(response, 'data-system-name="Unknown System"')
+
+    def test_structures_registry_region_resolves_from_sde(self):
+        """A system linked to a constellation and region groups under that region's name"""
+        region = Region.objects.create(id=10000027, name="Etherium Reach")
+        constellation = Constellation.objects.create(
+            id=20000338, name="Test Constellation", region=region
+        )
+        system = SolarSystem.objects.create(
+            id=30002317,
+            name="1ACJ-6",
+            security_status=-0.4,
+            constellation=constellation,
+            x=0,
+            y=0,
+            z=0,
+        )
+        struct = HostileStructure.objects.create(
+            name="1ACJ-6 P1M2", solar_system=system, alliance=self.alliance_test
+        )
+
+        self.client.force_login(self.user_officer)
+        response = self.client.get(reverse("hostile:structures"))
+        by_id = {s.id: s for s in response.context["structures"]}
+        self.assertEqual(by_id[struct.id].registry_region, "Etherium Reach")
+        self.assertContains(response, 'data-region="Etherium Reach"')
+
+    def test_structures_midnight_vulnerability_hour_is_not_treated_as_unknown(self):
+        """Hour 0 must render as 0 so vulnerability sorting keeps it, not the -1 'unknown' fallback"""
+        struct = HostileStructure.objects.create(
+            name="Midnight Keep", solar_system=self.system_jita, vulnerability_hour=0
+        )
+        self.client.force_login(self.user_officer)
+        response = self.client.get(reverse("hostile:structures"))
+        content = response.content.decode("utf-8")
+        row_start = content.index(f'data-id="{struct.id}"')
+        row_attrs = content[row_start : content.index(">", row_start)]
+        self.assertIn('data-vuln-hour="0"', row_attrs)
+
+    def test_suspected_duplicates_view_renders_grouped_registry(self):
+        """The duplicates queue renders the same template, so it must annotate grouping fields too"""
+        self.client.force_login(self.user_officer)
+        response = self.client.get(reverse("hostile:structure_suspected_duplicates"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, f'data-group-key="a{self.alliance_goons.id}"')
+        self.assertContains(response, "structureRowPool")
 
     def test_inline_update_name(self):
         """Test inline editing structure name with automatic Ansiblex normalization"""

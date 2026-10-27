@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [0.0.24] - 2026-10-26
+
+### Changed
+
+- **Grouped Structures Registry**: The registry is now organised Alliance › Region › System with collapsible groups showing active/destroyed counts, system counts, and moon ISK totals. An "Expand to" control jumps between Alliances, Regions, Systems, and All, quick-filter chips sit alongside State and Quantum Core filters, and a sticky column header sorts rows within each system. Row actions are compact icons revealed on hover (always visible on touch devices).
+
+### Added
+
+- **Shared System Indicators**: Systems where other owners also hold structures show `also [TICKER] n` at the system level and shared-system counts at the region and alliance levels; clicking a ticker jumps to that owner's copy of the system.
+- **Live Regrouping**: Inline owner and state edits move rows to their new group and refresh totals without a page reload.
+
+### Fixed
+
+- The suspected-duplicates review view now loads moon scan data like the main registry.
+- The registry no longer errors when the optional Moon Mining integration fails to import.
+- Structures with a 00:00 UTC vulnerability hour now sort correctly instead of being treated as unknown.
+
 ## [0.0.18] - 2026-10-24
 
 ### Added
