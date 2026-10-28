@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [0.0.26] - 2026-10-28
+
+### Fixed
+
+- **Duplicate Moon Drills from Timer Sync**: Timers synced from aa-structuretimers or Timerboard now update the existing drill instead of creating a new one when the timer's structure name differs from the registry name. Drills are matched on solar system + planet/moon (`P6M2`, `Planet 6 Moon 2`, or `BNX-AS VI - Moon 2`), and drills on a different moon are never matched by generic name.
+- **Correlated Drill Deduplication**: Auto-deduplication and suspected-duplicate detection now recognise a moon-correlated drill and an uncorrelated copy at the same planet/moon as the same structure.
+
+### Removed
+
+- **Python 3.11 Support**: The minimum supported version is now Python 3.12.
+
 ## [0.0.25] - 2026-10-28
 
 ### Changed
