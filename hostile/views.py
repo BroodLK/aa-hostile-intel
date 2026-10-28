@@ -579,6 +579,11 @@ def _prepare_registry_structures(request: WSGIRequest, structures) -> tuple:
         structure.registry_moon_value = (
             match["value"] if match and match.get("value") is not None else ""
         )
+        structure.registry_moon_drill_value = (
+            match["drill_value"]
+            if match and match.get("drill_value") is not None
+            else ""
+        )
         (
             structure.registry_group_key,
             structure.registry_group_name,

@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [0.0.25] - 2026-10-28
+
+### Changed
+
+- **Drill Value Roll-ups**: Owner, region, and system headers in the Structures registry now show the rolled-up drill value alongside the full moon value (`12.3b / Drill 4.9b ISK/mo`), and the per-row "Drill" label is capitalised.
+
 ## [0.0.24] - 2026-10-26
 
 ### Changed

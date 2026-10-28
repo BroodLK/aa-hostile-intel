@@ -144,6 +144,7 @@
             data-state="{{ struct.state }}"
             data-verified="{{ struct.is_verified|yesno:'1,0' }}"
             data-moon-value="{{ struct.registry_moon_value|unlocalize }}"
+            data-moon-drill-value="{{ struct.registry_moon_drill_value|unlocalize }}"
             data-updated="{{ struct.updated_at|date:'U' }}"
             data-search-text="{{ struct.name }} {{ struct.location_details|default:'' }} {{ struct.structure_type.name|default:'' }} {{ struct.solar_system.name|default:'' }} {{ struct.registry_region }} {{ struct.owner_name }} {{ struct.owner_ticker|default:'' }} {{ struct.vulnerability_window|default:'' }} {{ struct.state }} {{ struct.core_status }} {% if struct.is_verified %}verified{% else %}unverified{% endif %}">
             <td class="sr-col-name {% if perms.hostile.manage_intel or struct.created_by == request.user %}editable-cell{% endif %}"
@@ -217,7 +218,7 @@
             <td class="small">
                 {% if struct.moonmining_match %}
                     <span class="sr-isk">{{ struct.moonmining_match.display_value }}</span>
-                    <span class="sr-muted">/ {% translate "drill" %} {{ struct.moonmining_match.display_drill_value }}</span>
+                    <span class="sr-muted">/ {% translate "Drill" %} {{ struct.moonmining_match.display_drill_value }}</span>
                 {% elif struct.moon_scan_options %}
                     <select class="form-select form-select-sm moon-correlation-select no-searchable" data-structure-id="{{ struct.id }}" title="{% translate 'Correlate this drill with a moon scan' %}">
                         <option value="">{% translate "Correlate moon scan…" %}</option>
@@ -877,6 +878,7 @@ document.addEventListener("DOMContentLoaded", function() {
         also: "{{ _('also')|escapejs }}",
         of: "{{ _('of')|escapejs }}",
         iskPerMonth: "{{ _('ISK/mo')|escapejs }}",
+        drill: "{{ _('Drill')|escapejs }}",
         alsoHere: "{{ _('Other owners also have structures in this system')|escapejs }}",
         clickToJump: "{{ _('Click to jump.')|escapejs }}",
         openOwner: "{{ _('Open owner intel')|escapejs }}",
@@ -917,8 +919,12 @@ document.addEventListener("DOMContentLoaded", function() {
         return parseFloat(row.dataset.moonValue) || 0;
     }
 
-    function moonTotal(rows) {
-        return rows.reduce((sum, r) => sum + moonValue(r), 0);
+    function moonDrillValue(row) {
+        return parseFloat(row.dataset.moonDrillValue) || 0;
+    }
+
+    function moonTotal(rows, valueFn = moonValue) {
+        return rows.reduce((sum, r) => sum + valueFn(r), 0);
     }
 
     function isDestroyed(row) {
@@ -999,7 +1005,10 @@ document.addEventListener("DOMContentLoaded", function() {
 
     function moonMeta(rows, suffix) {
         const total = moonTotal(rows);
-        return total ? `<span><i class="fas fa-moon me-1"></i><b class="sr-isk">${formatIsk(total)}</b>${suffix ? " " + I18N.iskPerMonth : ""}</span>` : "";
+        if (!total) return "";
+        const drillTotal = moonTotal(rows, moonDrillValue);
+        const drill = drillTotal ? `<span class="sr-muted"> / ${I18N.drill} <b class="sr-isk">${formatIsk(drillTotal)}</b></span>` : "";
+        return `<span><i class="fas fa-moon me-1"></i><b class="sr-isk">${formatIsk(total)}</b>${drill}${suffix ? " " + I18N.iskPerMonth : ""}</span>`;
     }
 
     function pips(rows) {
