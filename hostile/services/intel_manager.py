@@ -26,6 +26,7 @@ from hostile.models import (
     extract_core_structure_name,
     normalize_structure_name,
 )
+from hostile.services.moonmining_integration import same_drill
 
 
 def _drill_identity(structure: HostileStructure) -> tuple[str, object] | None:
@@ -592,9 +593,7 @@ class IntelManager:
                         reason = f"Exact normalized name match ('{norm1}')"
                     # Moon drills have a stronger identity than their display name:
                     # system + scanned moon (or parsed planet/moon location).
-                    elif _drill_identity(s1) and _drill_identity(s1) == _drill_identity(
-                        s2
-                    ):
+                    elif same_drill(s1, s2):
                         is_dup = True
                         reason = "Same moon drill location in the same solar system"
                     # Ansiblex bidirectional route matching
@@ -747,7 +746,7 @@ class IntelManager:
                         == normalize_structure_name(s2.name).lower()
                     )
                     if (drill1 or drill2) and not same_normalized_name:
-                        if drill1 and drill1 == drill2:
+                        if same_drill(s1, s2):
                             candidates.append(
                                 (
                                     s2,

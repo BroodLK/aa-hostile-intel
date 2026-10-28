@@ -395,6 +395,96 @@ class TestStructureDeduplication(TestCase):
         self.assertTrue(HostileStructure.objects.filter(id=s1.id).exists())
         self.assertTrue(HostileStructure.objects.filter(id=s2.id).exists())
 
+    def test_find_matching_drill_by_moon_location_despite_name(self):
+        """A drill is matched by system + planet/moon even when the incoming name differs"""
+        drill = HostileStructure.objects.create(
+            name="BNX-AS P6M2",
+            solar_system=self.system_bnx,
+            structure_type=self.type_metenox,
+        )
+        other_moon = HostileStructure.objects.create(
+            name="BNX-AS P9M10",
+            solar_system=self.system_bnx,
+            structure_type=self.type_metenox,
+        )
+
+        for name, location in [
+            ("[HOSTL] Moon Money", "P6M2"),
+            ("Metenox Moon Drill", "Planet 6 Moon 2"),
+            ("BNX-AS - Ref Drill", "BNX-AS VI - Moon 2"),
+            ("BNX-AS - p6m2 drill", ""),
+        ]:
+            with self.subTest(name=name, location=location):
+                match = HostileStructure.objects.find_matching(
+                    solar_system=self.system_bnx,
+                    name=name,
+                    structure_type=self.type_metenox,
+                    location_details=location,
+                )
+                self.assertEqual(match, drill)
+
+        # A drill on a different moon is never matched, even by generic hull name
+        self.assertIsNone(
+            HostileStructure.objects.find_matching(
+                solar_system=self.system_bnx,
+                name="Metenox Moon Drill",
+                structure_type=self.type_metenox,
+                location_details="P8M18",
+            )
+        )
+        self.assertNotEqual(
+            HostileStructure.objects.find_matching(
+                solar_system=self.system_bnx,
+                name="Moon Money",
+                structure_type=self.type_metenox,
+                location_details="P6M2",
+            ),
+            other_moon,
+        )
+
+    def test_timer_style_drill_ingest_reuses_existing_structure(self):
+        """Timer sync ingest (different name + location_details) updates instead of duplicating"""
+        drill = HostileStructure.objects.create(
+            name="BNX-AS P9M10",
+            solar_system=self.system_bnx,
+            structure_type=self.type_metenox,
+            is_verified=True,
+        )
+        struct, created = IntelManager.get_or_create_structure(
+            name="BNX-AS - Metenox Moon Drill",
+            solar_system=self.system_bnx,
+            structure_type=self.type_metenox,
+            defaults={
+                "owner_ticker": "HOSTL",
+                "location_details": "BNX-AS IX - Moon 10",
+            },
+        )
+        self.assertFalse(created)
+        self.assertEqual(struct.id, drill.id)
+        self.assertEqual(
+            HostileStructure.objects.filter(solar_system=self.system_bnx).count(), 1
+        )
+
+    def test_auto_deduplicate_merges_correlated_and_uncorrelated_drill(self):
+        """A moon-correlated drill and an uncorrelated copy of the same moon are merged"""
+        correlated = HostileStructure.objects.create(
+            name="BNX-AS P8M18",
+            solar_system=self.system_bnx,
+            structure_type=self.type_metenox,
+            moonmining_moon_id=40000001,
+            is_verified=True,
+        )
+        copy = HostileStructure.objects.create(
+            name="BNX-AS - Moon Drill",
+            location_details="P8M18",
+            solar_system=self.system_bnx,
+            structure_type=self.type_metenox,
+        )
+        res = IntelManager.auto_deduplicate_all()
+        self.assertEqual(res["total_merged"], 1)
+        self.assertTrue(HostileStructure.objects.filter(id=correlated.id).exists())
+        self.assertFalse(HostileStructure.objects.filter(id=copy.id).exists())
+
     def test_structure_auto_deduplicate_and_merge_views(self):
         """POST to structure_auto_deduplicate and structure_merge views requires manage_intel permission and merges properly"""
         # Create duplicates

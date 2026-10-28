@@ -8,7 +8,9 @@ from typing import Any
 from django.db.models import Q
 
 _LOCATION_RE = re.compile(
-    r"(?:\bP\s*(\d+)\s*M\s*(\d+)\b|\bPlanet\s*(\d+)\s+Moon\s*(\d+)\b)",
+    r"(?:\bP\s*(\d+)\s*M\s*(\d+)\b"
+    r"|\bPlanet\s*(\d+)\s*-?\s*Moon\s*(\d+)\b"
+    r"|\b(X|IX|VIII|VII|VI|V|IV|III|II|I)\s*-\s*Moon\s*(\d+)\b)",
     re.IGNORECASE,
 )
 _ROMAN = {
@@ -29,6 +31,9 @@ def _location(value: str | None) -> tuple[int, int] | None:
     match = _LOCATION_RE.search(value or "")
     if not match:
         return None
+    if match.group(5):
+        # EVE celestial name, e.g. "BNX-AS VI - Moon 2"
+        return _ROMAN[match.group(5).upper()], int(match.group(6))
     return (
         int(match.group(1) or match.group(3)),
         int(match.group(2) or match.group(4)),
@@ -71,6 +76,22 @@ def structure_location(structure: Any) -> tuple[int, int] | None:
     return _location(getattr(structure, "location_details", "")) or _location(
         getattr(structure, "name", "")
     )
+
+
+def same_drill(a: Any, b: Any) -> bool:
+    """True when two structures are the same moon drill: same system and same moon."""
+    if not is_drill(a) or not is_drill(b):
+        return False
+    system_a = getattr(getattr(a, "solar_system", None), "name", "")
+    system_b = getattr(getattr(b, "solar_system", None), "name", "")
+    if not system_a or system_a.lower() != system_b.lower():
+        return False
+    moon_a = getattr(a, "moonmining_moon_id", None)
+    moon_b = getattr(b, "moonmining_moon_id", None)
+    if moon_a is not None and moon_b is not None:
+        return moon_a == moon_b
+    location = structure_location(a)
+    return location is not None and location == structure_location(b)
 
 
 def structure_display_name(structure: Any) -> str:

@@ -45,13 +45,23 @@ class StructureQuerySet(models.QuerySet):
         Smart deduplication search for an existing structure:
         - Exact structure_id match if provided
         - Exact normalized name match in solar_system (or globally if no system)
+        - Moon drill identity: same system and planet/moon (e.g. 'P6M2', 'BNX-AS VI - Moon 2'),
+            regardless of name. Drills at a different moon never match.
         - Ansiblex route matching (bidirectional endpoint matching e.g. 'A-YB15 » ZS-PNI' vs 'ZS-PNI » A-YB15')
         - Ticker-stripped core name match within solar_system (e.g. '[ALLI] Staging Citadel' vs 'Staging Citadel')
         - Generic vs System-specific fallback matching ('Mercenary Den' vs 'Mercenary Den (BNX-AS)')
         - Coordinate/celestial matching
         """
+        # Standard Library
+        from types import SimpleNamespace
+
         # AA Hostile Intel
         from hostile.models import extract_core_structure_name, normalize_structure_name
+        from hostile.services.moonmining_integration import (
+            is_drill,
+            same_drill,
+            structure_location,
+        )
 
         if structure_id:
             match = self.filter(structure_id=structure_id).first()
@@ -71,6 +81,27 @@ class StructureQuerySet(models.QuerySet):
             for s in system_structures:
                 if s.name.lower() == norm_name.lower():
                     return s
+
+        # 1b. Moon drill identity: the same moon in the same system is the same drill,
+        # whatever name the source (timers, d-scan, manual entry) gave it.
+        incoming = SimpleNamespace(
+            name=norm_name,
+            solar_system=solar_system,
+            structure_type=structure_type,
+            location_details=location_details,
+            moonmining_moon_id=None,
+        )
+        incoming_location = structure_location(incoming) if is_drill(incoming) else None
+        if incoming_location:
+            for s in system_structures:
+                if same_drill(incoming, s):
+                    return s
+
+        def other_moon_drill(s):
+            if not incoming_location or not is_drill(s):
+                return False
+            location = structure_location(s)
+            return location is not None and location != incoming_location
 
         # 2. Ansiblex bidirectional route matching
         if norm_name and "»" in norm_name:
@@ -101,6 +132,8 @@ class StructureQuerySet(models.QuerySet):
             ).lower()
             if core_name:
                 for s in system_structures:
+                    if other_moon_drill(s):
+                        continue
                     s_core = extract_core_structure_name(
                         s.name, solar_system=solar_system
                     ).lower()
@@ -118,7 +151,8 @@ class StructureQuerySet(models.QuerySet):
                 type_matches = [
                     s
                     for s in system_structures
-                    if s.name.lower()
+                    if not other_moon_drill(s)
+                    and s.name.lower()
                     in [
                         type_name.lower(),
                         f"{type_name.lower()} ({sys_name.lower()})",
