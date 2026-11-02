@@ -838,6 +838,196 @@ class IntelManager:
         """
         return AltDetectionEngine.run_detection(pilots=pilots)
 
+    # ---------------------------------------------------------------------
+    # Pasted reinforcement timers
+    # ---------------------------------------------------------------------
+
+    @classmethod
+    def _structure_item_types(cls) -> Any:
+        # AA Hostile Intel
+        from hostile.forms import StructureTypeChoiceField
+
+        return StructureTypeChoiceField().queryset
+
+    @classmethod
+    def suggest_timer_type(
+        cls,
+        parsed: dict[str, Any],
+        structure: HostileStructure | None = None,
+        item_type: ItemType | None = None,
+    ) -> str:
+        """Which timer a copied 'Reinforced until' most likely is."""
+        # Django
+        from django.utils import timezone
+
+        # AA Hostile Intel
+        from hostile.services.timer_states import is_single_reinforcement_type
+
+        if parsed.get("timer_type"):
+            return parsed["timer_type"]
+        type_name = (
+            structure.structure_type.name
+            if structure and structure.structure_type
+            else (item_type.name if item_type else "")
+        )
+        lowered = type_name.lower()
+        # Same stage rules as the Add Timer form: mediums and customs offices only
+        # have an armor timer; FLEX structures only a hull (final) timer.
+        if any(
+            key in lowered
+            for key in ("astrahus", "raitaru", "athanor", "customs office", "poco")
+        ):
+            return "ARMOR"
+        if "metenox" in lowered or is_single_reinforcement_type(type_name):
+            return "HULL"
+        if structure:
+            now = timezone.now()
+            passed_armor = structure.timers.filter(
+                timer_type="ARMOR",
+                timer_datetime__lt=now,
+                timer_datetime__gte=now - timezone.timedelta(days=3),
+            ).exists()
+            if passed_armor or structure.state == "HULL":
+                return "HULL"
+        return "ARMOR"
+
+    @classmethod
+    def match_reinforcement_paste(cls, parsed: dict[str, Any]) -> dict[str, Any]:
+        """
+        Matches a parsed reinforcement paste to known structures.
+
+        status: 'matched' (one known structure, name identifies it), 'ambiguous'
+        (generic name or several candidates) or 'unknown' (nothing known).
+        """
+        # Django
+        from django.utils import timezone
+
+        name = normalize_structure_name(parsed.get("name") or "")
+        core = extract_core_structure_name(name)
+
+        # System hint: Upwell names are '<System> - <Name>'
+        inferred_system = None
+        if " - " in core:
+            inferred_system = SolarSystem.objects.filter(
+                name__iexact=core.split(" - ", 1)[0].strip()
+            ).first()
+
+        # Type hint: a name that is just a structure type is generic
+        base = re.sub(r"\s*\([^)]*\)\s*$", "", core).strip()
+        inferred_type = (
+            cls._structure_item_types().filter(name__iexact=base).first()
+            if base
+            else None
+        )
+        is_generic = bool(inferred_type) or not base
+
+        structures = HostileStructure.objects.select_related(
+            "solar_system", "structure_type", "alliance", "corporation"
+        )
+        if inferred_system:
+            structures = structures.filter(solar_system=inferred_system)
+
+        candidates: list[HostileStructure] = []
+
+        def add(items: Any) -> None:
+            for item in items:
+                if item not in candidates and len(candidates) < 10:
+                    candidates.append(item)
+
+        if name:
+            add(structures.filter(name__iexact=name))
+        if core:
+            accepted = {core.lower(), base.lower()}
+            search = base or core
+            if inferred_system:
+                # Registry entry saved without the '<System> - ' prefix
+                suffix = core.split(" - ", 1)[1].strip()
+                if suffix:
+                    accepted.add(suffix.lower())
+                    search = suffix
+            accepted.discard("")
+            add(
+                structure
+                for structure in structures.filter(name__icontains=search)
+                if extract_core_structure_name(
+                    structure.name, structure.solar_system
+                ).lower()
+                in accepted
+            )
+        name_matches = len(candidates)
+        if is_generic and inferred_type:
+            add(structures.filter(structure_type=inferred_type).order_by("-updated_at"))
+
+        if name_matches == 1 and not is_generic:
+            status = "matched"
+        elif candidates:
+            status = "ambiguous"
+        else:
+            status = "unknown"
+
+        now = timezone.now()
+        rows = []
+        for structure in candidates:
+            upcoming = (
+                structure.timers.filter(timer_datetime__gte=now)
+                .order_by("timer_datetime")
+                .first()
+            )
+            rows.append(
+                {
+                    "id": structure.id,
+                    "name": structure.name,
+                    "solar_system_id": structure.solar_system_id,
+                    "solar_system_name": (
+                        structure.solar_system.name if structure.solar_system else ""
+                    ),
+                    "structure_type_id": structure.structure_type_id,
+                    "structure_type_name": (
+                        structure.structure_type.name
+                        if structure.structure_type
+                        else ""
+                    ),
+                    "owner_ticker": structure.owner_ticker,
+                    "state": structure.state,
+                    "state_display": structure.get_state_display(),
+                    "suggested_timer_type": cls.suggest_timer_type(
+                        parsed, structure, inferred_type
+                    ),
+                    "upcoming_timer": (
+                        {
+                            "id": upcoming.id,
+                            "timer_type": upcoming.timer_type,
+                            "timer_datetime": upcoming.timer_datetime,
+                        }
+                        if upcoming
+                        else None
+                    ),
+                }
+            )
+
+        return {
+            "status": status,
+            "name": name,
+            "is_generic": is_generic,
+            "timer_datetime": parsed.get("timer_datetime"),
+            "suggested_timer_type": (
+                rows[0]["suggested_timer_type"]
+                if status == "matched"
+                else cls.suggest_timer_type(parsed, None, inferred_type)
+            ),
+            "inferred_system": (
+                {"id": inferred_system.id, "name": inferred_system.name}
+                if inferred_system
+                else None
+            ),
+            "inferred_type": (
+                {"id": inferred_type.id, "name": inferred_type.name}
+                if inferred_type
+                else None
+            ),
+            "candidates": rows,
+        }
+
 
 class AltDetectionEngine:
     """

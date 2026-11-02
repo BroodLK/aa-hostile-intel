@@ -94,6 +94,11 @@ urlpatterns = [
         name="api_solar_systems_search",
     ),
     path("api/infer-system/", views.api_infer_system, name="api_infer_system"),
+    path(
+        "api/parse-reinforcement/",
+        views.api_parse_reinforcement,
+        name="api_parse_reinforcement",
+    ),
     path("api/characters/", views.api_character_search, name="api_character_search"),
     path(
         "api/character-resolve/",

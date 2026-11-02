@@ -656,13 +656,28 @@ class CorptoolsNotificationTimerService:
             structure.corporation = None
             updated.add("corporation")
 
-        # State: never let an older notification roll a newer state back
-        if parsed.structure_state and (
+        # State (shared rules with manual / pasted timers); never let an older
+        # notification roll a newer state back
+        # AA Hostile Intel
+        from hostile.services.timer_states import structure_state_for_timer
+
+        new_state = (
+            structure_state_for_timer(
+                parsed.timer_type,
+                (
+                    structure.structure_type.name
+                    if structure.structure_type
+                    else type_name
+                ),
+            )
+            or parsed.structure_state
+        )
+        if new_state and (
             not structure.last_notification_at
             or sent_at > structure.last_notification_at
         ):
-            if structure.state != parsed.structure_state:
-                structure.state = parsed.structure_state
+            if structure.state != new_state:
+                structure.state = new_state
                 updated.add("state")
             structure.last_notification_at = sent_at
             updated.add("last_notification_at")

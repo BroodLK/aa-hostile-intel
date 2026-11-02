@@ -1589,7 +1589,48 @@ def timer_add(request: WSGIRequest) -> HttpResponse:
             else:
                 timer.solar_system = solar_system
 
+            # AA Hostile Intel
+            from hostile.app_settings import (
+                HOSTILE_NOTIFICATION_TIMER_TOLERANCE_MINUTES,
+            )
+            from hostile.services.timer_states import apply_timer_state
+
+            # A new structure keeps an explicitly chosen state; otherwise the
+            # pending timer decides the structure's status in the registry.
+            update_state = bool(structure) or (
+                (form.cleaned_data.get("state") or "ONLINE") == "ONLINE"
+            )
+
+            # Don't double-post: a corpmate's paste or a corptools notification may
+            # already have created this exact timer.
+            if timer.structure_id:
+                tolerance = timedelta(
+                    minutes=int(HOSTILE_NOTIFICATION_TIMER_TOLERANCE_MINUTES)
+                )
+                existing = StructureTimer.objects.filter(
+                    structure=timer.structure,
+                    timer_type=timer.timer_type,
+                    timer_datetime__gte=timer.timer_datetime - tolerance,
+                    timer_datetime__lte=timer.timer_datetime + tolerance,
+                ).first()
+                if existing:
+                    if update_state:
+                        apply_timer_state(
+                            timer.structure, timer.timer_type, timer.timer_datetime
+                        )
+                    messages.info(
+                        request,
+                        f"Timer already exists: {existing.target_name} "
+                        f"{existing.get_timer_type_display()} at "
+                        f"{existing.timer_datetime:%Y-%m-%d %H:%M} UTC. Not added again.",
+                    )
+                    return redirect("hostile:timers")
+
             timer.save()
+            if update_state:
+                apply_timer_state(
+                    timer.structure, timer.timer_type, timer.timer_datetime
+                )
             IntelManager.record_audit(
                 request.user, "CREATE", timer, f"Timer {timer.timer_type} created."
             )
@@ -4124,6 +4165,52 @@ def api_solar_systems_search(request: WSGIRequest) -> JsonResponse:
         qs = qs.filter(name__icontains=q)
     results = [{"id": s.id, "name": s.name} for s in qs[:limit]]
     return JsonResponse({"results": results})
+
+
+@login_required
+@permission_required("hostile.basic_access")
+def api_parse_reinforcement(request: WSGIRequest) -> JsonResponse:
+    """
+    Parses a copied structure reinforcement timer ('... Reinforced until
+    2026.11.03 19:13:30') and matches it to known structures. Read-only.
+    """
+    # AA Hostile Intel
+    from hostile.parsers.reinforcement import ReinforcementTimerParser
+
+    text = (request.POST.get("text") or request.GET.get("text") or "").strip()
+    parsed = ReinforcementTimerParser.parse(text) if text else None
+    if not parsed:
+        return JsonResponse(
+            {
+                "success": False,
+                "error": "Not a reinforcement timer paste (expected a line like "
+                "'Reinforced until 2026.11.03 19:13:30').",
+            }
+        )
+
+    match = IntelManager.match_reinforcement_paste(parsed)
+
+    def iso(value: Any) -> str | None:
+        return value.isoformat() if value else None
+
+    for row in match["candidates"]:
+        if row["upcoming_timer"]:
+            row["upcoming_timer"]["timer_datetime"] = iso(
+                row["upcoming_timer"]["timer_datetime"]
+            )
+    when = parsed["timer_datetime"]
+    return JsonResponse(
+        {
+            "success": True,
+            **match,
+            "timer_datetime": iso(when),
+            # Value for <input type="datetime-local"> (UTC)
+            "timer_datetime_local": when.strftime("%Y-%m-%dT%H:%M"),
+            "timer_passed": when <= timezone.now(),
+            "distance": parsed.get("distance", ""),
+            "security": parsed.get("security"),
+        }
+    )
 
 
 @login_required

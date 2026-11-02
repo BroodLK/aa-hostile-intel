@@ -176,6 +176,19 @@
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
+                    <!-- Paste a copied reinforcement timer -->
+                    <div class="card bg-black bg-opacity-40 border-info border-opacity-50 p-3 mb-3" id="reinforcementPasteCard">
+                        <label for="reinforcementPasteInput" class="form-label text-muted small fw-bold text-uppercase mb-1">
+                            <i class="fas fa-paste text-info me-1"></i>{% translate "Paste Reinforcement Timer" %}
+                        </label>
+                        <textarea id="reinforcementPasteInput" class="form-control font-monospace bg-black text-light border-secondary" rows="3"
+                            placeholder="{% translate 'Paste the copied timer here, e.g.' %}&#10;1DQ1-A - Keepstar Prime&#10;12 km&#10;Reinforced until 2026.11.03 19:13:30"></textarea>
+                        <div class="form-text text-muted small">
+                            {% translate "Known structures are matched by name and filled in for you. Unknown ones pre-fill the fields below so you can add the details." %}
+                        </div>
+                        <div id="reinforcementPasteResult" class="mt-2 d-none" aria-live="polite"></div>
+                    </div>
+
                     <!-- Structure Selection & Pre-fill -->
                     <div class="card bg-black bg-opacity-40 border-secondary p-3 mb-3">
                         <div class="d-flex justify-content-between align-items-center mb-2">
@@ -321,7 +334,7 @@
                 </div>
                 <div class="modal-footer border-secondary">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% translate "Cancel" %}</button>
-                    <button type="submit" class="btn btn-danger fw-bold"><i class="fas fa-save me-1"></i>{% translate "Save Timer" %}</button>
+                    <button type="submit" class="btn btn-danger fw-bold" id="saveTimerBtn"><i class="fas fa-save me-1"></i>{% translate "Save Timer" %}</button>
                 </div>
             </form>
         </div>
@@ -614,6 +627,220 @@ document.addEventListener("DOMContentLoaded", function() {
                 }
             }
         });
+    }
+});
+</script>
+<script>
+// Paste a copied structure reinforcement timer into the Add Timer modal
+document.addEventListener("DOMContentLoaded", function() {
+    const pasteInput = document.getElementById("reinforcementPasteInput");
+    const resultBox = document.getElementById("reinforcementPasteResult");
+    if (!pasteInput || !resultBox) return;
+
+    const apiUrl = "{% url 'hostile:api_parse_reinforcement' %}";
+    const csrfInput = document.querySelector('#addTimerModal [name="csrfmiddlewaretoken"]');
+    const structSelect = document.getElementById("id_timer_structure");
+    const structNameInput = document.getElementById("id_structure_name");
+    const structTypeSelect = document.getElementById("id_structure_type");
+    const systemSelect = document.getElementById("id_solar_system");
+    const systemInput = document.getElementById("timerSystemSearchInput");
+    const timerTypeSelect = document.getElementById("id_timer_type");
+    const datetimeInput = document.getElementById("id_timer_datetime");
+    const clearStructBtn = document.getElementById("clearTimerStructureBtn");
+    const saveBtn = document.getElementById("saveTimerBtn");
+    let debounce = null;
+    let lastText = "";
+
+    function el(tag, className, text) {
+        const node = document.createElement(tag);
+        if (className) node.className = className;
+        if (text !== undefined) node.textContent = text;
+        return node;
+    }
+
+    function fire(node, type) {
+        if (!node) return;
+        node.dispatchEvent(new Event(type || "change", { bubbles: true }));
+        if (node.syncSearchableSelect) node.syncSearchableSelect();
+    }
+
+    function showResult(className, children) {
+        resultBox.className = "mt-2 alert py-2 px-3 small mb-0 " + className;
+        resultBox.replaceChildren(...children);
+    }
+
+    function fmtUtc(iso) {
+        return iso ? iso.replace("T", " ").slice(0, 16) + " UTC" : "";
+    }
+
+    function ownerText(candidate) {
+        return candidate.owner_ticker ? " [" + candidate.owner_ticker + "]" : "";
+    }
+
+    // Timer stage + expiry go last: picking a structure resets the stage from its state
+    function applyTimer(data, timerType) {
+        if (timerTypeSelect && timerType) {
+            timerTypeSelect.value = timerType;
+            fire(timerTypeSelect);
+        }
+        if (datetimeInput && data.timer_datetime) {
+            datetimeInput.step = 1;
+            datetimeInput.value = data.timer_datetime.slice(0, 19);
+            fire(datetimeInput, "input");
+        }
+    }
+
+    function selectKnown(data, candidate) {
+        if (!structSelect) return;
+        structSelect.value = String(candidate.id);
+        fire(structSelect);
+        applyTimer(data, candidate.suggested_timer_type || data.suggested_timer_type);
+        const children = [
+            el("i", "fas fa-check-circle me-1"),
+            el("strong", "", candidate.name),
+            document.createTextNode(
+                " (" + (candidate.solar_system_name || "unknown system") + ownerText(candidate) + ") — " +
+                (timerTypeSelect ? timerTypeSelect.value : "") + " at " + fmtUtc(data.timer_datetime) + ". "
+            ),
+        ];
+        if (candidate.upcoming_timer) {
+            children.push(el("div", "text-warning mt-1",
+                "Already has a " + candidate.upcoming_timer.timer_type + " timer at " +
+                fmtUtc(candidate.upcoming_timer.timer_datetime) + "."));
+        }
+        if (data.timer_passed) {
+            children.push(el("div", "text-danger mt-1", "This timer has already passed."));
+        }
+        children.push(el("div", "text-muted mt-1", "Check the stage, then press Save Timer."));
+        showResult("alert-success", children);
+        if (saveBtn) saveBtn.focus();
+    }
+
+    function prefillNew(data) {
+        if (clearStructBtn) {
+            clearStructBtn.click();
+        } else if (structSelect) {
+            structSelect.value = "";
+            fire(structSelect);
+        }
+        if (structNameInput) structNameInput.value = data.name || "";
+        if (structTypeSelect && data.inferred_type) {
+            structTypeSelect.value = String(data.inferred_type.id);
+            fire(structTypeSelect);
+        }
+        if (systemSelect && data.inferred_system) {
+            systemSelect.value = String(data.inferred_system.id);
+            fire(systemSelect);
+            if (systemInput) systemInput.value = data.inferred_system.name;
+        }
+        applyTimer(data, data.suggested_timer_type);
+        const missing = [];
+        if (!data.inferred_system) missing.push("solar system");
+        if (!data.inferred_type) missing.push("structure type");
+        const children = [
+            el("i", "fas fa-plus-circle me-1"),
+            el("strong", "", "New structure: "),
+            document.createTextNode(
+                (data.name || "(no name)") + " — " + data.suggested_timer_type + " at " +
+                fmtUtc(data.timer_datetime) + ". "
+            ),
+            el("div", "mt-1", missing.length
+                ? "Fill in the " + missing.join(" and ") + " (and owner if known), then press Save Timer. The structure is added to the registry with the timer."
+                : "Check the owner, then press Save Timer. The structure is added to the registry with the timer."),
+        ];
+        if (data.timer_passed) {
+            children.push(el("div", "text-danger mt-1", "This timer has already passed."));
+        }
+        showResult("alert-warning", children);
+        let focusTarget = saveBtn;
+        if (!data.inferred_system) focusTarget = systemInput;
+        else if (!data.inferred_type) focusTarget = structTypeSelect;
+        if (focusTarget) focusTarget.focus();
+    }
+
+    function showChoices(data) {
+        const list = el("div", "list-group mt-2");
+        data.candidates.forEach(function(candidate) {
+            const btn = el("button", "list-group-item list-group-item-action bg-dark text-light border-secondary py-1");
+            btn.type = "button";
+            let detail = " — " + (candidate.solar_system_name || "unknown system") + ownerText(candidate) +
+                " · " + candidate.state_display;
+            if (candidate.upcoming_timer) {
+                detail += " · next " + candidate.upcoming_timer.timer_type + " " +
+                    fmtUtc(candidate.upcoming_timer.timer_datetime);
+            }
+            btn.append(el("strong", "", candidate.name), document.createTextNode(detail));
+            btn.addEventListener("click", function() { selectKnown(data, candidate); });
+            list.appendChild(btn);
+        });
+        const newBtn = el("button", "list-group-item list-group-item-action bg-dark text-warning border-secondary py-1",
+            "None of these — add a new structure");
+        newBtn.type = "button";
+        newBtn.addEventListener("click", function() { prefillNew(data); });
+        list.appendChild(newBtn);
+        showResult("alert-info", [
+            el("i", "fas fa-question-circle me-1"),
+            document.createTextNode(
+                "\"" + (data.name || "(no name)") + "\" could be more than one structure. " +
+                "Pick the one being hit (" + data.suggested_timer_type + " at " + fmtUtc(data.timer_datetime) + "):"
+            ),
+            list,
+        ]);
+    }
+
+    function parsePaste() {
+        const text = pasteInput.value.trim();
+        if (!text) {
+            resultBox.className = "mt-2 d-none";
+            lastText = "";
+            return;
+        }
+        if (text === lastText) return;
+        lastText = text;
+        fetch(apiUrl, {
+            method: "POST",
+            headers: {
+                "X-CSRFToken": csrfInput ? csrfInput.value : "",
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: new URLSearchParams({ text: text }),
+        })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.success) {
+                    showResult("alert-secondary", [
+                        el("i", "fas fa-info-circle me-1"),
+                        document.createTextNode(data.error || "Could not read that paste."),
+                    ]);
+                    return;
+                }
+                if (data.status === "matched" && data.candidates.length === 1) {
+                    selectKnown(data, data.candidates[0]);
+                } else if (data.status === "ambiguous") {
+                    showChoices(data);
+                } else {
+                    prefillNew(data);
+                }
+            })
+            .catch(function() {
+                showResult("alert-danger", [
+                    document.createTextNode("Could not check the paste. Fill in the fields below instead."),
+                ]);
+            });
+    }
+
+    pasteInput.addEventListener("input", function() {
+        clearTimeout(debounce);
+        debounce = setTimeout(parsePaste, 300);
+    });
+    pasteInput.addEventListener("paste", function() {
+        clearTimeout(debounce);
+        debounce = setTimeout(parsePaste, 50);
+    });
+
+    const modalEl = document.getElementById("addTimerModal");
+    if (modalEl) {
+        modalEl.addEventListener("shown.bs.modal", function() { pasteInput.focus(); });
     }
 });
 </script>

@@ -36,8 +36,18 @@ ______________________________________________________________________
 - **⏱️ Structure Reinforcement Timers Board**:
 
   - Dedicated timer board tracking hostile armor and hull vulnerability windows.
+
   - Live client-side ticking countdowns with multi-layer ambient tactical pulse glows for imminent timers.
+
   - One-click Fleet Commander (FC) Discord / broadcast ping generator formatted with target system, structure type, and time remaining.
+
+  - **Paste a reinforcement timer**: in *Add Timer*, paste the timer copied from a reinforced structure (`… Reinforced until 2026.11.03 19:13:30`).
+
+    - If the name matches a known structure, that structure is selected and the time and likely stage are filled in, so you just press Save.
+    - For generic names like `Mercenary Den`, you pick from the matching known structures.
+    - For unknown names, the structure fields are pre-filled (system from a `<System> - <Name>` prefix, type from a generic name), so the timer and the new structure are added together.
+
+    Saving updates the structure's state in the registry (Armor / Hull / Reinforced). Pasting a timer that already exists doesn't add it twice.
 
 - **🎯 Local Threat Scanner & Drop Risk Engine**:
 

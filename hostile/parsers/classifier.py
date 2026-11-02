@@ -13,6 +13,7 @@ from eve_sde.models import SolarSystem
 from hostile.parsers.dscan import DScanParser
 from hostile.parsers.eft import StructureFittingParser
 from hostile.parsers.local import LocalThreatParser
+from hostile.parsers.reinforcement import ReinforcementTimerParser
 from hostile.parsers.showinfo import StructureHackParser, StructureShowInfoParser
 
 
@@ -22,6 +23,7 @@ class IntelFormat:
     EFT = "eft"
     STRUCTURE_FIT = "structure_fit"
     STRUCTURE_HACK = "structure_hack"
+    REINFORCEMENT = "reinforcement"
     LOCAL = "local"
     OBSERVATION = "observation"
 
@@ -51,6 +53,10 @@ def classify_intel_text(text: str) -> str:
     # Check for Data Analyzer / Structure Defense Timer Hack signature: e.g. 'Hour (+- 3 hrs): 02:00'
     if StructureHackParser.is_structure_hack(clean_text):
         return IntelFormat.STRUCTURE_HACK
+
+    # Copied structure reinforcement timer: '... Reinforced until 2026.11.03 19:13:30'
+    if ReinforcementTimerParser.is_reinforcement_paste(clean_text):
+        return IntelFormat.REINFORCEMENT
 
     # Check for Local chat log signature: [ 10:48:00 ] Name > msg or Channel Name: Local
     if any(
@@ -136,6 +142,12 @@ def parse_intel_paste(
         parsed_data = StructureHackParser.parse(text, default_system=default_system)
     elif fmt in [IntelFormat.EFT, IntelFormat.STRUCTURE_FIT]:
         parsed_data = StructureFittingParser.parse(text)
+    elif fmt == IntelFormat.REINFORCEMENT:
+        parsed_data = {
+            **(ReinforcementTimerParser.parse(text) or {}),
+            "text": text,
+            "solar_system": default_system,
+        }
     else:
         # Fallback observation / raw report
         parsed_data = {
