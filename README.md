@@ -97,7 +97,7 @@ INSTALLED_APPS += [
 
 ### 3. Configure Periodic Celery Tasks
 
-Add the periodic tasks to `CELERYBEAT_SCHEDULE` in `local.py`:
+Run `python manage.py hostile_setup_tasks` to register all periodic tasks, or add them to `CELERYBEAT_SCHEDULE` in `local.py` yourself:
 
 ```python
 from celery.schedules import crontab
@@ -118,6 +118,18 @@ CELERYBEAT_SCHEDULE["hostile_update_sovereignty_campaigns"] = {
 CELERYBEAT_SCHEDULE["hostile_update_all_zkill_stats"] = {
     "task": "hostile.tasks.update_all_zkill_stats",
     "schedule": crontab(minute="30", hour="*/6"),
+}
+
+# Two-way sync with aa-structuretimers / Timerboard (Every 15 Minutes)
+CELERYBEAT_SCHEDULE["hostile_sync_timerboard_timers"] = {
+    "task": "hostile.tasks.sync_timerboard_timers",
+    "schedule": crontab(minute="*/15"),
+}
+
+# Friendly timers from corptools structure notifications (Every 5 Minutes, optional)
+CELERYBEAT_SCHEDULE["hostile_import_corptools_notification_timers"] = {
+    "task": "hostile.tasks.import_corptools_notification_timers",
+    "schedule": crontab(minute="*/5"),
 }
 ```
 
@@ -142,23 +154,60 @@ ______________________________________________________________________
 
 You can customize app behavior by adding the following optional settings to your `local.py`:
 
-| Setting                               | Type        | Default | Description                                                                                                |
-| :------------------------------------ | :---------- | :------ | :--------------------------------------------------------------------------------------------------------- |
-| `HOSTILE_SOV_SYNC_MINUTES`            | `int`       | `60`    | Interval (in minutes) for caching ESI sovereignty map and structure vulnerability syncs.                   |
-| `HOSTILE_CAMPAIGN_SYNC_MINUTES`       | `int`       | `15`    | Interval (in minutes) for caching active ESI sovereignty campaign syncs.                                   |
-| `HOSTILE_AUTO_VERIFY_OFFICER_POSTS`   | `bool`      | `True`  | Automatically marks system observations submitted by users with `hostile.manage_intel` as verified.        |
-| `HOSTILE_MAX_ACTIVE_OBSERVATION_DAYS` | `int`       | `7`     | Number of days before unverified or inactive system observations are pruned from active feeds.             |
-| `HOSTILE_ZKILL_ENABLED`               | `bool`      | `True`  | Enables automated background zKillboard statistics and pilot intelligence queries.                         |
-| `HOSTILE_ZKILL_SYNC_HOURS`            | `int`       | `6`     | Cache duration and sync interval for entity-level zKillboard statistics.                                   |
-| `HOSTILE_ZKILL_MIN_REQUEST_INTERVAL`  | `float`     | `0.5`   | Minimum delay in seconds between successive zKillboard API calls to ensure respectful rate limiting.       |
-| `HOSTILE_ZKILL_USER_AGENT`            | `str`       | `None`  | Custom User-Agent header for zKillboard requests (defaults to auto-generated AA Hostile Intel User-Agent). |
-| `HOSTILE_MAIN_ALLIANCE_ID`            | `int`       | `None`  | Friendly / home alliance ID (defaults to `ALLIANCE_ID` if defined). Used for threat filtering.             |
-| `HOSTILE_MAIN_ALLIANCE_NAME`          | `str`       | `None`  | Friendly / home alliance name (defaults to `ALLIANCE_NAME` if defined).                                    |
-| `HOSTILE_IGNORED_ALLIANCE_IDS`        | `list[int]` | `[]`    | List of alliance IDs to exclude from hostile threat tracking and classification.                           |
-| `HOSTILE_IGNORED_ALLIANCE_NAMES`      | `list[str]` | `[]`    | List of alliance names to exclude from hostile tracking.                                                   |
-| `HOSTILE_IGNORED_ALLIANCE_TICKERS`    | `list[str]` | `[]`    | List of alliance tickers to exclude from hostile tracking.                                                 |
-| `HOSTILE_IGNORED_CORP_IDS`            | `list[int]` | `[]`    | List of corporation IDs to exclude from hostile tracking.                                                  |
-| `HOSTILE_IGNORED_CORP_NAMES`          | `list[str]` | `[]`    | List of corporation names to exclude from hostile tracking.                                                |
+| Setting                                         | Type        | Default | Description                                                                                                                 |
+| :---------------------------------------------- | :---------- | :------ | :-------------------------------------------------------------------------------------------------------------------------- |
+| `HOSTILE_SOV_SYNC_MINUTES`                      | `int`       | `60`    | Interval (in minutes) for caching ESI sovereignty map and structure vulnerability syncs.                                    |
+| `HOSTILE_CAMPAIGN_SYNC_MINUTES`                 | `int`       | `15`    | Interval (in minutes) for caching active ESI sovereignty campaign syncs.                                                    |
+| `HOSTILE_AUTO_VERIFY_OFFICER_POSTS`             | `bool`      | `True`  | Automatically marks system observations submitted by users with `hostile.manage_intel` as verified.                         |
+| `HOSTILE_MAX_ACTIVE_OBSERVATION_DAYS`           | `int`       | `7`     | Number of days before unverified or inactive system observations are pruned from active feeds.                              |
+| `HOSTILE_ZKILL_ENABLED`                         | `bool`      | `True`  | Enables automated background zKillboard statistics and pilot intelligence queries.                                          |
+| `HOSTILE_ZKILL_SYNC_HOURS`                      | `int`       | `6`     | Cache duration and sync interval for entity-level zKillboard statistics.                                                    |
+| `HOSTILE_ZKILL_MIN_REQUEST_INTERVAL`            | `float`     | `0.5`   | Minimum delay in seconds between successive zKillboard API calls to ensure respectful rate limiting.                        |
+| `HOSTILE_ZKILL_USER_AGENT`                      | `str`       | `None`  | Custom User-Agent header for zKillboard requests (defaults to auto-generated AA Hostile Intel User-Agent).                  |
+| `HOSTILE_MAIN_ALLIANCE_ID`                      | `int`       | `None`  | Friendly / home alliance ID (defaults to `ALLIANCE_ID` if defined). Used for threat filtering.                              |
+| `HOSTILE_MAIN_ALLIANCE_NAME`                    | `str`       | `None`  | Friendly / home alliance name (defaults to `ALLIANCE_NAME` if defined).                                                     |
+| `HOSTILE_IGNORED_ALLIANCE_IDS`                  | `list[int]` | `[]`    | List of alliance IDs to exclude from hostile threat tracking and classification.                                            |
+| `HOSTILE_IGNORED_ALLIANCE_NAMES`                | `list[str]` | `[]`    | List of alliance names to exclude from hostile tracking.                                                                    |
+| `HOSTILE_IGNORED_ALLIANCE_TICKERS`              | `list[str]` | `[]`    | List of alliance tickers to exclude from hostile tracking.                                                                  |
+| `HOSTILE_IGNORED_CORP_IDS`                      | `list[int]` | `[]`    | List of corporation IDs to exclude from hostile tracking.                                                                   |
+| `HOSTILE_IGNORED_CORP_NAMES`                    | `list[str]` | `[]`    | List of corporation names to exclude from hostile tracking.                                                                 |
+| `HOSTILE_CORPTOOLS_NOTIFICATIONS_ENABLED`       | `bool`      | `True`  | Create friendly structure timers from structure notifications stored by corptools (no effect if corptools isn't installed). |
+| `HOSTILE_CORPTOOLS_NOTIFICATION_LOOKBACK_HOURS` | `int`       | `24`    | How far back (in hours) stored notifications are scanned for timers.                                                        |
+| `HOSTILE_NOTIFICATION_TIMER_TOLERANCE_MINUTES`  | `int`       | `10`    | Timers of the same type on the same structure within this window count as the same timer when de-duplicating.               |
+
+### Friendly Timers from Corptools Notifications
+
+If [allianceauth-corptools](https://github.com/Solar-Helix-Independent-Transport/allianceauth-corp-tools) is installed and pulls character notifications (`esi-characters.read_notifications.v1`) for your directors / station managers, Hostile Intel turns structure notifications into friendly timers. No aa-structures is needed:
+
+| Notification                                                                         | Timer                   |
+| :----------------------------------------------------------------------------------- | :---------------------- |
+| `StructureLostShields`                                                               | Armor                   |
+| `StructureLostArmor`                                                                 | Hull                    |
+| `StructureAnchoring` / `StructureUnanchoring`                                        | Anchoring / Unanchoring |
+| `OrbitalReinforced` (Customs Office), `SkyhookLostShields`, `MercenaryDenReinforced` | Hull (final)            |
+
+Timers are posted to **aa-structuretimers only**. They are friendly structure timers, so they are never copied to the Alliance Auth Timerboard, which is for fleet operations. Only notifications from the last `HOSTILE_CORPTOOLS_NOTIFICATION_LOOKBACK_HOURS` (24h) are read, and timers that have already passed are ignored.
+
+Several checks stop a timer from being posted twice:
+
+1. A notification that was already handled is skipped. This also covers several directors receiving the same notification.
+1. If Hostile Intel already has the same timer (same structure or system, same type, within `HOSTILE_NOTIFICATION_TIMER_TOLERANCE_MINUTES`), that timer is reused. A timer is only treated as different if it is clearly on another structure (different structure ID, type or real name) or belongs to a known hostile owner.
+1. If aa-structuretimers already has an equivalent timer (same system, same type, within the tolerance; Hull and Final count as the same; not a Hostile-objective timer), it is linked instead of reposted. Two timers are only treated as different when both have a real structure name and the names differ. Anything ambiguous counts as a duplicate.
+1. A linked timer belongs to whoever posted it (e.g. aa-structures). Hostile Intel never writes to it, even during reconciliation. If that timer is edited on aa-structuretimers, the change is pulled into Hostile Intel.
+1. Every push to aa-structuretimers, including the periodic reconciliation, links to an equivalent existing timer instead of creating a new one.
+1. Only one import runs at a time.
+
+To check what the import does with the notifications corptools currently has, run:
+
+```bash
+python manage.py hostile_notification_timers --dry-run
+```
+
+It lists every structure notification from the lookback window, says whether it would create, link or skip a timer (and why), and changes nothing. Without `--dry-run` it runs the import once.
+
+Each notification also updates the structure registry. It creates the structure if needed, then fills in the structure ID, the in-game name from corptools, the type, and the planet. It sets the owner ticker and links the owner alliance/corporation if they're already in the registry; it never creates them or changes their friendly flag. It sets the state to Armor, Hull, Reinforced, Anchoring or Unanchoring. An older notification never overwrites a newer state.
+
+Sovereignty notifications are skipped because they're already covered by the ESI campaign sync. In general, friendly timers are no longer copied to the Timerboard. Hostile timers still sync to both boards, and timers that were already linked keep updating.
 
 ______________________________________________________________________
 

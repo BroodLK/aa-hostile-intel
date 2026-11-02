@@ -95,6 +95,54 @@ class Command(BaseCommand):
             )
         )
 
+        # 4. Bidirectional sync with aa-structuretimers / Timerboard
+        # AA Hostile Intel
+        from hostile.app_settings import HOSTILE_TIMERBOARD_SYNC_MINUTES
+
+        sync_minutes = max(1, int(HOSTILE_TIMERBOARD_SYNC_MINUTES))
+        sync_interval, _ = IntervalSchedule.objects.get_or_create(
+            every=sync_minutes,
+            period=IntervalSchedule.MINUTES,
+        )
+        task_sync, created = PeriodicTask.objects.update_or_create(
+            task="hostile.tasks.sync_timerboard_timers",
+            defaults={
+                "name": "Hostile Intel: Structure Timer Board Sync",
+                "interval": sync_interval,
+                "crontab": None,
+                "enabled": enabled,
+                "description": "Reconciles Hostile Intel structure timers with aa-structuretimers and the Alliance Auth Timerboard.",
+            },
+        )
+        status_sync = "Created" if created else "Updated"
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"[{status_sync}] '{task_sync.name}' (Every {sync_minutes} minutes, Enabled: {enabled})"
+            )
+        )
+
+        # 5. Friendly timers from corptools structure notifications (Every 5 Minutes)
+        notif_interval, _ = IntervalSchedule.objects.get_or_create(
+            every=5,
+            period=IntervalSchedule.MINUTES,
+        )
+        task_notif, created = PeriodicTask.objects.update_or_create(
+            task="hostile.tasks.import_corptools_notification_timers",
+            defaults={
+                "name": "Hostile Intel: Friendly Timers from Corptools Notifications",
+                "interval": notif_interval,
+                "crontab": None,
+                "enabled": enabled,
+                "description": "Creates friendly structure timers from structure notifications stored by corptools.",
+            },
+        )
+        status_notif = "Created" if created else "Updated"
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"[{status_notif}] '{task_notif.name}' (Every 5 minutes, Enabled: {enabled})"
+            )
+        )
+
         self.stdout.write(
             self.style.SUCCESS(
                 "Hostile Intel periodic Celery tasks setup completed successfully."

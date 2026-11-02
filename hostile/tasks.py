@@ -167,6 +167,42 @@ def sync_timerboard_timers() -> str:
 
 
 @shared_task
+def import_corptools_notification_timers() -> str:
+    """
+    Creates friendly Structure Timers from structure notifications stored by
+    allianceauth-corptools (reinforcement, anchoring, unanchoring), and lets the
+    regular timer sync push them to aa-structuretimers / Timerboard.
+    """
+    # AA Hostile Intel
+    from hostile.services.corptools_notifications import (
+        CorptoolsNotificationTimerService,
+    )
+
+    if not CorptoolsNotificationTimerService.is_enabled():
+        logger.info(
+            "Corptools notification timers are disabled or corptools is not installed."
+        )
+        return "Notification timer import skipped (disabled or uninstalled)."
+
+    # Overlapping runs could race each other into double-posting; allow only one.
+    lock_id = "hostile_notif_timer_import_lock"
+    if not cache.add(lock_id, True, 600):
+        logger.info("Notification timer import already running; skipping this run.")
+        return "Notification timer import already running."
+    try:
+        stats = CorptoolsNotificationTimerService.import_notification_timers()
+    finally:
+        cache.delete(lock_id)
+    msg = (
+        f"Notification timer import complete: processed={stats['processed']}, "
+        f"created={stats['created']}, linked={stats['linked']}, "
+        f"skipped={stats['skipped']}."
+    )
+    logger.info(msg)
+    return msg
+
+
+@shared_task
 def prune_old_threat_scans(days: int | None = None) -> str:
     """
     Celery task to automatically prune outdated Local Threat Scans.

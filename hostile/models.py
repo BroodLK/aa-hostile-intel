@@ -610,6 +610,11 @@ class HostileStructure(models.Model):
         max_length=16, choices=CORE_CHOICES, default="UNKNOWN"
     )
     state = models.CharField(max_length=16, choices=STATE_CHOICES, default="ONLINE")
+    last_notification_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp of the newest EVE notification that set this structure's state",
+    )
     vulnerability_window = models.CharField(
         max_length=64,
         blank=True,
@@ -757,6 +762,15 @@ class StructureTimer(models.Model):
         ("OTHER", "Other"),
     )
 
+    SOURCE_MANUAL = "MANUAL"
+    SOURCE_NOTIFICATION = "NOTIFICATION"
+    SOURCE_EXTERNAL = "EXTERNAL"
+    SOURCE_CHOICES = (
+        (SOURCE_MANUAL, "Manual / Intel"),
+        (SOURCE_NOTIFICATION, "EVE Notification"),
+        (SOURCE_EXTERNAL, "External Timerboard"),
+    )
+
     structure = models.ForeignKey(
         HostileStructure,
         on_delete=models.CASCADE,
@@ -800,6 +814,18 @@ class StructureTimer(models.Model):
         help_text="True if this sovereignty campaign has concluded/ended",
     )
     notes = models.TextField(blank=True)
+    source = models.CharField(
+        max_length=16,
+        choices=SOURCE_CHOICES,
+        default=SOURCE_MANUAL,
+        help_text="Where this timer originated",
+    )
+    source_notification_id = models.BigIntegerField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="EVE notification ID this timer was created from",
+    )
     timerboard_timer_id = models.IntegerField(
         null=True,
         blank=True,
@@ -811,6 +837,10 @@ class StructureTimer(models.Model):
         blank=True,
         db_index=True,
         help_text="Linked aa-structuretimers Timer ID",
+    )
+    structuretimers_adopted = models.BooleanField(
+        default=False,
+        help_text="Linked to a pre-existing aa-structuretimers timer posted by someone else; never overwritten from Hostile Intel",
     )
     last_sync_hash = models.CharField(
         max_length=64,

@@ -751,6 +751,9 @@ class TimerSyncService:
     @classmethod
     def is_structure_timer_friendly(cls, structure_timer: Any) -> bool:
         """Determines if a Hostile StructureTimer represents a friendly objective/structure."""
+        # Structure notifications are only sent to the owning corporation
+        if getattr(structure_timer, "source", "") == "NOTIFICATION":
+            return True
         if structure_timer.structure:
             if structure_timer.structure.alliance:
                 if cls.is_entity_friendly(
@@ -789,6 +792,140 @@ class TimerSyncService:
 
         return False
 
+    @classmethod
+    def should_push_to_timerboard(cls, structure_timer: Any) -> bool:
+        """
+        The Alliance Auth Timerboard is for fleet operations; friendly structure timers
+        belong on aa-structuretimers only. Already-linked timers keep updating.
+        """
+        if structure_timer.timerboard_timer_id:
+            return True
+        return not cls.is_structure_timer_friendly(structure_timer)
+
+    # -------------------------------------------------------------------------
+    # Duplicate detection on aa-structuretimers
+    # -------------------------------------------------------------------------
+
+    @staticmethod
+    def _core_name(name: str, system_name: str = "") -> str:
+        # Standard Library
+        import re
+
+        # AA Hostile Intel
+        from hostile.models import extract_core_structure_name
+
+        core = extract_core_structure_name(name or "")
+        if system_name and core.lower().startswith(f"{system_name.lower()} - "):
+            core = core[len(system_name) + 3 :]
+        # Drop trailing "(System)" / "(Planet / Moon)" qualifiers
+        core = re.sub(r"\s*\([^)]*\)\s*$", "", core)
+        return core.strip().lower()
+
+    @classmethod
+    def _is_generic_name(
+        cls, name: str, type_name: str = "", system_name: str = ""
+    ) -> bool:
+        core = cls._core_name(name, system_name)
+        generic = {"", "structure", "hostile structure", "unknown", "upwell structure"}
+        if type_name:
+            generic.add(type_name.strip().lower())
+        return core in generic
+
+    @classmethod
+    def find_matching_structuretimers_timer(
+        cls,
+        solar_system_id: int | None,
+        timer_type: str,
+        when: Any,
+        structure_name: str = "",
+        structure_type_id: int | None = None,
+        tolerance: Any = None,
+        exclude_ids: list[int] | None = None,
+        objective: str = "",
+    ) -> Any | None:
+        """
+        Finds an aa-structuretimers Timer that represents the same timer.
+
+        Same solar system, equivalent timer type (HL / FI are both hull) and a date
+        within the tolerance window. Candidates are only rejected when both sides
+        carry a real, differing structure name - anything ambiguous counts as a
+        duplicate, because double-posting is worse than linking.
+        """
+        timer_model = cls.get_structuretimers_timer_model()
+        if not timer_model or not solar_system_id or not when:
+            return None
+        if tolerance is None:
+            # AA Hostile Intel
+            from hostile.app_settings import (
+                HOSTILE_NOTIFICATION_TIMER_TOLERANCE_MINUTES,
+            )
+
+            tolerance = timezone.timedelta(
+                minutes=int(HOSTILE_NOTIFICATION_TIMER_TOLERANCE_MINUTES)
+            )
+
+        candidates = timer_model.objects.filter(
+            eve_solar_system_id=solar_system_id,
+            date__gte=when - tolerance,
+            date__lte=when + tolerance,
+        ).select_related("structure_type", "eve_solar_system")
+        if exclude_ids:
+            candidates = candidates.exclude(id__in=exclude_ids)
+
+        wanted_type = (timer_type or "").upper()
+        own_type_name = ""
+        if structure_type_id:
+            # Third Party
+            from eve_sde.models import ItemType
+
+            item = ItemType.objects.filter(id=structure_type_id).first()
+            own_type_name = item.name if item else ""
+
+        matches = []
+        for st_timer in candidates:
+            mapped = cls.map_structuretimers_type_to_structure_timer(
+                st_timer.timer_type
+            )
+            if mapped != wanted_type:
+                continue
+            # A friendly timer is never the same timer as a hostile-objective one
+            if objective == "FR" and st_timer.objective == "HO":
+                continue
+            if objective == "HO" and st_timer.objective == "FR":
+                continue
+
+            system_name = getattr(st_timer.eve_solar_system, "name", "") or ""
+            their_type_name = getattr(st_timer.structure_type, "name", "") or ""
+            if (
+                structure_type_id
+                and st_timer.structure_type_id
+                and st_timer.structure_type_id != structure_type_id
+                and not cls._is_generic_name(
+                    st_timer.structure_name, their_type_name, system_name
+                )
+            ):
+                # Different, named structure of another type
+                continue
+
+            ours_generic = cls._is_generic_name(
+                structure_name, own_type_name, system_name
+            )
+            theirs_generic = cls._is_generic_name(
+                st_timer.structure_name, their_type_name, system_name
+            )
+            if not ours_generic and not theirs_generic:
+                if cls._core_name(structure_name, system_name) != cls._core_name(
+                    st_timer.structure_name, system_name
+                ):
+                    continue
+            matches.append(st_timer)
+
+        if not matches:
+            return None
+        # Closest in time wins
+        matches.sort(key=lambda t: abs((t.date - when).total_seconds()))
+        return matches[0]
+
     # -------------------------------------------------------------------------
     # Bidirectional Sync: Hostile -> External Boards
     # -------------------------------------------------------------------------
@@ -825,8 +962,10 @@ class TimerSyncService:
                         exc,
                     )
 
-            # Sync to Alliance Auth Timerboard
-            if cls.is_timerboard_sync_enabled():
+            # Sync to Alliance Auth Timerboard (fleet ops board; never for new friendly timers)
+            if cls.is_timerboard_sync_enabled() and cls.should_push_to_timerboard(
+                structure_timer
+            ):
                 try:
                     tb_obj = cls._sync_to_timerboard_model(structure_timer)
                     if tb_obj:
@@ -854,6 +993,17 @@ class TimerSyncService:
             ):
                 structure_timer.timerboard_timer_id = results["timerboard"]
                 update_fields.append("timerboard_timer_id")
+
+            if structure_timer.structuretimers_adopted:
+                update_fields.append("structuretimers_adopted")
+                st_obj = (
+                    cls.get_structuretimers_timer_by_id(results["structuretimers"])
+                    if "structuretimers" in results
+                    else None
+                )
+                if st_obj:
+                    # Track the external timer's state, not ours: we never write to it
+                    state_hash = cls.compute_structuretimers_timer_hash(st_obj)
 
             if structure_timer.last_sync_hash != state_hash:
                 structure_timer.last_sync_hash = state_hash
@@ -918,6 +1068,49 @@ class TimerSyncService:
             if structure_timer.structure
             else (solar_system.name if solar_system else "Structure")
         )
+
+        if target_timer and structure_timer.structuretimers_adopted:
+            # Someone else's timer (e.g. aa-structures): linked, never overwritten
+            return target_timer
+
+        if not target_timer:
+            # Never double-post: adopt an equivalent timer already on the board
+            # (e.g. posted by aa-structures or by hand) instead of creating one.
+            # AA Hostile Intel
+            from hostile.models import StructureTimer
+
+            match = cls.find_matching_structuretimers_timer(
+                solar_system_id=eve_system.id,
+                timer_type=structure_timer.timer_type,
+                when=structure_timer.timer_datetime,
+                structure_name=structure_name,
+                structure_type_id=getattr(eve_type, "id", None),
+                objective=(
+                    "FR" if cls.is_structure_timer_friendly(structure_timer) else ""
+                ),
+            )
+            if match:
+                linked_elsewhere = (
+                    StructureTimer.objects.filter(structuretimers_timer_id=match.id)
+                    .exclude(pk=structure_timer.pk)
+                    .exists()
+                )
+                if linked_elsewhere:
+                    logger.info(
+                        "Not posting StructureTimer %s to structuretimers: "
+                        "equivalent timer %s is already linked to another timer",
+                        structure_timer.id,
+                        match.id,
+                    )
+                    return None
+                # Link without rewriting someone else's timer
+                structure_timer.structuretimers_adopted = True
+                logger.info(
+                    "Linked StructureTimer %s to existing structuretimers timer %s",
+                    structure_timer.id,
+                    match.id,
+                )
+                return match
         location_details = (
             structure_timer.structure.location_details
             if structure_timer.structure
@@ -1150,6 +1343,32 @@ class TimerSyncService:
                 # Backend already in perfect parity (or change originated here)
                 return structure_timer
 
+            if (
+                structure_timer
+                and structure_timer.structuretimers_adopted
+                and structure_timer.structure_id
+            ):
+                # Adopted timer edited on aa-structuretimers: follow its time / type /
+                # notes, but keep the registry structure we already resolved.
+                structure_timer.timer_type = (
+                    cls.map_structuretimers_type_to_structure_timer(st_timer.timer_type)
+                )
+                structure_timer.timer_datetime = (
+                    st_timer.date or structure_timer.timer_datetime
+                )
+                structure_timer.notes = st_timer.details_notes or structure_timer.notes
+                structure_timer.last_sync_hash = incoming_hash
+                structure_timer.save(
+                    update_fields=[
+                        "timer_type",
+                        "timer_datetime",
+                        "notes",
+                        "last_sync_hash",
+                        "updated_at",
+                    ]
+                )
+                return structure_timer
+
             # Resolve solar system
             solar_system = cls.get_or_create_eve_sde_solar_system(
                 st_timer.eve_solar_system
@@ -1315,8 +1534,10 @@ class TimerSyncService:
                 structure_timer.last_sync_hash = incoming_hash
                 structure_timer.save()
 
-            # Ensure Timerboard is also synced for full cross-app parity
-            if cls.is_timerboard_sync_enabled():
+            # Mirror to the Timerboard only for timers that belong on the fleet ops board
+            if cls.is_timerboard_sync_enabled() and cls.should_push_to_timerboard(
+                structure_timer
+            ):
                 try:
                     tb_obj = cls._sync_to_timerboard_model(structure_timer)
                     if tb_obj and structure_timer.timerboard_timer_id != tb_obj.id:
@@ -1651,13 +1872,21 @@ class TimerSyncService:
         for h_timer in hostile_timers:
             current_hash = cls.compute_structure_timer_hash(h_timer)
             needs_sync = (
-                h_timer.last_sync_hash != current_hash
+                (
+                    h_timer.last_sync_hash != current_hash
+                    and not (
+                        h_timer.structuretimers_adopted
+                        and h_timer.structuretimers_timer_id
+                    )
+                )
                 or (
                     cls.is_structuretimers_sync_enabled()
                     and not h_timer.structuretimers_timer_id
                 )
                 or (
-                    cls.is_timerboard_sync_enabled() and not h_timer.timerboard_timer_id
+                    cls.is_timerboard_sync_enabled()
+                    and not h_timer.timerboard_timer_id
+                    and cls.should_push_to_timerboard(h_timer)
                 )
             )
 

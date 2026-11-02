@@ -74,6 +74,8 @@ if importlib.util.find_spec("eveuniverse") is not None:
     INSTALLED_APPS.append("eveuniverse")
 if importlib.util.find_spec("structuretimers") is not None:
     INSTALLED_APPS.append("structuretimers")
+if importlib.util.find_spec("corptools") is not None:
+    INSTALLED_APPS.append("corptools")
 
 INSTALLED_APPS.append(PACKAGE)
 

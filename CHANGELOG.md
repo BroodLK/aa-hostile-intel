@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **Friendly Timers from Corptools Notifications**: A new periodic task (`hostile.tasks.import_corptools_notification_timers`, every 5 minutes) reads structure notifications from the last 24 hours that allianceauth-corptools has stored (`StructureLostShields`, `StructureLostArmor`, `StructureAnchoring`, `StructureUnanchoring`, `OrbitalReinforced`, `SkyhookLostShields`, `MercenaryDenReinforced`). It turns them into friendly Structure Timers posted to aa-structuretimers, so aa-structures is no longer needed. Several checks stop a timer from being posted twice: notifications already handled are skipped, a matching timer already in Hostile Intel is reused, an equivalent timer already on aa-structuretimers is linked rather than reposted, and only one import runs at a time. Mercenary Den timers include the aggressor's corporation and alliance in the notes. New settings: `HOSTILE_CORPTOOLS_NOTIFICATIONS_ENABLED`, `HOSTILE_CORPTOOLS_NOTIFICATION_LOOKBACK_HOURS` (24), `HOSTILE_NOTIFICATION_TIMER_TOLERANCE_MINUTES` (10).
+- **Registry Updates from Notifications**: Notifications create or update the structure in the registry: ID, in-game name, type, planet, owner ticker, existing owner alliance/corp links, and reinforcement state. An older notification never overwrites a newer state.
+- **Timer Source Tracking**: Structure Timers record where they came from (`source`) and which notification created them (`source_notification_id`).
+- **Dry-run Check**: `python manage.py hostile_notification_timers --dry-run` lists every structure notification in the lookback window and whether it would create, link or skip a timer (with the reason), without changing anything.
+- **Timer Board Sync Scheduling**: `hostile_setup_tasks` now also registers `hostile.tasks.sync_timerboard_timers` (every `HOSTILE_TIMERBOARD_SYNC_MINUTES`).
+
+### Changed
+
+- **No Friendly Timers on the Timerboard**: Friendly structure timers are no longer copied to the Alliance Auth Timerboard, which is for fleet operations. Hostile timers still sync to both boards, and timers that were already linked keep updating.
+- **No Duplicate Posts to aa-structuretimers**: Before creating a timer on aa-structuretimers, the sync now looks for an equivalent existing timer (for example one posted by aa-structures) and links to it. Linked timers are never overwritten from Hostile Intel; edits made to them on aa-structuretimers are pulled in. Hostile-objective timers are never treated as the same timer as a friendly one.
+
 ## [0.0.26] - 2026-10-28
 
 ### Fixed
