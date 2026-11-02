@@ -62,6 +62,7 @@ jobs:
       matrix:
         python-version:
           # https://endoflife.date/python
+          - '3.11'  # [EOL] End of Life: 31 Dec 2027
           - '3.12'  # [EOL] End of Life: 31 Dec 2028
           - '3.13'  # [EOL] End of Life: 31 Oct 2029
           - '3.14'  # [EOL] End of Life: 31 Oct 2030

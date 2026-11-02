@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [0.0.28] - 2026-11-02
+
+### Changed
+
+- **Python 3.11 Support Restored**: The minimum supported version is Python 3.11 again.
+
 ## [0.0.27] - 2026-11-02
 
 ### Added
