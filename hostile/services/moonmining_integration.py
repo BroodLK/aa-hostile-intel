@@ -71,6 +71,46 @@ def format_isk(value: float | int | None) -> str:
     return f"{value:.0f}"
 
 
+# Moon values are monthly; a month is treated as 30 days for per-hour denial math.
+HOURS_PER_MONTH = 720
+REINFORCE_TIMER_TYPES = ("ARMOR", "HULL")
+
+
+def drill_hourly_value(drill_value: float | int | None) -> float | None:
+    """Monthly drill output converted to ISK per hour."""
+    if drill_value is None:
+        return None
+    return float(drill_value) / HOURS_PER_MONTH
+
+
+def reinforcement_isk_loss(
+    structure: Any, drill_value: float | int | None
+) -> float | None:
+    """ISK denied by the structure's latest reinforcement timer.
+
+    Assumes the timer was submitted the moment the structure was reinforced
+    and that the owner repairs it the instant it comes out, so the loss is the
+    drill's hourly output times (timer exit - timer submission). Callers decide
+    whether to display it based on the structure's current state.
+    """
+    hourly = drill_hourly_value(drill_value)
+    if hourly is None:
+        return None
+    timers = [
+        t
+        for t in structure.timers.all()
+        if t.timer_type in REINFORCE_TIMER_TYPES
+        and t.created_at
+        and t.timer_datetime
+        and t.timer_datetime > t.created_at
+    ]
+    if not timers:
+        return None
+    timer = max(timers, key=lambda t: t.created_at)
+    hours = (timer.timer_datetime - timer.created_at).total_seconds() / 3600
+    return hourly * hours
+
+
 def structure_location(structure: Any) -> tuple[int, int] | None:
     """Read PnMm from either the location annotation or the structure name."""
     return _location(getattr(structure, "location_details", "")) or _location(
@@ -162,6 +202,14 @@ def moon_data_for_structures(structures: Any) -> dict[int, dict[str, Any]]:
                 "display_value": format_isk(value),
                 "display_drill_value": (
                     format_isk(value * 0.4) if value is not None else "—"
+                ),
+                "drill_hourly_value": drill_hourly_value(
+                    value * 0.4 if value is not None else None
+                ),
+                "display_drill_hourly_value": (
+                    format_isk(drill_hourly_value(value * 0.4))
+                    if value is not None
+                    else "—"
                 ),
             }
     return result

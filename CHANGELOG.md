@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [0.0.29] - 2026-11-05
+
+### Added
+
+- **Drill Hourly Value**: The Structures tab now shows each drill's per-hour output next to its monthly value (`Drill 5.2b (7.2m/h)`), using a 720-hour month.
+- **Reinforcement ISK Lost**: Reinforced drills show how much ISK the owner loses while reinforced, next to the state (`Hull Reinforced (133,851,851.85isk Lost)`). It is the drill's hourly value times the time from when the latest Armor/Hull timer was submitted to when it exits.
+
 ## [0.0.28] - 2026-11-02
 
 ### Changed

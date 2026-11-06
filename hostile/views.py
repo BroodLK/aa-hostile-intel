@@ -502,7 +502,7 @@ def _registry_structures_queryset():
             "corporation",
             "created_by",
         )
-        .prefetch_related("fittings")
+        .prefetch_related("fittings", "timers")
     )
 
 
@@ -548,12 +548,14 @@ def _prepare_registry_structures(request: WSGIRequest, structures) -> tuple:
     moon_data = {}
     moon_options = {}
     is_drill = None
+    reinforcement_isk_loss = None
     try:
         # AA Hostile Intel
         from hostile.services.moonmining_integration import (
             is_drill,
             moon_data_for_structures,
             moon_options_for_structures,
+            reinforcement_isk_loss,
         )
 
         moon_data = moon_data_for_structures(structures)
@@ -583,6 +585,14 @@ def _prepare_registry_structures(request: WSGIRequest, structures) -> tuple:
             match["drill_value"]
             if match and match.get("drill_value") is not None
             else ""
+        )
+        loss = (
+            reinforcement_isk_loss(structure, match.get("drill_value"))
+            if match and reinforcement_isk_loss
+            else None
+        )
+        structure.registry_reinforce_loss = (
+            f"{loss:,.2f}isk Lost" if loss is not None else ""
         )
         (
             structure.registry_group_key,

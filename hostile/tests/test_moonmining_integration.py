@@ -1,4 +1,5 @@
 # Standard Library
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 # Django
@@ -7,8 +8,10 @@ from django.test import SimpleTestCase
 # AA Hostile Intel
 from hostile.services.moonmining_integration import (
     _location,
+    drill_hourly_value,
     format_isk,
     is_drill,
+    reinforcement_isk_loss,
     structure_display_name,
 )
 
@@ -41,3 +44,46 @@ class MoonminingIntegrationTests(SimpleTestCase):
         )
         self.assertFalse(is_drill(structure))
         self.assertEqual(structure_display_name(structure), "Citadel")
+
+
+class _Timers(list):
+    def all(self):
+        return self
+
+
+def _timer(timer_type, created_at, duration):
+    return SimpleNamespace(
+        timer_type=timer_type,
+        created_at=created_at,
+        timer_datetime=created_at + duration,
+    )
+
+
+class DrillDenialTests(SimpleTestCase):
+    def test_drill_hourly_value_uses_720_hour_month(self):
+        self.assertAlmostEqual(drill_hourly_value(5_200_000_000), 7_222_222.2222, 3)
+        self.assertAlmostEqual(drill_hourly_value(5_200_000_000) / 60, 120_370.3704, 3)
+        self.assertIsNone(drill_hourly_value(None))
+
+    def test_reinforcement_loss_from_latest_reinforce_timer(self):
+        now = datetime(2026, 11, 5, 12, 0, tzinfo=timezone.utc)
+        structure = SimpleNamespace(
+            state="HULL",
+            timers=_Timers(
+                [
+                    _timer("HULL", now - timedelta(days=10), timedelta(hours=40)),
+                    _timer("HULL", now, timedelta(hours=18, minutes=32)),
+                    _timer("ANCHORING", now + timedelta(hours=1), timedelta(hours=24)),
+                ]
+            ),
+        )
+        loss = reinforcement_isk_loss(structure, 5_200_000_000)
+        self.assertEqual(f"{loss:,.2f}", "133,851,851.85")
+
+    def test_reinforcement_loss_none_without_timer_or_value(self):
+        structure = SimpleNamespace(state="HULL", timers=_Timers())
+        self.assertIsNone(reinforcement_isk_loss(structure, 5_200_000_000))
+        structure.timers = _Timers(
+            [_timer("HULL", datetime.now(timezone.utc), timedelta(hours=1))]
+        )
+        self.assertIsNone(reinforcement_isk_loss(structure, None))

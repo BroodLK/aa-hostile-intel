@@ -180,9 +180,10 @@
                 data-field="state"
                 data-structure-id="{{ struct.id }}"
                 data-raw-value="{{ struct.state }}"
+                data-reinforce-loss="{{ struct.registry_reinforce_loss }}"
                 title="{% if perms.hostile.manage_intel or struct.created_by == request.user %}{% translate 'Click to edit state' %}{% endif %}">
                 <div class="cell-display-content">
-                    <span class="sr-state"><span class="dot s-{{ struct.state }}"></span>{{ struct.get_state_display }}</span>
+                    <span class="sr-state"><span class="dot s-{{ struct.state }}"></span>{{ struct.get_state_display }}{% if struct.registry_reinforce_loss and struct.state in "ARMOR,HULL,REINFORCED" %} <span class="sr-isk reinforce-loss">({{ struct.registry_reinforce_loss }})</span>{% endif %}</span>
                 </div>
             </td>
             <td class="{% if perms.hostile.manage_intel or struct.created_by == request.user %}editable-cell{% endif %}"
@@ -218,7 +219,7 @@
             <td class="small">
                 {% if struct.moonmining_match %}
                     <span class="sr-isk">{{ struct.moonmining_match.display_value }}</span>
-                    <span class="sr-muted">/ {% translate "Drill" %} {{ struct.moonmining_match.display_drill_value }}</span>
+                    <span class="sr-muted">/ {% translate "Drill" %} {{ struct.moonmining_match.display_drill_value }}{% if struct.moonmining_match.drill_hourly_value is not None %} ({{ struct.moonmining_match.display_drill_hourly_value }}/h){% endif %}</span>
                 {% elif struct.moon_scan_options %}
                     <select class="form-select form-select-sm moon-correlation-select no-searchable" data-structure-id="{{ struct.id }}" title="{% translate 'Correlate this drill with a moon scan' %}">
                         <option value="">{% translate "Correlate moon scan…" %}</option>
@@ -1275,8 +1276,11 @@ document.addEventListener("DOMContentLoaded", function() {
         }
     });
 
-    function renderStateBadge(state, stateDisplay) {
-        return `<span class="sr-state"><span class="dot s-${escapeHtml(state)}"></span>${escapeHtml(stateDisplay || state)}</span>`;
+    function renderStateBadge(state, stateDisplay, reinforceLoss) {
+        const loss = reinforceLoss && ["ARMOR", "HULL", "REINFORCED"].includes(state)
+            ? ` <span class="sr-isk reinforce-loss">(${escapeHtml(reinforceLoss)})</span>`
+            : "";
+        return `<span class="sr-state"><span class="dot s-${escapeHtml(state)}"></span>${escapeHtml(stateDisplay || state)}${loss}</span>`;
     }
 
     function renderCoreBadge(coreStatus) {
@@ -1520,7 +1524,7 @@ document.addEventListener("DOMContentLoaded", function() {
                     }
                 } else if (field === "state") {
                     cell.dataset.rawValue = data.state;
-                    cell.innerHTML = `<div class="cell-display-content">${renderStateBadge(data.state, data.state_display)}</div>`;
+                    cell.innerHTML = `<div class="cell-display-content">${renderStateBadge(data.state, data.state_display, cell.dataset.reinforceLoss)}</div>`;
                     if (row) {
                         row.dataset.state = data.state;
                         row.classList.toggle("is-destroyed", data.state === "DESTROYED");
