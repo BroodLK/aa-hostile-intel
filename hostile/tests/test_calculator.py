@@ -727,3 +727,22 @@ class TestReinforcementCalculator(TestCase):
         self.assertIn("2026-10-01T13:00:00", data["reinforced_at"])
         self.assertEqual(data["base_delay_hours"], 24.0)
         self.assertEqual(data["jitter_hours"], 1.0)
+
+    def test_calculator_page_renders_exit_box_and_nudges(self):
+        """The page renders the dedicated exit details box, structure section, and +30m/+1h time buttons"""
+        response = self.client.get(reverse("hostile:calculator"))
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode("utf-8")
+        self.assertIn('id="calcAnswerWrap"', content)
+        self.assertIn('class="calc-exit-card', content)
+        self.assertIn('Reinforcement Exit Details', content)
+        self.assertIn('id="calcStructureSection"', content)
+        self.assertIn('data-shift="now"', content)
+        self.assertIn('data-shift="-60"', content)
+        self.assertIn('data-shift="-30"', content)
+        self.assertIn('data-shift="30"', content)
+        self.assertIn('data-shift="60"', content)
+        self.assertIn('+30m', content)
+        self.assertIn('+1h', content)
+        self.assertIn('-30m', content)
+        self.assertIn('-1h', content)

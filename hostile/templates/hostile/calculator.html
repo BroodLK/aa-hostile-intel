@@ -80,8 +80,10 @@
     </div>
     <div class="sr-depth" id="calcNudges">
         <button type="button" data-shift="now">{% translate "Now" %}</button>
-        <button type="button" data-shift="-30">{% translate "-30m" %}</button>
         <button type="button" data-shift="-60">{% translate "-1h" %}</button>
+        <button type="button" data-shift="-30">{% translate "-30m" %}</button>
+        <button type="button" data-shift="30">{% translate "+30m" %}</button>
+        <button type="button" data-shift="60">{% translate "+1h" %}</button>
     </div>
     <select id="calcVuln" class="form-select form-select-sm w-auto no-searchable font-mono" title="{% translate 'Defender vulnerability hour (UTC)' %}">
         <option value="">{% translate "Vuln: unknown" %}</option>
@@ -94,35 +96,63 @@
     </button>
 </div>
 
-<!-- Answer -->
-<div id="calcAnswerWrap" style="--accent: #8b949e;">
-    <div class="grp lvl-alliance" id="calcAnswer">
-        <div class="grp-head static">
+<!-- Answer / Calculated Reinforcement Exit Box -->
+<div class="calc-exit-card mb-3" id="calcAnswerWrap" style="--accent: #d29922;">
+    <div class="calc-exit-head">
+        <div class="d-flex align-items-center gap-2">
+            <span class="calc-exit-icon"><i class="fas fa-hourglass-half"></i></span>
             <div>
-                <span class="a-swatch"></span><span class="a-name" id="calcExit">{% if calc_result.is_applicable %}{{ calc_result.nominal_exit|date:"D j M H:i" }} UTC{% else %}{% translate "No timer" %}{% endif %}</span><span class="a-ticker" id="calcJitter">{% if calc_result.is_applicable %}±{{ calc_result.jitter_hours|floatformat:"-1" }}h{% endif %}</span>
-                <div class="meta mt-1" id="calcMeta">
-                    {% if calc_result.is_applicable %}
-                    <span>{% translate "window" %} <b>{{ calc_result.earliest_exit|date:"H:i" }} – {{ calc_result.latest_exit|date:"H:i" }}</b></span>
-                    <span>{% translate "base" %} <b>{{ calc_result.base_delay_hours|floatformat:"-1" }}h</b></span>
-                    {% else %}
-                    <span>{{ calc_result.status_message }}</span>
-                    {% endif %}
-                </div>
-            </div>
-            <div class="ms-auto d-flex align-items-center gap-1" id="calcActs">
-                <button type="button" class="sr-act" id="calcCopy" title="{% translate 'Copy timer intel' %}"><i class="fas fa-copy"></i></button>
-                <button type="button" class="sr-act ok" data-add-timer title="{% translate 'Add as timer' %}"><i class="fas fa-stopwatch"></i></button>
+                <div class="calc-exit-title">{% translate "Reinforcement Exit Details" %}</div>
+                <div class="calc-exit-sub" id="calcSummarySub">{% translate "Calculated exit time and vulnerability window" %}</div>
             </div>
         </div>
-        <div class="grp-body">
-            <table class="sr-table">
-                <colgroup>
-                    <col style="width: 32%;"><col style="width: 10%;"><col style="width: 14%;"><col style="width: 14%;">
-                    <col style="width: 20%;"><col style="width: 10%;">
-                </colgroup>
-                <tbody id="calcTarget"></tbody>
-            </table>
+        <div class="ms-auto d-flex align-items-center gap-1" id="calcActs">
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="calcCopy" title="{% translate 'Copy timer intel' %}">
+                <i class="fas fa-copy me-1"></i><span>{% translate "Copy" %}</span>
+            </button>
+            <button type="button" class="btn btn-outline-success btn-sm fw-bold" data-add-timer title="{% translate 'Add as timer' %}">
+                <i class="fas fa-stopwatch me-1"></i><span>{% translate "Add to Timer Board" %}</span>
+            </button>
         </div>
+    </div>
+    <div class="calc-exit-body" id="calcAnswer">
+        <div class="calc-exit-main">
+            <div class="d-flex flex-wrap align-items-baseline gap-2">
+                <span class="calc-exit-time" id="calcExit">{% if calc_result.is_applicable %}{{ calc_result.nominal_exit|date:"D j M H:i" }} UTC{% else %}{% translate "No timer" %}{% endif %}</span>
+                <span class="calc-exit-jitter" id="calcJitter">{% if calc_result.is_applicable %}±{{ calc_result.jitter_hours|floatformat:"-1" }}h{% endif %}</span>
+                <span class="calc-exit-countdown" id="calcCountdown"></span>
+            </div>
+        </div>
+        <div class="calc-exit-meta" id="calcMeta">
+            {% if calc_result.is_applicable %}
+            <span class="calc-meta-pill"><span class="lbl">{% translate "window" %}</span> <b class="val">{{ calc_result.earliest_exit|date:"H:i" }} – {{ calc_result.latest_exit|date:"H:i" }} UTC</b></span>
+            <span class="calc-meta-pill"><span class="lbl">{% translate "base" %}</span> <b class="val">{{ calc_result.base_delay_hours|floatformat:"-1" }}h</b></span>
+            <span class="calc-meta-pill"><span class="lbl">{% translate "reinforced" %}</span> <b class="val">{{ calc_result.reinforced_at|date:"m-d H:i" }} UTC</b></span>
+            {% else %}
+            <span class="calc-meta-msg">{{ calc_result.status_message }}</span>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Target Structure Section -->
+<div class="grp lvl-alliance" id="calcStructureSection" style="--accent: #58a6ff;">
+    <div class="grp-head static">
+        <div>
+            <span class="a-swatch"></span><span class="a-name">{% translate "Structure" %}</span>
+            <div class="meta mt-1">
+                <span>{% translate "Structure details and security space" %}</span>
+            </div>
+        </div>
+    </div>
+    <div class="grp-body">
+        <table class="sr-table">
+            <colgroup>
+                <col style="width: 32%;"><col style="width: 10%;"><col style="width: 14%;"><col style="width: 14%;">
+                <col style="width: 20%;"><col style="width: 10%;">
+            </colgroup>
+            <tbody id="calcTarget"></tbody>
+        </table>
     </div>
 </div>
 
@@ -260,6 +290,8 @@ document.addEventListener("DOMContentLoaded", function () {
         backToCustom: "{{ _('Back to custom')|escapejs }}",
         recalcFailed: "{{ _('Could not recalculate. Reload the page and try again.')|escapejs }}",
         structure: "{{ _('Structure')|escapejs }}",
+        copy: "{{ _('Copy')|escapejs }}",
+        copied: "{{ _('Copied')|escapejs }}",
     };
 
     const pad = n => String(n).padStart(2, "0");
@@ -411,15 +443,24 @@ document.addEventListener("DOMContentLoaded", function () {
 
     function renderAnswer() {
         const ok = result && result.is_applicable;
-        el("calcAnswerWrap").style.setProperty("--accent", ok ? "#d29922" : "#8b949e");
-        el("calcActs").querySelectorAll(".sr-act").forEach(b => { b.disabled = !ok; b.style.visibility = ok ? "" : "hidden"; });
-        document.querySelector("[data-add-timer].btn").disabled = !ok;
+        const wrap = el("calcAnswerWrap");
+        if (wrap) {
+            wrap.style.setProperty("--accent", ok ? "#d29922" : "#8b949e");
+            wrap.style.boxShadow = ok ? "0 4px 16px rgba(0, 0, 0, 0.4), 0 0 12px rgba(210, 153, 34, 0.15)" : "none";
+        }
+        el("calcActs").querySelectorAll("button").forEach(b => { b.disabled = !ok; b.style.visibility = ok ? "" : "hidden"; });
+        document.querySelectorAll("[data-add-timer].btn").forEach(b => { b.disabled = !ok; });
         if (!ok) {
             el("calcExit").textContent = I18N.noTimer;
             el("calcJitter").textContent = "";
-            el("calcMeta").innerHTML = `<span>${esc(result ? result.status_message : I18N.recalcFailed)}</span>`;
+            el("calcJitter").classList.add("d-none");
+            el("calcCountdown").textContent = "";
+            el("calcCountdown").classList.add("d-none");
+            el("calcMeta").innerHTML = `<span class="calc-meta-msg">${esc(result ? result.status_message : I18N.recalcFailed)}</span>`;
             return;
         }
+        el("calcJitter").classList.remove("d-none");
+        el("calcCountdown").classList.remove("d-none");
         const nominal = new Date(result.nominal_exit);
         const earliest = new Date(result.earliest_exit);
         const latest = new Date(result.latest_exit);
@@ -427,11 +468,11 @@ document.addEventListener("DOMContentLoaded", function () {
         const sameDay = earliest.getUTCDate() === latest.getUTCDate();
         el("calcExit").textContent = `${day(nominal)} ${hhmm(nominal)} UTC`;
         el("calcJitter").textContent = `±${hours(result.jitter_hours)}`;
+        el("calcCountdown").textContent = until(nominal);
         el("calcMeta").innerHTML = `
-            <span>${I18N.window} <b>${sameDay ? "" : day(earliest) + " "}${hhmm(earliest)} – ${sameDay ? "" : day(latest) + " "}${hhmm(latest)}</b></span>
-            <span>${I18N.base} <b>${hours(result.base_delay_hours)}</b></span>
-            <span>${I18N.rf} <b>${pad(rf.getUTCMonth() + 1)}-${pad(rf.getUTCDate())} ${hhmm(rf)}</b></span>
-            <span><b>${until(nominal)}</b></span>`;
+            <span class="calc-meta-pill"><span class="lbl">${I18N.window}</span> <b class="val">${sameDay ? "" : day(earliest) + " "}${hhmm(earliest)} – ${sameDay ? "" : day(latest) + " "}${hhmm(latest)} UTC</b></span>
+            <span class="calc-meta-pill"><span class="lbl">${I18N.base}</span> <b class="val">${hours(result.base_delay_hours)}</b></span>
+            <span class="calc-meta-pill"><span class="lbl">${I18N.rf}</span> <b class="val">${pad(rf.getUTCMonth() + 1)}-${pad(rf.getUTCDate())} ${hhmm(rf)} UTC</b></span>`;
     }
 
     // --- Live recalculation through the JSON API ---
@@ -579,9 +620,10 @@ document.addEventListener("DOMContentLoaded", function () {
             `• Latest: ${full(new Date(result.latest_exit))} UTC\n` +
             `• Time Remaining: ${until(new Date(result.nominal_exit))}`;
         const btn = el("calcCopy");
+        const origHtml = btn.innerHTML;
         const done = () => {
-            btn.innerHTML = '<i class="fas fa-check text-success"></i>';
-            setTimeout(() => { btn.innerHTML = '<i class="fas fa-copy"></i>'; }, 1400);
+            btn.innerHTML = `<i class="fas fa-check text-success me-1"></i><span>${I18N.copied}</span>`;
+            setTimeout(() => { btn.innerHTML = origHtml; }, 1400);
         };
         if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, () => prompt("Copy Intel:", text));
         else prompt("Copy Intel:", text);

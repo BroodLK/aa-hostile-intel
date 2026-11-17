@@ -519,6 +519,125 @@
     margin-top: 2px;
 }
 
+/* Calculator: Reinforcement Exit Card */
+.structure-registry .calc-exit-card {
+    background: var(--sr-panel, #141721);
+    border: 1px solid var(--accent, #d29922);
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), 0 0 12px rgba(210, 153, 34, 0.15);
+    overflow: hidden;
+    transition: border-color 0.2s, box-shadow 0.2s, opacity 0.15s;
+}
+
+.structure-registry .calc-exit-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    background: var(--sr-head-1, #1c212e);
+    border-bottom: 1px solid var(--sr-border, #1f2433);
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.structure-registry .calc-exit-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    background: rgba(210, 153, 34, 0.15);
+    color: var(--accent, #d29922);
+    font-size: 1rem;
+}
+
+.structure-registry .calc-exit-title {
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--accent, #d29922);
+}
+
+.structure-registry .calc-exit-sub {
+    font-size: 0.75rem;
+    color: var(--sr-muted, #8b949e);
+}
+
+.structure-registry .calc-exit-body {
+    padding: 1rem;
+}
+
+.structure-registry .calc-exit-main {
+    margin-bottom: 0.75rem;
+}
+
+.structure-registry .calc-exit-time {
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: clamp(1.3rem, 2.5vw, 1.65rem);
+    font-weight: 700;
+    color: var(--bs-emphasis-color, #f0f6fc);
+    letter-spacing: -0.02em;
+}
+
+.structure-registry .calc-exit-jitter {
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--accent, #d29922);
+    background: rgba(210, 153, 34, 0.12);
+    border: 1px solid rgba(210, 153, 34, 0.3);
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+}
+
+.structure-registry .calc-exit-countdown {
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 0.25rem 0.6rem;
+    border-radius: 4px;
+    background: rgba(88, 166, 255, 0.15);
+    color: #58a6ff;
+    border: 1px solid rgba(88, 166, 255, 0.3);
+}
+
+.structure-registry .calc-exit-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    align-items: center;
+}
+
+.structure-registry .calc-meta-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.8rem;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--sr-border, #1f2433);
+    padding: 0.2rem 0.55rem;
+    border-radius: 4px;
+}
+
+.structure-registry .calc-meta-pill .lbl {
+    color: var(--sr-muted, #8b949e);
+    text-transform: uppercase;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.structure-registry .calc-meta-pill .val {
+    font-family: ui-monospace, Consolas, monospace;
+    color: var(--bs-body-color, #c9d1d9);
+}
+
+.structure-registry .calc-meta-msg {
+    color: var(--sr-muted, #8b949e);
+    font-size: 0.85rem;
+}
+
 .structure-registry .sr-pick .dropdown-item.active,
 .structure-registry .sr-pick .dropdown-item:hover {
     background: rgba(88, 166, 255, 0.12);
