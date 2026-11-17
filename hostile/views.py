@@ -3902,14 +3902,255 @@ def audit_logs_list(request: WSGIRequest) -> HttpResponse:
     return render(request, "hostile/audit_logs.html", context)
 
 
+# Cases shown in the calculator's "Timer rules" panel: (size, stage, power, label, examples)
+CALCULATOR_RULE_CASES = (
+    (
+        StructureCategory.MEDIUM,
+        TimerStage.SHIELD_REINFORCE,
+        PowerState.FULL_POWER,
+        "Medium · armor timer",
+        "Astrahus, Raitaru, Athanor",
+    ),
+    (
+        StructureCategory.MEDIUM,
+        TimerStage.ARMOR_REINFORCE,
+        PowerState.FULL_POWER,
+        "Medium · hull timer",
+        "None: hull is vulnerable straight away",
+    ),
+    (
+        StructureCategory.LARGE_XL,
+        TimerStage.SHIELD_REINFORCE,
+        PowerState.FULL_POWER,
+        "Large/XL · armor timer",
+        "Fortizar, Azbel, Tatara, Keepstar, Sotiyo",
+    ),
+    (
+        StructureCategory.LARGE_XL,
+        TimerStage.ARMOR_REINFORCE,
+        PowerState.FULL_POWER,
+        "Large/XL · hull timer",
+        "Final timer",
+    ),
+    (
+        StructureCategory.LARGE_XL,
+        TimerStage.SHIELD_REINFORCE,
+        PowerState.LOW_POWER,
+        "Large/XL low power · armor",
+        "Skipped: straight to vulnerable armor",
+    ),
+    (
+        StructureCategory.FLEX,
+        TimerStage.ARMOR_REINFORCE,
+        PowerState.FULL_POWER,
+        "FLEX · hull timer",
+        "Ansiblex, Pharolux, Tenebrex, Metenox",
+    ),
+    (
+        StructureCategory.POCO,
+        TimerStage.SHIELD_REINFORCE,
+        PowerState.FULL_POWER,
+        "POCO · single timer",
+        "Customs offices",
+    ),
+)
+CALCULATOR_SPACES = (
+    (LocationSecurity.NULLSEC_LOWSEC, "Null/Low"),
+    (LocationSecurity.HIGHSEC, "High"),
+    (LocationSecurity.WORMHOLE, "WH"),
+    (LocationSecurity.WAR_HQ, "War HQ"),
+)
+CALCULATOR_SIZES = (
+    (StructureCategory.MEDIUM, "Medium"),
+    (StructureCategory.LARGE_XL, "Large/XL"),
+    (StructureCategory.FLEX, "FLEX"),
+    (StructureCategory.POCO, "POCO"),
+)
+CALCULATOR_DEFAULTS = {
+    "structure_size": StructureCategory.LARGE_XL,
+    "location_type": LocationSecurity.NULLSEC_LOWSEC,
+    "timer_stage": TimerStage.ARMOR_REINFORCE,
+    "power_state": PowerState.FULL_POWER,
+}
+SINGLE_TIMER_REASON = "This structure type has a single reinforcement timer."
+
+
+def _calculation_payload(result) -> dict:
+    """JSON-ready view of a ReinforcementCalculationResult (shared by the page and the API)."""
+
+    def iso(value):
+        return value.isoformat() if value else None
+
+    return {
+        "is_applicable": result.is_applicable,
+        "status_message": result.status_message,
+        "exit_window_str": result.exit_window_str,
+        "reinforced_at": iso(result.reinforced_at),
+        "nominal_exit": iso(result.nominal_exit),
+        "earliest_exit": iso(result.earliest_exit),
+        "latest_exit": iso(result.latest_exit),
+        "base_delay_hours": result.base_delay_hours,
+        "jitter_hours": result.jitter_hours,
+        "duration_min_hours": result.duration_min_hours,
+        "duration_max_hours": result.duration_max_hours,
+        "time_remaining_str": result.time_remaining_str,
+        "notes": result.notes,
+    }
+
+
+def _calculator_rule_rows() -> list[dict]:
+    """Base delay and jitter for every rules-panel case, straight from the calculator engine."""
+    # Base delay and jitter don't depend on the RF time, so any fixed time works.
+    reference = timezone.now().replace(minute=0, second=0, microsecond=0)
+    rows = []
+    for size, stage, power, label, examples in CALCULATOR_RULE_CASES:
+        cells = []
+        for space, _space_label in CALCULATOR_SPACES:
+            result = ReinforcementCalculator.calculate_exit_timer(
+                reinforced_at=reference,
+                structure_size=size,
+                location_type=space,
+                timer_stage=stage,
+                power_state=power,
+            )
+            cells.append(
+                {
+                    "space": space,
+                    "applicable": result.is_applicable,
+                    "base_hours": result.base_delay_hours,
+                    "jitter_hours": result.jitter_hours,
+                }
+            )
+        rows.append(
+            {
+                "size": size,
+                "stage": stage,
+                "power": power,
+                "label": label,
+                "examples": examples,
+                "cells": cells,
+            }
+        )
+    return rows
+
+
+def _calculator_stage_map() -> dict:
+    """{size: {power: {stage: reason}}}; a reason of None means the stage can be calculated."""
+    stage_map = {}
+    for size, _size_label in CALCULATOR_SIZES:
+        stage_map[size] = {}
+        for power, _power_label in PowerState.CHOICES:
+            valid = {
+                value
+                for value, _label in ReinforcementCalculator.get_valid_stages(
+                    size, is_low_power=power == PowerState.LOW_POWER
+                )
+            }
+            stages = {}
+            for stage, _stage_label in TimerStage.CHOICES:
+                result = ReinforcementCalculator.calculate_exit_timer(
+                    structure_size=size, timer_stage=stage, power_state=power
+                )
+                if not result.is_applicable:
+                    stages[stage] = result.status_message
+                elif stage not in valid:
+                    stages[stage] = SINGLE_TIMER_REASON
+                else:
+                    stages[stage] = None
+            stage_map[size][power] = stages
+    return stage_map
+
+
+def _calculator_structure_defaults(structure: HostileStructure) -> dict:
+    """Size, space, power and the next stage to calculate for a registry structure."""
+    size = ReinforcementCalculator.infer_structure_size(
+        structure.structure_type or structure.name
+    )
+    if structure.state == "LOW_POWER":
+        power = PowerState.LOW_POWER
+    elif structure.state == "ABANDONED":
+        power = PowerState.ABANDONED
+    else:
+        power = PowerState.FULL_POWER
+    valid = [
+        value
+        for value, _label in ReinforcementCalculator.get_valid_stages(
+            size, is_low_power=power == PowerState.LOW_POWER
+        )
+    ]
+    # Already armor-reinforced: the next timer to work out is the hull timer
+    if structure.state == "ARMOR" and TimerStage.ARMOR_REINFORCE in valid:
+        stage = TimerStage.ARMOR_REINFORCE
+    else:
+        stage = valid[0] if valid else TimerStage.SHIELD_REINFORCE
+    return {
+        "structure_size": size,
+        "location_type": ReinforcementCalculator.infer_location_type(
+            structure.solar_system
+        ),
+        "power_state": power,
+        "is_low_power": power == PowerState.LOW_POWER,
+        "timer_stage": stage,
+    }
+
+
+def _calculator_picker_structures(include_id: int | None = None) -> list[dict]:
+    """Registry structures for the calculator's search picker.
+
+    Destroyed structures are left out unless one is being prefilled (``include_id``).
+    """
+    structures = (
+        HostileStructure.objects.filter(~Q(state="DESTROYED") | Q(id=include_id))
+        .select_related(
+            "structure_type__group", "solar_system", "alliance", "corporation"
+        )
+        .order_by("name")
+    )
+    picker = []
+    for structure in structures:
+        _key, _name, ticker = _registry_owner_group(structure)
+        defaults = _calculator_structure_defaults(structure)
+        system = structure.solar_system
+        picker.append(
+            {
+                "id": structure.id,
+                "name": structure.name,
+                "type_id": structure.structure_type_id,
+                "type_name": (
+                    structure.structure_type.name if structure.structure_type else ""
+                ),
+                "system": system.name if system else "",
+                "sec": (
+                    round(system.security_status, 2)
+                    if system and system.security_status is not None
+                    else None
+                ),
+                "owner": ticker or structure.owner_name,
+                "state": structure.state,
+                "state_display": structure.get_state_display(),
+                "core": structure.core_status,
+                "core_display": structure.get_core_status_display(),
+                "vuln_hour": structure.vulnerability_hour,
+                "vuln_window": structure.vulnerability_window,
+                "size": defaults["structure_size"],
+                "space": defaults["location_type"],
+                "power": defaults["power_state"],
+                "stage": defaults["timer_stage"],
+            }
+        )
+    return picker
+
+
 @login_required
 @permission_required("hostile.basic_access")
 def timer_calculator(request: WSGIRequest) -> HttpResponse:
     """
     Upwell Structure and POCO reinforce exit timer calculator.
-    Calculates estimated exit windows based on CCP vulnerability rules, space type, and scanned vulnerability hours.
+
+    The page recalculates live through ``api_timer_calculate``. This view renders the
+    first answer, the structure picker data and the rules table, and saves timers on POST.
     """
-    initial_data = {}
+    initial_data: dict[str, Any] = dict(CALCULATOR_DEFAULTS)
     structure_obj = None
 
     # Handle pre-fill query parameters (e.g. ?structure_id=123)
@@ -3921,48 +4162,27 @@ def timer_calculator(request: WSGIRequest) -> HttpResponse:
             ).get(id=structure_id)
             initial_data["structure"] = structure_obj
             initial_data["solar_system"] = structure_obj.solar_system
-            initial_data["structure_size"] = (
-                ReinforcementCalculator.infer_structure_size(
-                    structure_obj.structure_type or structure_obj.name
-                )
-            )
-            initial_data["location_type"] = ReinforcementCalculator.infer_location_type(
-                structure_obj.solar_system
-            )
+            initial_data.update(_calculator_structure_defaults(structure_obj))
             if structure_obj.vulnerability_hour is not None:
                 initial_data["vulnerability_hour"] = structure_obj.vulnerability_hour
             if structure_obj.vulnerability_window:
                 initial_data["vulnerability_window"] = (
                     structure_obj.vulnerability_window
                 )
-            if structure_obj.state == "LOW_POWER":
-                initial_data["is_low_power"] = True
-                initial_data["power_state"] = PowerState.LOW_POWER
-            elif structure_obj.state == "ABANDONED":
-                initial_data["power_state"] = PowerState.ABANDONED
-
-            # Set valid stage for initial structure
-            size = initial_data.get("structure_size")
-            if size == StructureCategory.FLEX:
-                initial_data["timer_stage"] = TimerStage.ARMOR_REINFORCE
-            elif size == StructureCategory.LARGE_XL and initial_data.get(
-                "is_low_power"
-            ):
-                initial_data["timer_stage"] = TimerStage.ARMOR_REINFORCE
-            elif size in (StructureCategory.MEDIUM, StructureCategory.POCO):
-                initial_data["timer_stage"] = TimerStage.SHIELD_REINFORCE
         except (HostileStructure.DoesNotExist, ValueError):
             pass
 
-    if "stage" in request.GET:
-        initial_data["timer_stage"] = request.GET.get("stage")
+    stage = request.GET.get("stage", "")
+    if stage in dict(TimerStage.CHOICES):
+        initial_data["timer_stage"] = stage
     if "hour" in request.GET:
         try:
-            initial_data["vulnerability_hour"] = int(request.GET.get("hour"))
+            initial_data["vulnerability_hour"] = int(request.GET.get("hour", ""))
         except ValueError:
             pass
 
     calc_result = None
+    calc_state: dict[str, Any] | None = None
 
     if request.method == "POST":
         form = ReinforcementCalculatorForm(request.POST)
@@ -4027,33 +4247,58 @@ def timer_calculator(request: WSGIRequest) -> HttpResponse:
                     f"Timer for {timer.structure.name if timer.structure else (timer.solar_system.name if timer.solar_system else 'Target')} ({timer.timer_type}) saved to Active Timer Board successfully!",
                 )
                 return redirect("hostile:timers")
+
+            structure_obj = structure
+            calc_state = {
+                "structure_id": structure.id if structure else None,
+                "size": structure_size,
+                "space": location_type,
+                "stage": timer_stage,
+                "power": power_state or PowerState.FULL_POWER,
+                "vuln_hour": vulnerability_hour,
+                "vuln_window": vulnerability_window,
+                "reinforced_at": reinforced_at.isoformat(),
+            }
     else:
         form = ReinforcementCalculatorForm(initial=initial_data)
-        # If pre-filled via GET parameters (e.g. structure clicked), calculate initial default preview
-        if initial_data:
-            calc_result = ReinforcementCalculator.calculate_exit_timer(
-                reinforced_at=timezone.now(),
-                structure_size=initial_data.get(
-                    "structure_size", StructureCategory.MEDIUM
-                ),
-                location_type=initial_data.get(
-                    "location_type", LocationSecurity.NULLSEC_LOWSEC
-                ),
-                timer_stage=initial_data.get(
-                    "timer_stage", TimerStage.SHIELD_REINFORCE
-                ),
-                vulnerability_hour=initial_data.get("vulnerability_hour"),
-                vulnerability_window=initial_data.get("vulnerability_window", ""),
-                power_state=initial_data.get("power_state", PowerState.FULL_POWER),
-            )
 
-    paste_form = SmartPasteForm()
+    if calc_state is None:
+        # GET, or a POST that didn't validate: start from the defaults / prefill
+        reinforced_at = timezone.now()
+        calc_state = {
+            "structure_id": structure_obj.id if structure_obj else None,
+            "size": initial_data["structure_size"],
+            "space": initial_data["location_type"],
+            "stage": initial_data["timer_stage"],
+            "power": initial_data["power_state"],
+            "vuln_hour": initial_data.get("vulnerability_hour"),
+            "vuln_window": initial_data.get("vulnerability_window", ""),
+            "reinforced_at": reinforced_at.isoformat(),
+        }
+        calc_result = ReinforcementCalculator.calculate_exit_timer(
+            reinforced_at=reinforced_at,
+            structure_size=calc_state["size"],
+            location_type=calc_state["space"],
+            timer_stage=calc_state["stage"],
+            vulnerability_hour=calc_state["vuln_hour"],
+            vulnerability_window=calc_state["vuln_window"],
+            power_state=calc_state["power"],
+        )
 
     context = {
         "form": form,
         "calc_result": calc_result,
-        "paste_form": paste_form,
+        "calc_state": calc_state,
+        "calc_payload": _calculation_payload(calc_result) if calc_result else None,
         "structure_obj": structure_obj,
+        "picker_structures": _calculator_picker_structures(
+            structure_obj.id if structure_obj else None
+        ),
+        "stage_map": _calculator_stage_map(),
+        "rule_rows": _calculator_rule_rows(),
+        "size_choices": CALCULATOR_SIZES,
+        "space_choices": CALCULATOR_SPACES,
+        "vuln_hours": range(24),
     }
     return render(request, "hostile/calculator.html", context)
 
@@ -4139,24 +4384,7 @@ def api_timer_calculate(request: WSGIRequest) -> JsonResponse:
         return JsonResponse(
             {
                 "success": True,
-                "is_applicable": result.is_applicable,
-                "status_message": result.status_message,
-                "exit_window_str": result.exit_window_str,
-                "nominal_exit": (
-                    result.nominal_exit.isoformat() if result.nominal_exit else None
-                ),
-                "earliest_exit": (
-                    result.earliest_exit.isoformat() if result.earliest_exit else None
-                ),
-                "latest_exit": (
-                    result.latest_exit.isoformat() if result.latest_exit else None
-                ),
-                "base_delay_hours": result.base_delay_hours,
-                "jitter_hours": result.jitter_hours,
-                "duration_min_hours": result.duration_min_hours,
-                "duration_max_hours": result.duration_max_hours,
-                "time_remaining_str": result.time_remaining_str,
-                "notes": result.notes,
+                **_calculation_payload(result),
                 "valid_stages": valid_stages,
             }
         )

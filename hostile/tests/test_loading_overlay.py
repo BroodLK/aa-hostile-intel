@@ -81,7 +81,8 @@ class TestLoadingOverlay(TestCase):
         response = self.client.get(reverse("hostile:calculator"))
         self.assertEqual(response.status_code, 200)
         content = response.content.decode("utf-8")
-        self.assertIn("Calculating Timers", content)
+        # The calculator recalculates live; the form only posts to save a timer
+        self.assertIn("Saving Timer", content)
 
     def test_threat_scans_form_has_loading_attributes(self):
         response = self.client.get(reverse("hostile:threat_scans"))

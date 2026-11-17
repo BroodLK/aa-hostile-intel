@@ -1,14 +1,20 @@
 {% extends 'hostile/base.html' %}
-{% load i18n humanize %}
+{% load i18n static %}
+
+{% block extra_css %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'hostile/css/hostile_structures.css' %}">
+{% endblock %}
 
 {% block details %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="structure-registry" id="calculatorPage">
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <div>
-        <h4 class="mb-0 fw-bold"><i class="fas fa-calculator text-warning me-2"></i>{% translate "Upwell Reinforcement Timer Calculator" %}</h4>
-        <p class="text-muted small mb-0">{% translate "Calculate armor and final hull reinforcement exit windows based on defender vulnerability parameters, structure size, and power state." %}</p>
+        <h4 class="mb-0 fw-bold"><i class="fas fa-calculator text-warning me-2"></i>{% translate "Reinforcement Calculator" %}</h4>
+        <p class="sr-muted small mb-0" id="calcSummary">{% translate "When does it come out of reinforce? All times UTC." %}</p>
     </div>
     <div class="d-flex gap-2">
-        <button type="button" class="btn btn-warning btn-sm shadow-sm fw-bold" data-bs-toggle="modal" data-bs-target="#smartPasteModal">
+        <button type="button" class="btn btn-outline-warning btn-sm fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#smartPasteModal">
             <i class="fas fa-satellite-dish me-1"></i>{% translate "Paste Hack / Scan" %}
         </button>
         <a href="{% url 'hostile:timers' %}" class="btn btn-outline-secondary btn-sm" data-hostile-loading="{% translate 'Loading Timer Board' %}" data-hostile-loading-detail="{% translate 'Calculating upcoming structure reinforcement windows...' %}">
@@ -17,422 +23,601 @@
         <a href="{% url 'hostile:structures' %}" class="btn btn-outline-info btn-sm" data-hostile-loading="{% translate 'Loading Structures' %}" data-hostile-loading-detail="{% translate 'Fetching hostile structures registry and timer states...' %}">
             <i class="fas fa-monument me-1"></i>{% translate "Structures Registry" %}
         </a>
+        <button type="button" class="btn btn-outline-success btn-sm fw-bold shadow-sm" data-add-timer>
+            <i class="fas fa-plus me-1"></i>{% translate "Add Timer" %}
+        </button>
     </div>
 </div>
 
-<div class="row g-4">
-    <!-- Calculator Form Column -->
-    <div class="col-lg-5">
-        <div class="card bg-dark text-white border-secondary hostile-card shadow-sm">
-            <div class="card-header hostile-card-header d-flex justify-content-between align-items-center">
-                <h6 class="card-title mb-0 fw-bold text-uppercase text-warning">
-                    <i class="fas fa-sliders-h me-2"></i>{% translate "Reinforcement Parameters" %}
-                </h6>
-                <span class="badge badge-subtle-secondary">{% translate "CCP Upwell 2.0 Engine" %}</span>
-            </div>
-            <div class="card-body">
-                <form method="post" action="{% url 'hostile:calculator' %}" id="calculatorForm" data-hostile-loading="{% translate 'Calculating Timers' %}" data-hostile-loading-detail="{% translate 'Computing Upwell armor and hull vulnerability windows...' %}">
-                    {% csrf_token %}
+{% if form.errors %}
+<div class="alert alert-danger small py-2">
+    <i class="fas fa-exclamation-triangle me-1"></i>{% translate "The timer couldn't be saved:" %}
+    {% for field, errors in form.errors.items %}{{ errors|join:" " }} {% endfor %}
+</div>
+{% endif %}
 
-                    <!-- Structure Quick Pick -->
-                    <div class="mb-3">
-                        <label class="form-label fw-bold text-info"><i class="fas fa-crosshairs me-1"></i>{% translate "Hostile Structure (Quick Fill)" %}</label>
-                        {{ form.structure }}
-                        <div class="form-text text-muted small">{% translate "Selecting a structure automatically imports its category, solar system, and scanned vulnerability window." %}</div>
-                    </div>
-
-                    <div class="row g-2 mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">{% translate "Structure Size / Category" %}</label>
-                            {{ form.structure_size }}
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">{% translate "Location / Security" %}</label>
-                            {{ form.location_type }}
-                        </div>
-                    </div>
-
-                    <!-- Low Power Checkbox -->
-                    <div class="card bg-black bg-opacity-30 border-secondary p-2 mb-3">
-                        <div class="form-check form-switch mb-0">
-                            {{ form.is_low_power }}
-                            <label class="form-check-label fw-bold text-warning" for="id_calculator_low_power">
-                                <i class="fas fa-battery-quarter me-1"></i>{% translate "Low Power Mode (Unfueled / No Services)" %}
-                            </label>
-                        </div>
-                        <div class="form-text text-muted small mt-1">{% translate "Check if the structure is unfueled or has no online services. Large/XL structures in Low Power skip armor reinforcement directly to vulnerable armor." %}</div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label fw-bold text-danger">{% translate "Reinforcement Stage" %}</label>
-                        {{ form.timer_stage }}
-                        <div class="form-text text-muted small" id="stageHelpText">{% translate "Available reinforcement stages depend on structure size category and power state." %}</div>
-                    </div>
-
-                    <!-- Reinforcement Timestamp -->
-                    <div class="mb-3">
-                        <div class="d-flex justify-content-between align-items-center mb-1">
-                            <label class="form-label fw-bold mb-0">{% translate "Entered Reinforcement At (UTC)" %}</label>
-                            <div class="btn-group btn-group-sm">
-                                <button type="button" class="btn btn-outline-secondary py-0 px-1 text-xs" onclick="setReinforceTimeNow()">{% translate "Now (UTC)" %}</button>
-                                <button type="button" class="btn btn-outline-secondary py-0 px-1 text-xs" onclick="offsetReinforceTime(-30)">{% translate "-30m" %}</button>
-                                <button type="button" class="btn btn-outline-secondary py-0 px-1 text-xs" onclick="offsetReinforceTime(-60)">{% translate "-1h" %}</button>
-                            </div>
-                        </div>
-                        {{ form.reinforced_at }}
-                        <div class="form-text text-muted small">{% translate "Exact timestamp when shields or armor reached 0% hitpoints." %}</div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label fw-bold text-warning">{% translate "Vulnerability Hour (UTC)" %}</label>
-                        {{ form.vulnerability_hour }}
-                        <div class="form-text text-muted small">{% translate "Defender's 0-23 UTC reinforcement hour." %}</div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">{% translate "Scanned Window Text (Optional)" %}</label>
-                        {{ form.vulnerability_window }}
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">{% translate "Solar System Override (Optional)" %}</label>
-                        <div class="input-group">
-                            <span class="input-group-text bg-black text-muted border-secondary"><i class="fas fa-map-marker-alt"></i></span>
-                            <input type="text" id="calcSystemSearchInput" class="form-control text-light bg-black border-secondary" placeholder="{% translate 'Search solar system override (e.g. Jita, 1DQ1-A)...' %}" list="calcSystemsDatalist" autocomplete="off">
-                            <button class="btn btn-outline-secondary" type="button" id="clearCalcSystemBtn" title="Clear"><i class="fas fa-times"></i></button>
-                        </div>
-                        <div class="d-none">
-                            {{ form.solar_system }}
-                        </div>
-                        <datalist id="calcSystemsDatalist"></datalist>
-                    </div>
-
-                    <div class="card bg-black bg-opacity-40 border-secondary p-3 mb-3">
-                        <div class="form-check mb-2">
-                            {{ form.save_to_timers }}
-                            <label class="form-check-label fw-bold text-success" for="id_calculator_save_timer">
-                                <i class="fas fa-save me-1"></i>{% translate "Save to Active Timer Board" %}
-                            </label>
-                        </div>
-                        <div class="mb-0">
-                            <label class="form-label small text-muted">{% translate "Timer Notes" %}</label>
-                            {{ form.notes }}
-                        </div>
-                    </div>
-
-                    <div class="d-grid gap-2">
-                        <button type="submit" class="btn btn-warning fw-bold py-2 shadow-sm">
-                            <i class="fas fa-calculator me-1"></i>{% translate "Calculate Exit Window" %}
-                        </button>
-                    </div>
-                </form>
-            </div>
+<!-- Row 1: what is it, and which timer -->
+<div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+    <div class="input-group input-group-sm position-relative" style="max-width: 340px;">
+        <span class="input-group-text bg-transparent sr-muted"><i class="fas fa-search"></i></span>
+        <input type="text" id="calcPickInput" aria-label="{% translate 'Registry structure' %}" class="form-control form-control-sm" placeholder="{% translate 'Pick a registry structure, or set it by hand...' %}" autocomplete="off">
+        <button class="btn btn-outline-secondary btn-sm d-none" type="button" id="calcPickClear" title="{% translate 'Clear structure' %}">
+            <i class="fas fa-times"></i>
+        </button>
+        <div class="dropdown-menu sr-pick" id="calcPickMenu"></div>
+    </div>
+    <div class="d-flex gap-1 flex-wrap" id="calcSizeChips">
+        {% for value, label in size_choices %}
+        <span class="sr-chip" data-size="{{ value }}">{{ label }}</span>
+        {% endfor %}
+    </div>
+    <div class="d-flex gap-1 flex-wrap" id="calcPowerChips">
+        <span class="sr-chip" data-power="LOW_POWER" title="{% translate 'Large/XL structures in low power skip the armor timer' %}"><span class="dot s-LOW_POWER"></span>{% translate "Low power" %}</span>
+        <span class="sr-chip" data-power="ABANDONED" title="{% translate 'Abandoned structures have no timers' %}"><span class="dot s-ABANDONED"></span>{% translate "Abandoned" %}</span>
+    </div>
+    <div class="d-flex align-items-center gap-2 ms-auto">
+        <span class="sr-muted small">{% translate "Timer" %}</span>
+        <div class="sr-depth" id="calcStageCtl">
+            <button type="button" data-stage="ARMOR">{% translate "Armor" %}</button>
+            <button type="button" data-stage="HULL">{% translate "Hull" %}</button>
         </div>
     </div>
+</div>
 
-    <!-- Calculation Results Column -->
-    <div class="col-lg-7">
-        {% if calc_result %}
-        <div class="card bg-dark text-white border-secondary hostile-card mb-4 shadow-sm" id="resultsCard">
-            <div class="card-header hostile-card-header d-flex justify-content-between align-items-center">
-                <h6 class="card-title mb-0 fw-bold text-uppercase text-info">
-                    <i class="fas fa-poll-h me-2"></i>{% translate "Calculation Output & Exit Window" %}
-                </h6>
-                {% if calc_result.is_applicable %}
-                    <span class="badge badge-subtle-teal"><i class="fas fa-check-circle me-1"></i>{% translate "Valid Upwell Window" %}</span>
-                {% else %}
-                    <span class="badge badge-subtle-warning"><i class="fas fa-exclamation-triangle me-1"></i>{% translate "Special Mechanic / No Timer" %}</span>
-                {% endif %}
-            </div>
-            <div class="card-body">
-                {% if calc_result.is_applicable %}
-                    <!-- Hero Banner -->
-                    <div class="bg-black bg-opacity-50 p-3 rounded border border-warning text-center mb-4">
-                        <div class="text-uppercase small text-muted fw-bold mb-1">{% translate "Estimated Nominal Exit (UTC)" %}</div>
-                        <h2 class="font-mono text-warning fw-bold mb-1">{{ calc_result.nominal_exit|date:"Y-m-d H:i" }} UTC</h2>
-                        <div class="d-flex justify-content-center align-items-center gap-2">
-                            <span class="badge bg-danger fs-6 font-mono"><i class="fas fa-stopwatch me-1"></i>{{ calc_result.time_remaining_str }}</span>
-                            <span class="badge badge-subtle-secondary">±{{ calc_result.jitter_hours }}h {% translate "Jitter Spread" %}</span>
-                        </div>
-                    </div>
-
-                    <!-- Window Breakdown Cards -->
-                    <div class="row g-3 mb-4">
-                        <div class="col-md-6">
-                            <div class="p-3 bg-black bg-opacity-30 rounded border border-secondary text-center">
-                                <div class="text-muted small text-uppercase">{% translate "Earliest Possible Exit" %}</div>
-                                <h5 class="font-mono text-info fw-bold mb-0 mt-1">{{ calc_result.earliest_exit|date:"Y-m-d H:i" }} UTC</h5>
-                                <div class="small text-muted mt-1">{{ calc_result.duration_min_hours|floatformat:1 }}h {% translate "from reinforce" %}</div>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="p-3 bg-black bg-opacity-30 rounded border border-secondary text-center">
-                                <div class="text-muted small text-uppercase">{% translate "Latest Possible Exit" %}</div>
-                                <h5 class="font-mono text-info fw-bold mb-0 mt-1">{{ calc_result.latest_exit|date:"Y-m-d H:i" }} UTC</h5>
-                                <div class="small text-muted mt-1">{{ calc_result.duration_max_hours|floatformat:1 }}h {% translate "from reinforce" %}</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Details Table -->
-                    <div class="table-responsive mb-3">
-                        <table class="table table-dark table-sm table-bordered border-secondary mb-0">
-                            <tbody>
-                                <tr>
-                                    <th class="text-muted small w-35">{% translate "Reinforced At (UTC)" %}</th>
-                                    <td class="font-mono">{{ calc_result.reinforced_at|date:"Y-m-d H:i:s" }} UTC</td>
-                                </tr>
-                                <tr>
-                                    <th class="text-muted small">{% translate "Calculated Window" %}</th>
-                                    <td class="font-mono text-warning fw-bold">{{ calc_result.exit_window_str }}</td>
-                                </tr>
-                                <tr>
-                                    <th class="text-muted small">{% translate "Structure Size & Security" %}</th>
-                                    <td>{{ calc_result.structure_size }} in {{ calc_result.location_type }}</td>
-                                </tr>
-                                <tr>
-                                    <th class="text-muted small">{% translate "Base Duration Delay" %}</th>
-                                    <td>{{ calc_result.base_delay_days }} {% translate "days" %} ({{ calc_result.base_delay_hours }} {% translate "hours" %})</td>
-                                </tr>
-                                <tr>
-                                    <th class="text-muted small">{% translate "Vulnerability Hour / Range" %}</th>
-                                    <td>
-                                        {% if calc_result.vulnerability_hour is not None %}
-                                            <span class="badge badge-subtle-warning">{{ calc_result.vulnerability_hour }}:00 UTC</span>
-                                        {% else %}
-                                            <span class="text-muted italic">{% translate "Not specified (using reinforcement hour)" %}</span>
-                                        {% endif %}
-                                        {% if calc_result.vulnerability_window %}
-                                            <span class="ms-1 small text-muted">({{ calc_result.vulnerability_window }})</span>
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <!-- Clipboard Button -->
-                    <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-outline-info btn-sm fw-bold w-100" onclick="copyCalculatorIntel()">
-                            <i class="fas fa-copy me-1"></i>{% translate "Copy Timer Intel to Clipboard" %}
-                        </button>
-                    </div>
-
-                {% else %}
-                    <!-- Non-applicable Alert (e.g. Abandoned or Medium Hull) -->
-                    <div class="alert alert-warning border-secondary d-flex align-items-start gap-3">
-                        <i class="fas fa-info-circle fa-2x mt-1 text-warning"></i>
-                        <div>
-                            <h6 class="fw-bold mb-1">{% translate "Special Mechanics Notice" %}</h6>
-                            <p class="mb-0 small">{{ calc_result.status_message }}</p>
-                        </div>
-                    </div>
-                {% endif %}
-            </div>
+<!-- Row 2: where and when was it hit -->
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <div class="d-flex align-items-center gap-2">
+        <span class="sr-muted small">{% translate "Space" %}</span>
+        <div class="sr-depth" id="calcSpaceCtl">
+            {% for value, label in space_choices %}
+            <button type="button" data-space="{{ value }}">{{ label }}</button>
+            {% endfor %}
         </div>
-        {% else %}
-        <div class="card bg-dark text-white border-secondary hostile-card mb-4 shadow-sm text-center py-5">
-            <div class="card-body">
-                <i class="fas fa-calculator fa-3x text-secondary mb-3"></i>
-                <h5 class="fw-bold">{% translate "Ready to Calculate Exit Window" %}</h5>
-                <p class="text-muted small max-w-lg mx-auto">
-                    {% translate "Select a structure or input reinforcement parameters on the left to compute the earliest, nominal, and latest exit times." %}
-                </p>
-            </div>
-        </div>
-        {% endif %}
+    </div>
+    <div class="input-group input-group-sm flex-nowrap" style="max-width: 340px;">
+        <span class="input-group-text bg-transparent sr-muted"><i class="fas fa-crosshairs me-1"></i>{% translate "Reinforced" %}</span>
+        <input type="datetime-local" id="calcRf" class="form-control form-control-sm font-mono" title="{% translate 'When shields or armor reached 0% (UTC)' %}">
+    </div>
+    <div class="sr-depth" id="calcNudges">
+        <button type="button" data-shift="now">{% translate "Now" %}</button>
+        <button type="button" data-shift="-30">{% translate "-30m" %}</button>
+        <button type="button" data-shift="-60">{% translate "-1h" %}</button>
+    </div>
+    <select id="calcVuln" class="form-select form-select-sm w-auto no-searchable font-mono" title="{% translate 'Defender vulnerability hour (UTC)' %}">
+        <option value="">{% translate "Vuln: unknown" %}</option>
+        {% for hour in vuln_hours %}
+        <option value="{{ hour }}">{% translate "Vuln" %} {{ hour|stringformat:"02d" }}:00</option>
+        {% endfor %}
+    </select>
+    <button type="button" class="btn btn-outline-secondary btn-sm" id="calcReset" title="{% translate 'Reset everything' %}">
+        <i class="fas fa-undo me-1"></i>{% translate "Reset" %}
+    </button>
+</div>
 
-        <!-- Upwell Mechanics Reference Cheat Sheet -->
-        <div class="card bg-dark text-white border-secondary hostile-card shadow-sm">
-            <div class="card-header hostile-card-header">
-                <h6 class="card-title mb-0 fw-bold text-uppercase text-muted">
-                    <i class="fas fa-book-open me-2"></i>{% translate "Upwell Vulnerability Mechanics Reference" %}
-                </h6>
-            </div>
-            <div class="card-body p-3">
-                <div class="accordion accordion-flush" id="mechanicsAccordion">
-                    <div class="accordion-item bg-dark border-secondary text-white">
-                        <h2 class="accordion-header">
-                            <button class="accordion-button collapsed bg-dark text-white shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#mechMedium">
-                                <i class="fas fa-shield-alt text-warning me-2"></i><strong>{% translate "Medium Structures (Astrahus, Raitaru, Athanor)" %}</strong>
-                            </button>
-                        </h2>
-                        <div id="mechMedium" class="accordion-collapse collapse" data-bs-parent="#mechanicsAccordion">
-                            <div class="accordion-body small text-muted">
-                                <p class="mb-1"><strong class="text-light">Shield Reinforcement (Armor Timer):</strong></p>
-                                <ul class="mb-2">
-                                    <li><strong>Nullsec / Lowsec:</strong> Next chosen hour 3.5 days (84 hours) later ± 1.5h jitter.</li>
-                                    <li><strong>Wormhole Space:</strong> Next chosen hour 2.5 days (60 hours) later ± 1.5h jitter.</li>
-                                    <li><strong>Highsec Space:</strong> Next chosen hour 4.5 days (108 hours) later ± 1.5h jitter.</li>
-                                    <li><strong>Highsec War HQ:</strong> Next chosen hour 24 hours later ± 1.5h jitter (accelerated for declared War HQ structures in Highsec).</li>
-                                </ul>
-                                <p class="mb-0"><strong class="text-danger">Hull Reinforcement:</strong> Medium structures have <strong>NO</strong> hull reinforcement timer. Once armor hitpoints are depleted, the hull is immediately vulnerable with a standard 15-minute repair timer.</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="accordion-item bg-dark border-secondary text-white">
-                        <h2 class="accordion-header">
-                            <button class="accordion-button collapsed bg-dark text-white shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#mechLarge">
-                                <i class="fas fa-monument text-info me-2"></i><strong>{% translate "Large / Extra-Large Structures (Fortizar, Keepstar, Azbel, Sotiyo)" %}</strong>
-                            </button>
-                        </h2>
-                        <div id="mechLarge" class="accordion-collapse collapse" data-bs-parent="#mechanicsAccordion">
-                            <div class="accordion-body small text-muted">
-                                <p class="mb-1"><strong class="text-light">Shield Reinforcement (Armor Timer):</strong></p>
-                                <ul class="mb-2">
-                                    <li><strong>All Space Types (Full Power):</strong> Next chosen hour 24 hours later ± 3.0h jitter.</li>
-                                    <li><strong>Low Power Mode:</strong> Skips armor reinforcement entirely; dropping shield makes armor immediately vulnerable.</li>
-                                </ul>
-                                <p class="mb-1"><strong class="text-danger">Hull Reinforcement (Final Timer):</strong></p>
-                                <ul class="mb-0">
-                                    <li><strong>Nullsec / Lowsec:</strong> Next chosen hour 2.5 days (60 hours) later ± 3.0h jitter.</li>
-                                    <li><strong>Wormhole Space:</strong> Next chosen hour 1.5 days (36 hours) later ± 3.0h jitter.</li>
-                                    <li><strong>Highsec Space:</strong> Next chosen hour 4.5 days (108 hours) later ± 3.0h jitter.</li>
-                                    <li><strong>Highsec War HQ:</strong> Next chosen hour 24 hours later ± 3.0h jitter.</li>
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="accordion-item bg-dark border-secondary text-white">
-                        <h2 class="accordion-header">
-                            <button class="accordion-button collapsed bg-dark text-white shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#mechFlex">
-                                <i class="fas fa-network-wired text-success me-2"></i><strong>{% translate "FLEX Structures (Ansiblex, Pharolux, Tenebrex)" %}</strong>
-                            </button>
-                        </h2>
-                        <div id="mechFlex" class="accordion-collapse collapse" data-bs-parent="#mechanicsAccordion">
-                            <div class="accordion-body small text-muted">
-                                <p class="mb-1"><strong>Armor Phase:</strong> No armor reinforcement timer (skips straight to vulnerable armor).</p>
-                                <p class="mb-0"><strong>Hull Reinforcement:</strong> Next chosen hour 30 minutes later ± 30m jitter (0.5 to 25.5 hours total duration).</p>
-                            </div>
-                        </div>
-                    </div>
+<!-- Answer -->
+<div id="calcAnswerWrap" style="--accent: #8b949e;">
+    <div class="grp lvl-alliance" id="calcAnswer">
+        <div class="grp-head static">
+            <div>
+                <span class="a-swatch"></span><span class="a-name" id="calcExit">{% if calc_result.is_applicable %}{{ calc_result.nominal_exit|date:"D j M H:i" }} UTC{% else %}{% translate "No timer" %}{% endif %}</span><span class="a-ticker" id="calcJitter">{% if calc_result.is_applicable %}±{{ calc_result.jitter_hours|floatformat:"-1" }}h{% endif %}</span>
+                <div class="meta mt-1" id="calcMeta">
+                    {% if calc_result.is_applicable %}
+                    <span>{% translate "window" %} <b>{{ calc_result.earliest_exit|date:"H:i" }} – {{ calc_result.latest_exit|date:"H:i" }}</b></span>
+                    <span>{% translate "base" %} <b>{{ calc_result.base_delay_hours|floatformat:"-1" }}h</b></span>
+                    {% else %}
+                    <span>{{ calc_result.status_message }}</span>
+                    {% endif %}
                 </div>
             </div>
+            <div class="ms-auto d-flex align-items-center gap-1" id="calcActs">
+                <button type="button" class="sr-act" id="calcCopy" title="{% translate 'Copy timer intel' %}"><i class="fas fa-copy"></i></button>
+                <button type="button" class="sr-act ok" data-add-timer title="{% translate 'Add as timer' %}"><i class="fas fa-stopwatch"></i></button>
+            </div>
+        </div>
+        <div class="grp-body">
+            <table class="sr-table">
+                <colgroup>
+                    <col style="width: 32%;"><col style="width: 10%;"><col style="width: 14%;"><col style="width: 14%;">
+                    <col style="width: 20%;"><col style="width: 10%;">
+                </colgroup>
+                <tbody id="calcTarget"></tbody>
+            </table>
         </div>
     </div>
 </div>
+
+<!-- Rules -->
+<div class="grp lvl-alliance collapsed" id="calcRules" style="--accent:#58a6ff">
+    <div class="grp-head">
+        <i class="fas fa-chevron-down caret"></i>
+        <div>
+            <span class="a-swatch"></span><span class="a-name">{% translate "Timer rules" %}</span>
+            <div class="meta mt-1">
+                <span>{% translate "Base delay, then the next vulnerability hour" %} <b>± {% translate "jitter" %}</b></span>
+                <span>{% translate "Current case highlighted" %}</span>
+            </div>
+        </div>
+    </div>
+    <div class="grp-body">
+        <table class="sr-table">
+            <colgroup><col style="width: 32%;"><col><col><col><col></colgroup>
+            <thead class="sr-thead">
+                <tr>
+                    <th style="padding-left: 1rem;">{% translate "Case" %}</th>
+                    {% for value, label in space_choices %}<th>{{ label }}</th>{% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rule_rows %}
+                <tr class="structure-row" data-size="{{ row.size }}" data-stage="{{ row.stage }}" data-power="{{ row.power }}">
+                    <td style="padding-left: 1rem;">
+                        <div class="structure-name-text">{{ row.label }}</div>
+                        <div class="sr-sub">{{ row.examples }}</div>
+                    </td>
+                    {% for cell in row.cells %}
+                    <td data-space="{{ cell.space }}">
+                        {% if cell.applicable %}
+                        <span class="sr-vuln">{{ cell.base_hours|floatformat:"-1" }}h</span> <span class="sr-muted small">±{{ cell.jitter_hours|floatformat:"-1" }}h</span>
+                        {% else %}
+                        <span class="sr-muted">—</span>
+                        {% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+</div>
+
+<!-- The toolbar writes its state into these fields; Add Timer posts them -->
+<form method="post" action="{% url 'hostile:calculator' %}" id="calculatorForm" class="d-none" data-hostile-loading="{% translate 'Saving Timer' %}" data-hostile-loading-detail="{% translate 'Adding the calculated exit to the Active Timer Board...' %}">
+    {% csrf_token %}
+    <input type="hidden" name="structure" id="calcFStructure">
+    <input type="hidden" name="structure_size" id="calcFSize">
+    <input type="hidden" name="location_type" id="calcFSpace">
+    <input type="hidden" name="timer_stage" id="calcFStage">
+    <input type="hidden" name="power_state" id="calcFPower">
+    <input type="hidden" name="is_low_power" id="calcFLowPower">
+    <input type="hidden" name="reinforced_at" id="calcFRf">
+    <input type="hidden" name="vulnerability_hour" id="calcFVuln">
+    <input type="hidden" name="vulnerability_window" id="calcFVulnWindow">
+    <input type="hidden" name="save_to_timers" value="on">
+</form>
+
+<!-- Add Timer: the timer-only fields. Bootstrap moves modals to <body>, so the inputs use form= -->
+<div class="modal fade" id="calcTimerModal" tabindex="-1" aria-labelledby="calcTimerModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark text-white border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="calcTimerModalLabel"><i class="fas fa-stopwatch text-success me-2"></i>{% translate "Add to Timer Board" %}</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="{% translate 'Close' %}"></button>
+            </div>
+            <div class="modal-body">
+                <div class="p-2 rounded border border-secondary mb-3 small">
+                    <div class="fw-bold" id="calcTimerWhat"></div>
+                    <div class="font-mono text-warning" id="calcTimerWhen"></div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold" for="calcTimerSystem">{% translate "Solar system" %}</label>
+                    <input type="text" class="form-control form-control-sm" id="calcTimerSystem" name="solar_system" form="calculatorForm" list="calcTimerSystems" autocomplete="off" placeholder="{% translate 'e.g. 1DQ1-A (optional)' %}">
+                    <datalist id="calcTimerSystems"></datalist>
+                </div>
+                <div class="mb-0">
+                    <label class="form-label small fw-bold" for="calcTimerNotes">{% translate "Notes" %}</label>
+                    <textarea class="form-control form-control-sm" id="calcTimerNotes" name="notes" form="calculatorForm" rows="2" placeholder="{% translate 'Notes or fleet intel attached to this timer...' %}"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">{% translate "Cancel" %}</button>
+                <button type="submit" class="btn btn-success btn-sm fw-bold" form="calculatorForm"><i class="fas fa-save me-1"></i>{% translate "Save Timer" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{ picker_structures|json_script:"calcPickerData" }}
+{{ stage_map|json_script:"calcStageMap" }}
+{{ calc_state|json_script:"calcInitialState" }}
+{{ calc_payload|json_script:"calcInitialResult" }}
 {% endblock %}
 
 {% block extra_javascript %}
 {{ block.super }}
 <script>
-document.addEventListener("DOMContentLoaded", function() {
-    attachSolarSystemAutocomplete("calcSystemSearchInput", "id_calculator_system", "calcSystemsDatalist", "clearCalcSystemBtn");
+document.addEventListener("DOMContentLoaded", function () {
+    "use strict";
+    const el = id => document.getElementById(id);
+    const readJson = id => JSON.parse(document.getElementById(id).textContent);
+    const PICKER = readJson("calcPickerData");
+    const STAGE_MAP = readJson("calcStageMap");
+    const INITIAL = readJson("calcInitialState");
+    const API_URL = "{% url 'hostile:api_timer_calculate' %}";
+    const SYSTEMS_URL = "{% url 'hostile:api_solar_systems_search' %}";
+    const EDIT_URL = "{% url 'hostile:structure_edit' 0 %}";
 
-    const sizeSelect = document.getElementById("id_calculator_size");
-    const lowPowerCheckbox = document.getElementById("id_calculator_low_power");
-    const stageSelect = document.getElementById("id_calculator_stage");
-    const structSelect = document.getElementById("id_calculator_structure");
-    const stageHelpText = document.getElementById("stageHelpText");
-
-    const STAGES = {
-        ARMOR: { value: "ARMOR", text: "{% translate 'Shield Depleted → Armor Timer Exit' %}" },
-        HULL: { value: "HULL", text: "{% translate 'Armor Depleted → Hull / Final Timer Exit' %}" }
+    const I18N = {
+        sizes: { MEDIUM: "{{ _('Medium')|escapejs }}", LARGE_XL: "{{ _('Large/XL')|escapejs }}", FLEX: "{{ _('FLEX')|escapejs }}", POCO: "{{ _('POCO')|escapejs }}" },
+        spaces: { NULLSEC_LOWSEC: "{{ _('Null/Low')|escapejs }}", HIGHSEC: "{{ _('Highsec')|escapejs }}", WORMHOLE: "{{ _('Wormhole')|escapejs }}", WAR_HQ: "{{ _('War HQ')|escapejs }}" },
+        states: { LOW_POWER: "{{ _('Low Power')|escapejs }}", ABANDONED: "{{ _('Abandoned')|escapejs }}" },
+        armorTimer: "{{ _('armor timer')|escapejs }}",
+        hullTimer: "{{ _('hull timer')|escapejs }}",
+        timer: "{{ _('timer')|escapejs }}",
+        allUtc: "{{ _('all times UTC')|escapejs }}",
+        noTimer: "{{ _('No timer')|escapejs }}",
+        window: "{{ _('window')|escapejs }}",
+        base: "{{ _('base')|escapejs }}",
+        rf: "{{ _('RF')|escapejs }}",
+        ago: "{{ _('ago')|escapejs }}",
+        inTime: "{{ _('in')|escapejs }}",
+        custom: "{{ _('Custom')|escapejs }}",
+        setByHand: "{{ _('set by hand')|escapejs }}",
+        single: "{{ _('Single')|escapejs }}",
+        armor: "{{ _('Armor')|escapejs }}",
+        noMatch: "{{ _('No registry structure matches. Set it by hand.')|escapejs }}",
+        editStructure: "{{ _('Edit structure')|escapejs }}",
+        backToCustom: "{{ _('Back to custom')|escapejs }}",
+        recalcFailed: "{{ _('Could not recalculate. Reload the page and try again.')|escapejs }}",
+        structure: "{{ _('Structure')|escapejs }}",
     };
 
-    function updateAvailableStages() {
-        if (!sizeSelect || !stageSelect) return;
-        const size = sizeSelect.value;
-        const isLowPower = lowPowerCheckbox ? lowPowerCheckbox.checked : false;
-        const currentStage = stageSelect.value;
+    const pad = n => String(n).padStart(2, "0");
+    const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const hhmm = d => `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+    const day = d => `${DAYS[d.getUTCDay()]} ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
+    const full = d => `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${hhmm(d)}`;
+    const hours = h => `${Number(h)}h`;
 
-        let validStages = [];
-        let helpNote = "";
-
-        if (size === "MEDIUM" || size === "POCO") {
-            validStages = [STAGES.ARMOR];
-            helpNote = size === "MEDIUM"
-                ? "{% translate 'Medium structures have no hull timer; hull is immediately vulnerable once armor is depleted.' %}"
-                : "{% translate 'POCOs have only a single shield-to-armor reinforcement timer.' %}";
-        } else if (size === "FLEX") {
-            validStages = [STAGES.HULL];
-            helpNote = "{% translate 'FLEX structures have no armor timer (shield drops directly to vulnerable armor).' %}";
-        } else if (size === "LARGE_XL") {
-            if (isLowPower) {
-                validStages = [
-                    { value: "HULL", text: "{% translate 'Armor Depleted → Hull / Final Timer Exit (Low Power Skips Armor)' %}" }
-                ];
-                helpNote = "{% translate 'Large/XL structures in Low Power mode skip armor reinforcement directly to vulnerable armor.' %}";
-            } else {
-                validStages = [STAGES.ARMOR, STAGES.HULL];
-                helpNote = "{% translate 'Large/XL full power structures have two reinforcement cycles (Armor and Final Hull).' %}";
-            }
-        } else {
-            validStages = [STAGES.ARMOR, STAGES.HULL];
-        }
-
-        // Rebuild stage dropdown options
-        stageSelect.innerHTML = "";
-        validStages.forEach(s => {
-            const opt = document.createElement("option");
-            opt.value = s.value;
-            opt.textContent = s.text;
-            stageSelect.appendChild(opt);
-        });
-
-        // Retain previous stage if valid, else pick first valid
-        const stillValid = validStages.some(s => s.value === currentStage);
-        if (stillValid) {
-            stageSelect.value = currentStage;
-        } else if (validStages.length > 0) {
-            stageSelect.value = validStages[0].value;
-        }
-
-        if (stageHelpText && helpNote) {
-            stageHelpText.textContent = helpNote;
-        }
+    function until(d) {
+        let ms = d - new Date();
+        const past = ms < 0;
+        ms = Math.abs(ms);
+        const days = Math.floor(ms / 86400e3);
+        const h = Math.floor((ms % 86400e3) / 3600e3);
+        const m = Math.floor((ms % 3600e3) / 60e3);
+        const s = days ? `${days}d ${h}h` : (h ? `${h}h ${pad(m)}m` : `${m}m`);
+        return past ? `${s} ${I18N.ago}` : `${I18N.inTime} ${s}`;
     }
 
-    if (sizeSelect) sizeSelect.addEventListener("change", updateAvailableStages);
-    if (lowPowerCheckbox) lowPowerCheckbox.addEventListener("change", updateAvailableStages);
-
-    if (structSelect) {
-        structSelect.addEventListener("change", function() {
-            if (this.value) {
-                window.location.href = `{% url 'hostile:calculator' %}?structure_id=${this.value}`;
-            }
-        });
+    function secColor(entry) {
+        if (entry.space === "WORMHOLE") return "#a371f7";
+        if (entry.sec === null) return "var(--sr-muted)";
+        if (entry.sec >= 0.45) return "#3fb950";
+        if (entry.sec > 0) return "#d29922";
+        return "#f85149";
     }
 
-    updateAvailableStages();
+    const typeIcon = entry => entry.type_id
+        ? `<img src="https://images.evetech.net/types/${entry.type_id}/icon?size=32" alt="" class="sr-type-icon">`
+        : `<i class="fas fa-building sr-muted text-center" style="width: 28px;"></i>`;
+
+    // --- State ---
+    const byId = id => PICKER.find(p => p.id === id) || null;
+    function initialState() {
+        return {
+            pick: byId(INITIAL.structure_id),
+            size: INITIAL.size,
+            space: INITIAL.space,
+            stage: INITIAL.stage,
+            power: INITIAL.power || "FULL_POWER",
+            vuln: INITIAL.vuln_hour === null || INITIAL.vuln_hour === undefined ? "" : String(INITIAL.vuln_hour),
+            vulnWindow: INITIAL.vuln_window || "",
+            rf: new Date(INITIAL.reinforced_at),
+        };
+    }
+    const DEFAULTS = { size: "LARGE_XL", space: "NULLSEC_LOWSEC", stage: "HULL", power: "FULL_POWER", vuln: "", vulnWindow: "", pick: null };
+    let st = initialState();
+    let result = readJson("calcInitialResult");
+
+    const stageReasons = () => (STAGE_MAP[st.size] || {})[st.power] || {};
+    const validStages = () => Object.entries(stageReasons()).filter(([, reason]) => reason === null).map(([stage]) => stage);
+
+    function describe() {
+        const stageWord = st.size === "POCO" ? I18N.timer : (st.stage === "HULL" ? I18N.hullTimer : I18N.armorTimer);
+        return st.pick
+            ? `${st.pick.name} ${stageWord}`
+            : `${I18N.sizes[st.size]} ${stageWord} ${I18N.inTime} ${I18N.spaces[st.space]}`;
+    }
+
+    // --- Rendering ---
+    function targetRow() {
+        const s = st.pick;
+        const dash = '<span class="sr-muted">—</span>';
+        const vulnCell = st.vuln === "" ? dash : `<span class="sr-vuln"><i class="fas fa-shield-alt me-1"></i>${pad(st.vuln)}:00 UTC</span>`;
+        if (!s) {
+            const state = st.power === "FULL_POWER" ? dash : `<span class="sr-state"><span class="dot s-${st.power}"></span>${I18N.states[st.power]}</span>`;
+            return `<tr class="structure-row">
+                <td style="padding-left: 1rem;">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fas fa-cube sr-muted text-center" style="width: 28px;"></i>
+                        <div style="min-width: 0;"><div class="structure-name-text">${I18N.custom}</div>
+                        <div class="sr-sub">${I18N.sizes[st.size]} · ${I18N.spaces[st.space]}</div></div>
+                    </div>
+                </td>
+                <td>${dash}</td><td>${state}</td><td>${vulnCell}</td>
+                <td><span>${I18N.spaces[st.space]}</span><div class="sr-sub">${I18N.setByHand}</div></td>
+                <td class="sr-actions"></td>
+            </tr>`;
+        }
+        const sub = [s.type_name || I18N.structure, s.core_display].filter(Boolean).map(esc).join(" · ");
+        const system = s.system
+            ? `<span class="sys-name">${esc(s.system)}</span>${s.sec === null ? "" : ` <span class="sec" style="color: ${secColor(s)}">${s.sec.toFixed(1)}</span>`}`
+            : dash;
+        return `<tr class="structure-row">
+            <td style="padding-left: 1rem;">
+                <div class="d-flex align-items-center gap-2" style="min-width: 0;">
+                    ${typeIcon(s)}
+                    <div style="min-width: 0;"><div class="structure-name-text text-truncate">${esc(s.name)}</div>
+                    <div class="sr-sub">${sub}</div></div>
+                </div>
+            </td>
+            <td><span class="sr-ticker">${s.owner ? `[${esc(s.owner)}]` : dash}</span></td>
+            <td><span class="sr-state"><span class="dot s-${esc(s.state)}"></span>${esc(s.state_display)}</span></td>
+            <td>${vulnCell}</td>
+            <td>${system}<div class="sr-sub">${I18N.spaces[st.space]}</div></td>
+            <td class="sr-actions">
+                <a href="${EDIT_URL.replace("/0/", `/${s.id}/`)}" class="sr-act" title="${I18N.editStructure}"><i class="fas fa-pen"></i></a>
+                <button type="button" class="sr-act danger" data-unpick title="${I18N.backToCustom}"><i class="fas fa-times"></i></button>
+            </td>
+        </tr>`;
+    }
+
+    function renderControls() {
+        // Keep the stage valid for this size and power state
+        const valid = validStages();
+        if (valid.length && !valid.includes(st.stage)) st.stage = valid[0];
+        const reasons = stageReasons();
+
+        document.querySelectorAll("#calcSizeChips .sr-chip").forEach(c => c.classList.toggle("active", c.dataset.size === st.size));
+        document.querySelectorAll("#calcPowerChips .sr-chip").forEach(c => c.classList.toggle("active", c.dataset.power === st.power));
+        document.querySelectorAll("#calcSpaceCtl button").forEach(b => b.classList.toggle("on", b.dataset.space === st.space));
+        document.querySelectorAll("#calcStageCtl button").forEach(b => {
+            const ok = valid.includes(b.dataset.stage);
+            b.disabled = !ok;
+            b.classList.toggle("on", ok && b.dataset.stage === st.stage);
+            b.title = ok ? "" : (reasons[b.dataset.stage] || "");
+        });
+        // POCOs only have one timer, so call it that
+        document.querySelector('#calcStageCtl [data-stage="ARMOR"]').textContent = st.size === "POCO" ? I18N.single : I18N.armor;
+
+        el("calcRf").value = st.rf.toISOString().slice(0, 16);
+        el("calcVuln").value = st.vuln;
+        el("calcPickClear").classList.toggle("d-none", !st.pick);
+        el("calcSummary").textContent = `${describe()} · ${I18N.allUtc}`;
+        el("calcTarget").innerHTML = targetRow();
+
+        // Rules highlight. Low power only changes the Large/XL armor case.
+        const rulePower = st.power === "LOW_POWER" && st.size === "LARGE_XL" && st.stage === "ARMOR" ? "LOW_POWER" : "FULL_POWER";
+        document.querySelectorAll("#calcRules tbody tr").forEach(tr => {
+            const on = st.power !== "ABANDONED" && tr.dataset.size === st.size && tr.dataset.stage === st.stage && tr.dataset.power === rulePower;
+            tr.classList.toggle("rule-row-on", on);
+            tr.querySelectorAll("td[data-space]").forEach(td => td.classList.toggle("rule-on", on && td.dataset.space === st.space));
+        });
+
+        // Mirror everything into the Add Timer form
+        el("calcFStructure").value = st.pick ? st.pick.id : "";
+        el("calcFSize").value = st.size;
+        el("calcFSpace").value = st.space;
+        el("calcFStage").value = st.stage;
+        el("calcFPower").value = st.power;
+        el("calcFLowPower").value = st.power === "LOW_POWER" ? "on" : "";
+        el("calcFRf").value = st.rf.toISOString().replace("Z", "+00:00");
+        el("calcFVuln").value = st.vuln;
+        el("calcFVulnWindow").value = st.vulnWindow;
+    }
+
+    function renderAnswer() {
+        const ok = result && result.is_applicable;
+        el("calcAnswerWrap").style.setProperty("--accent", ok ? "#d29922" : "#8b949e");
+        el("calcActs").querySelectorAll(".sr-act").forEach(b => { b.disabled = !ok; b.style.visibility = ok ? "" : "hidden"; });
+        document.querySelector("[data-add-timer].btn").disabled = !ok;
+        if (!ok) {
+            el("calcExit").textContent = I18N.noTimer;
+            el("calcJitter").textContent = "";
+            el("calcMeta").innerHTML = `<span>${esc(result ? result.status_message : I18N.recalcFailed)}</span>`;
+            return;
+        }
+        const nominal = new Date(result.nominal_exit);
+        const earliest = new Date(result.earliest_exit);
+        const latest = new Date(result.latest_exit);
+        const rf = new Date(result.reinforced_at);
+        const sameDay = earliest.getUTCDate() === latest.getUTCDate();
+        el("calcExit").textContent = `${day(nominal)} ${hhmm(nominal)} UTC`;
+        el("calcJitter").textContent = `±${hours(result.jitter_hours)}`;
+        el("calcMeta").innerHTML = `
+            <span>${I18N.window} <b>${sameDay ? "" : day(earliest) + " "}${hhmm(earliest)} – ${sameDay ? "" : day(latest) + " "}${hhmm(latest)}</b></span>
+            <span>${I18N.base} <b>${hours(result.base_delay_hours)}</b></span>
+            <span>${I18N.rf} <b>${pad(rf.getUTCMonth() + 1)}-${pad(rf.getUTCDate())} ${hhmm(rf)}</b></span>
+            <span><b>${until(nominal)}</b></span>`;
+    }
+
+    // --- Live recalculation through the JSON API ---
+    let debounce = null;
+    let inflight = null;
+    function recalc() {
+        renderControls();
+        clearTimeout(debounce);
+        debounce = setTimeout(fetchResult, 150);
+    }
+    async function fetchResult() {
+        if (inflight) inflight.abort();
+        inflight = new AbortController();
+        const params = new URLSearchParams({
+            structure_size: st.size,
+            location_type: st.space,
+            timer_stage: st.stage,
+            power_state: st.power,
+            reinforced_at: st.rf.toISOString(),
+            vulnerability_hour: st.vuln,
+            vulnerability_window: st.vulnWindow,
+        });
+        el("calcAnswer").style.opacity = "0.6";
+        try {
+            const response = await fetch(`${API_URL}?${params}`, { signal: inflight.signal, headers: { "X-Requested-With": "XMLHttpRequest" } });
+            const data = await response.json();
+            result = data.success ? data : null;
+        } catch (err) {
+            if (err.name === "AbortError") return;
+            result = null;
+        }
+        el("calcAnswer").style.opacity = "";
+        renderAnswer();
+    }
+
+    // --- Structure picker ---
+    let menuIndex = 0;
+    function matches() {
+        const terms = el("calcPickInput").value.toLowerCase().split(/\s+/).filter(Boolean);
+        return PICKER.filter(s => {
+            const text = `${s.name} ${s.type_name} ${s.system} ${s.owner} ${s.state_display}`.toLowerCase();
+            return terms.every(t => text.includes(t));
+        }).slice(0, 50);
+    }
+    function openMenu() {
+        const list = matches();
+        menuIndex = Math.min(menuIndex, Math.max(0, list.length - 1));
+        el("calcPickMenu").innerHTML = list.length ? list.map((s, i) => `
+            <button type="button" class="dropdown-item d-flex align-items-center gap-2${i === menuIndex ? " active" : ""}" data-pick="${s.id}">
+                ${typeIcon(s)}
+                <span style="min-width: 0;"><span class="structure-name-text d-block text-truncate">${esc(s.name)}</span>
+                <span class="sr-sub d-block">${esc(s.type_name || I18N.structure)}${s.system ? ` · <span class="sys-name" style="font-size: .75rem;">${esc(s.system)}</span>` : ""}${s.owner ? ` · [${esc(s.owner)}]` : ""}</span></span>
+                <span class="sr-state ms-auto" title="${esc(s.state_display)}"><span class="dot s-${esc(s.state)}"></span></span>
+            </button>`).join("")
+            : `<div class="sr-empty py-3 small">${I18N.noMatch}</div>`;
+        el("calcPickMenu").classList.add("show");
+    }
+    const closeMenu = () => el("calcPickMenu").classList.remove("show");
+
+    function pick(s) {
+        st.pick = s;
+        st.size = s.size;
+        st.space = s.space;
+        st.power = s.power;
+        st.stage = s.stage;
+        st.vuln = s.vuln_hour === null ? "" : String(s.vuln_hour);
+        st.vulnWindow = s.vuln_window || "";
+        el("calcPickInput").value = s.name;
+        closeMenu();
+        recalc();
+    }
+    // Changing what it is by hand turns a picked structure back into a custom one
+    function unpick() {
+        st.pick = null;
+        st.vulnWindow = "";
+        el("calcPickInput").value = "";
+    }
+
+    el("calcPickInput").addEventListener("focus", openMenu);
+    el("calcPickInput").addEventListener("input", () => { menuIndex = 0; openMenu(); });
+    el("calcPickInput").addEventListener("blur", () => setTimeout(closeMenu, 150));
+    el("calcPickInput").addEventListener("keydown", e => {
+        const list = matches();
+        if ((e.key === "ArrowDown" || e.key === "ArrowUp") && list.length) {
+            e.preventDefault();
+            menuIndex = (menuIndex + (e.key === "ArrowDown" ? 1 : -1) + list.length) % list.length;
+            openMenu();
+        } else if (e.key === "Enter") {
+            e.preventDefault();
+            if (list[menuIndex]) pick(list[menuIndex]);
+        } else if (e.key === "Escape") {
+            closeMenu();
+        }
+    });
+    el("calcPickMenu").addEventListener("mousedown", e => {
+        const item = e.target.closest("[data-pick]");
+        if (item) pick(byId(Number(item.dataset.pick)));
+    });
+    el("calcPickClear").addEventListener("click", () => { unpick(); recalc(); });
+    el("calcTarget").addEventListener("click", e => { if (e.target.closest("[data-unpick]")) { unpick(); recalc(); } });
+
+    // --- Toolbar ---
+    el("calcSizeChips").addEventListener("click", e => {
+        const c = e.target.closest(".sr-chip"); if (!c) return;
+        st.size = c.dataset.size; unpick(); recalc();
+    });
+    el("calcPowerChips").addEventListener("click", e => {
+        const c = e.target.closest(".sr-chip"); if (!c) return;
+        st.power = st.power === c.dataset.power ? "FULL_POWER" : c.dataset.power; unpick(); recalc();
+    });
+    el("calcSpaceCtl").addEventListener("click", e => {
+        const b = e.target.closest("button"); if (!b) return;
+        st.space = b.dataset.space; unpick(); recalc();
+    });
+    el("calcStageCtl").addEventListener("click", e => {
+        const b = e.target.closest("button"); if (!b || b.disabled) return;
+        st.stage = b.dataset.stage; recalc();
+    });
+    el("calcRf").addEventListener("change", () => {
+        st.rf = el("calcRf").value ? new Date(el("calcRf").value + "Z") : new Date();
+        recalc();
+    });
+    el("calcNudges").addEventListener("click", e => {
+        const b = e.target.closest("button"); if (!b) return;
+        st.rf = b.dataset.shift === "now" ? new Date() : new Date(st.rf.getTime() + Number(b.dataset.shift) * 60e3);
+        recalc();
+    });
+    el("calcVuln").addEventListener("change", () => { st.vuln = el("calcVuln").value; recalc(); });
+    el("calcReset").addEventListener("click", () => { st = { ...DEFAULTS, rf: new Date() }; unpick(); recalc(); });
+    el("calcRules").querySelector(".grp-head").addEventListener("click", () => el("calcRules").classList.toggle("collapsed"));
+
+    // --- Copy timer intel ---
+    el("calcCopy").addEventListener("click", () => {
+        if (!result || !result.is_applicable) return;
+        const target = st.pick
+            ? `${st.pick.name}${st.pick.type_name ? ` (${st.pick.type_name})` : ""}${st.pick.system ? ` · ${st.pick.system}` : ""}`
+            : `${I18N.sizes[st.size]} ${I18N.inTime} ${I18N.spaces[st.space]}`;
+        const text = "*** UPWELL REINFORCEMENT EXIT INTEL ***\n" +
+            `• Target: ${target}\n` +
+            `• Stage: ${st.size === "POCO" ? I18N.timer : (st.stage === "HULL" ? I18N.hullTimer : I18N.armorTimer)}\n` +
+            `• Reinforced At: ${full(new Date(result.reinforced_at))} UTC\n` +
+            `• Calculated Exit Window: ${result.exit_window_str}\n` +
+            `• Earliest: ${full(new Date(result.earliest_exit))} UTC\n` +
+            `• Nominal: ${full(new Date(result.nominal_exit))} UTC\n` +
+            `• Latest: ${full(new Date(result.latest_exit))} UTC\n` +
+            `• Time Remaining: ${until(new Date(result.nominal_exit))}`;
+        const btn = el("calcCopy");
+        const done = () => {
+            btn.innerHTML = '<i class="fas fa-check text-success"></i>';
+            setTimeout(() => { btn.innerHTML = '<i class="fas fa-copy"></i>'; }, 1400);
+        };
+        if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, () => prompt("Copy Intel:", text));
+        else prompt("Copy Intel:", text);
+    });
+
+    // --- Add Timer modal ---
+    const timerModal = new bootstrap.Modal(el("calcTimerModal"));
+    document.querySelectorAll("[data-add-timer]").forEach(btn => btn.addEventListener("click", () => {
+        if (!result || !result.is_applicable) return;
+        el("calcTimerWhat").textContent = describe();
+        el("calcTimerWhen").textContent = `${full(new Date(result.nominal_exit))} UTC ±${hours(result.jitter_hours)}`;
+        el("calcTimerSystem").value = st.pick ? st.pick.system : "";
+        timerModal.show();
+    }));
+    let systemLookup = null;
+    el("calcTimerSystem").addEventListener("input", () => {
+        const q = el("calcTimerSystem").value.trim();
+        if (q.length < 2) return;
+        clearTimeout(systemLookup);
+        systemLookup = setTimeout(() => {
+            fetch(`${SYSTEMS_URL}?q=${encodeURIComponent(q)}&limit=15`)
+                .then(r => r.json())
+                .then(d => {
+                    el("calcTimerSystems").innerHTML = (d.results || []).map(s => `<option value="${esc(s.name)}"></option>`).join("");
+                })
+                .catch(() => {});
+        }, 150);
+    });
+
+    if (st.pick) el("calcPickInput").value = st.pick.name;
+    renderControls();
+    renderAnswer();
+    // The initial result came from the server; recalculate if the stage had to be corrected
+    if (st.stage !== INITIAL.stage) fetchResult();
+    // Keep the countdown fresh
+    setInterval(renderAnswer, 60e3);
 });
-
-function setReinforceTimeNow() {
-    const now = new Date();
-    const utcString = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-    document.getElementById('id_calculator_reinforced_at').value = utcString;
-}
-
-function offsetReinforceTime(minutesOffset) {
-    const input = document.getElementById('id_calculator_reinforced_at');
-    let date = input.value ? new Date(input.value) : new Date();
-    date = new Date(date.getTime() + (minutesOffset * 60000));
-    const utcString = new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-    input.value = utcString;
-}
-
-function copyCalculatorIntel() {
-    {% if calc_result and calc_result.is_applicable %}
-    const text = `*** UPWELL REINFORCEMENT EXIT INTEL ***\n` +
-        `• Target: {{ calc_result.structure_size }} in {{ calc_result.location_type }}\n` +
-        `• Stage: {{ calc_result.timer_stage }}\n` +
-        `• Reinforced At: {{ calc_result.reinforced_at|date:"Y-m-d H:i" }} UTC\n` +
-        `• Calculated Exit Window: {{ calc_result.exit_window_str }}\n` +
-        `• Earliest: {{ calc_result.earliest_exit|date:"Y-m-d H:i" }} UTC\n` +
-        `• Nominal: {{ calc_result.nominal_exit|date:"Y-m-d H:i" }} UTC\n` +
-        `• Latest: {{ calc_result.latest_exit|date:"Y-m-d H:i" }} UTC\n` +
-        `• Time Remaining: {{ calc_result.time_remaining_str }}`;
-
-    if (navigator.clipboard) {
-        navigator.clipboard.writeText(text).then(() => {
-            alert('Timer intel copied to clipboard in broadcast format!');
-        });
-    } else {
-        prompt('Copy Intel:', text);
-    }
-    {% endif %}
-}
 </script>
 {% endblock %}
