@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [0.0.32] - 2026-11-17
+
+### Added
+
+- **Calculator Ref Timer Direct Entry**: The reinforcement calculator now supports direct entry of defender reinforcement timers with flexible military notation (`0200`, `1400`), colon format (`14:00`), or standard format (`14:00 UTC`), backed by a searchable datalist of UTC hours and auto-sync with selected structures.
+
+### Changed
+
+- **Single-Hour Structure Reinforcement Timers**: Normalized structure reinforcement timers across models, forms, show-info parsers, inline editors, and UI templates to represent a specific single hour (e.g. `14:00 UTC`), removing synthetic and ambiguous `±3` hour range calculations.
+
 ## [0.0.31] - 2026-11-17
 
 ### Added
