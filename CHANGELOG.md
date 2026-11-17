@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [Unreleased]
+
+### Changed
+
+- **Expired Timers Hidden After 24 Hours**: The Timer Board's *Past / Expired Timers* list now only shows timers that expired in the last 24 hours. The window is set with the new `HOSTILE_EXPIRED_TIMER_VISIBLE_HOURS` setting (`None` = never hide). Older timers are hidden, not deleted, and linked aa-structuretimers / Timerboard timers are not touched.
+
+### Fixed
+
+- `StructureTimer.objects.expired(hours=...)` now applies the `hours` cutoff to structure timers. Before, it returned every past structure timer no matter how old.
+
 ## [0.0.29] - 2026-11-05
 
 ### Added

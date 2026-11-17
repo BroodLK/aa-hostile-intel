@@ -21,6 +21,12 @@ HOSTILE_STRUCTURETIMERS_SYNC_ENABLED = getattr(
     settings, "HOSTILE_STRUCTURETIMERS_SYNC_ENABLED", True
 )
 
+# Hours an expired structure timer stays visible on the Timer Board (None = never hide).
+# Timers are only hidden, never deleted.
+HOSTILE_EXPIRED_TIMER_VISIBLE_HOURS = getattr(
+    settings, "HOSTILE_EXPIRED_TIMER_VISIBLE_HOURS", 24
+)
+
 # Friendly timers created from EVE notifications stored by allianceauth-corptools
 HOSTILE_CORPTOOLS_NOTIFICATIONS_ENABLED = getattr(
     settings, "HOSTILE_CORPTOOLS_NOTIFICATIONS_ENABLED", True

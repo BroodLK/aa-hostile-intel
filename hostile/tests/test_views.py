@@ -174,6 +174,37 @@ class TestHostileViews(TestCase):
             response = self.client.get(url)
             self.assertEqual(response.status_code, 200, f"Failed accessing {view_name}")
 
+    def test_timer_board_hides_old_expired_timers(self):
+        self.client.force_login(self.user_basic)
+        now = timezone.now()
+        recent = StructureTimer.objects.create(
+            solar_system=self.system_1dq,
+            timer_type="ARMOR",
+            timer_datetime=now - timedelta(hours=2),
+        )
+        old = StructureTimer.objects.create(
+            solar_system=self.system_f9,
+            timer_type="HULL",
+            timer_datetime=now - timedelta(hours=30),
+        )
+        url = reverse("hostile:timers")
+
+        response = self.client.get(url)
+        expired = list(response.context["expired_timers"])
+        self.assertIn(recent, expired)
+        self.assertNotIn(old, expired)
+        self.assertTrue(StructureTimer.objects.filter(pk=old.pk).exists())
+
+        with patch("hostile.app_settings.HOSTILE_EXPIRED_TIMER_VISIBLE_HOURS", None):
+            response = self.client.get(url)
+        expired = list(response.context["expired_timers"])
+        self.assertIn(recent, expired)
+        self.assertIn(old, expired)
+
+        with patch("hostile.app_settings.HOSTILE_EXPIRED_TIMER_VISIBLE_HOURS", 1):
+            response = self.client.get(url)
+        self.assertEqual(list(response.context["expired_timers"]), [])
+
     def test_doctrines_and_stagings_workflow(self):
         self.client.force_login(self.user_basic)
         alliance = HostileAlliance.objects.create(

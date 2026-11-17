@@ -1384,6 +1384,10 @@ def structure_merge(request: WSGIRequest) -> HttpResponse:
 @permission_required("hostile.basic_access")
 def timers_list(request: WSGIRequest) -> HttpResponse:
     """Timer board with live countdowns and timezone conversion"""
+    # AA Hostile Intel
+    from hostile import app_settings
+
+    expired_visible_hours = app_settings.HOSTILE_EXPIRED_TIMER_VISIBLE_HOURS
     upcoming_timers = (
         StructureTimer.objects.structures_only()
         .upcoming()
@@ -1391,7 +1395,7 @@ def timers_list(request: WSGIRequest) -> HttpResponse:
     )
     expired_timers = (
         StructureTimer.objects.structures_only()
-        .expired()
+        .expired(hours=expired_visible_hours)
         .select_related("structure", "solar_system", "created_by")[:20]
     )
     timer_form = StructureTimerForm()
@@ -1400,6 +1404,7 @@ def timers_list(request: WSGIRequest) -> HttpResponse:
     context = {
         "upcoming_timers": upcoming_timers,
         "expired_timers": expired_timers,
+        "expired_visible_hours": expired_visible_hours,
         "timer_form": timer_form,
         "paste_form": paste_form,
     }

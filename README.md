@@ -41,6 +41,8 @@ ______________________________________________________________________
 
   - One-click Fleet Commander (FC) Discord / broadcast ping generator formatted with target system, structure type, and time remaining.
 
+  - Expired timers stay on the board for 24 hours, then are hidden (not deleted). Change the window with `HOSTILE_EXPIRED_TIMER_VISIBLE_HOURS`.
+
   - **Paste a reinforcement timer**: in *Add Timer*, paste the timer copied from a reinforced structure (`… Reinforced until 2026.11.03 19:13:30`).
 
     - If the name matches a known structure, that structure is selected and the time and likely stage are filled in, so you just press Save.
@@ -181,6 +183,7 @@ You can customize app behavior by adding the following optional settings to your
 | `HOSTILE_IGNORED_ALLIANCE_TICKERS`              | `list[str]` | `[]`    | List of alliance tickers to exclude from hostile tracking.                                                                  |
 | `HOSTILE_IGNORED_CORP_IDS`                      | `list[int]` | `[]`    | List of corporation IDs to exclude from hostile tracking.                                                                   |
 | `HOSTILE_IGNORED_CORP_NAMES`                    | `list[str]` | `[]`    | List of corporation names to exclude from hostile tracking.                                                                 |
+| `HOSTILE_EXPIRED_TIMER_VISIBLE_HOURS`           | `int\|None` | `24`    | Hours an expired structure timer stays visible on the Timer Board. `None` = never hide. Timers are hidden, not deleted.     |
 | `HOSTILE_CORPTOOLS_NOTIFICATIONS_ENABLED`       | `bool`      | `True`  | Create friendly structure timers from structure notifications stored by corptools (no effect if corptools isn't installed). |
 | `HOSTILE_CORPTOOLS_NOTIFICATION_LOOKBACK_HOURS` | `int`       | `24`    | How far back (in hours) stored notifications are scanned for timers.                                                        |
 | `HOSTILE_NOTIFICATION_TIMER_TOLERANCE_MINUTES`  | `int`       | `10`    | Timers of the same type on the same structure within this window count as the same timer when de-duplicating.               |

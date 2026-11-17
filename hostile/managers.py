@@ -180,19 +180,16 @@ class TimerQuerySet(models.QuerySet):
             | models.Q(is_sov_campaign=False, timer_datetime__gte=timezone.now())
         ).order_by("timer_datetime")
 
-    def expired(self, hours: int = 24):
-        cutoff = timezone.now() - timedelta(hours=hours)
-        return self.filter(
-            models.Q(
-                is_sov_campaign=True, is_concluded=True, timer_datetime__gte=cutoff
-            )
-            | models.Q(
-                is_sov_campaign=False,
-                timer_datetime__lt=timezone.now(),
-                timer_datetime__gte=cutoff,
-            )
-            | models.Q(is_sov_campaign=False, timer_datetime__lt=timezone.now())
-        ).order_by("-timer_datetime")
+    def expired(self, hours: int | None = 24):
+        """Concluded sov campaigns and past timers from the last ``hours`` hours (None = no limit)"""
+        now = timezone.now()
+        sov_q = models.Q(is_sov_campaign=True, is_concluded=True)
+        structure_q = models.Q(is_sov_campaign=False, timer_datetime__lt=now)
+        if hours is not None:
+            cutoff = now - timedelta(hours=hours)
+            sov_q &= models.Q(timer_datetime__gte=cutoff)
+            structure_q &= models.Q(timer_datetime__gte=cutoff)
+        return self.filter(sov_q | structure_q).order_by("-timer_datetime")
 
     def verified(self):
         return self.filter(is_verified=True)

@@ -146,8 +146,21 @@ class TestHostileModels(TestCase):
 
         self.assertIn(timer_upcoming, StructureTimer.objects.upcoming())
         self.assertNotIn(timer_expired, StructureTimer.objects.upcoming())
-        self.assertIn(timer_expired, StructureTimer.objects.expired())
         self.assertEqual(StructureTimer.objects.verified().count(), 1)
+
+        # Expired more than 24h ago: hidden by default, visible with a wider window
+        self.assertNotIn(timer_expired, StructureTimer.objects.expired())
+        self.assertIn(timer_expired, StructureTimer.objects.expired(hours=72))
+        self.assertIn(timer_expired, StructureTimer.objects.expired(hours=None))
+
+        timer_recent = StructureTimer.objects.create(
+            solar_system=self.system_perimeter,
+            timer_type="ARMOR",
+            timer_datetime=timezone.now() - timedelta(hours=2),
+            created_by=self.user,
+        )
+        self.assertIn(timer_recent, StructureTimer.objects.expired())
+        self.assertNotIn(timer_upcoming, StructureTimer.objects.expired(hours=None))
 
     def test_system_observation_and_tags(self):
         obs = SystemObservation.objects.create(
