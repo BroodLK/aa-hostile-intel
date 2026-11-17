@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [0.0.31] - 2026-11-17
+
+### Added
+
+- **Reinforcement Exit Details Box**: The reinforcement calculator now features a dedicated, prominent exit box above the structure details section displaying the nominal exit time, jitter margin, countdown badge, vulnerability window, base delay, and reinforced timestamp, with quick action buttons to copy intel or add to the Timer Board.
+- **Calculator Time Offset Controls**: Added `+30m` and `+1h` adjustment buttons to the reinforcement calculator toolbar, and enabled continuous relative shifting across all time offset buttons upon repeated clicks.
+
 ## [0.0.30] - 2026-11-17
 
 ### Changed
