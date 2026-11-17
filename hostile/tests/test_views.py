@@ -659,7 +659,7 @@ class TestHostileViews(TestCase):
         self.assertIsNotNone(struct)
         self.assertEqual(struct.solar_system, self.system_f9)
         self.assertEqual(struct.vulnerability_hour, 2)
-        self.assertEqual(struct.vulnerability_window, "02:00 (+- 3 hrs)")
+        self.assertEqual(struct.vulnerability_window, "02:00 UTC")
 
         # Ingesting an updated hack should update the existing structure
         updated_hack = "F9-FUV - Darkside X\nHour (+- 3 hrs):\t04:00"
@@ -667,7 +667,7 @@ class TestHostileViews(TestCase):
         self.assertEqual(resp2.status_code, 302)
         struct.refresh_from_db()
         self.assertEqual(struct.vulnerability_hour, 4)
-        self.assertEqual(struct.vulnerability_window, "04:00 (+- 3 hrs)")
+        self.assertEqual(struct.vulnerability_window, "04:00 UTC")
 
     def test_threat_scan_list_fast_creation(self):
         """Tests that local threat scan creation does not block on external zKill queries and creates scan immediately"""

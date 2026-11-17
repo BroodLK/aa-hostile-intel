@@ -172,7 +172,7 @@ class TestParsers(TestCase):
         self.assertEqual(res["owner_ticker"], "TEST")
         self.assertEqual(res["core_status"], "FITTED")
         self.assertEqual(res["state"], "ONLINE")
-        self.assertEqual(res["vulnerability_window"], "18:00 - 22:00 UTC")
+        self.assertEqual(res["vulnerability_window"], "18:00 UTC")
         self.assertEqual(res["vulnerability_hour"], 18)
         self.assertIsNotNone(res["fitting_data"])
         self.assertEqual(len(res["fitting_lines"]), 2)

@@ -1164,40 +1164,44 @@ def structure_inline_update(request: WSGIRequest, structure_id: int) -> JsonResp
             f"Inline updated owner from '{old_owner}' to '{structure.owner_name}' [{structure.owner_ticker}].",
         )
 
-    elif field in ("vulnerability", "vulnerability_window", "vulnerability_hour"):
+    elif field in (
+        "vulnerability",
+        "vulnerability_window",
+        "vulnerability_hour",
+        "ref_timer",
+    ):
         if not value or value.lower() in ("unknown", "none", "clear", "-"):
             structure.vulnerability_hour = None
             structure.vulnerability_window = ""
         else:
-            hour_match = re.match(r"^(\d{1,2})(?::00)?$", value)
-            range_match = re.search(
-                r"(\d{1,2})(?::\d{2})?\s*-\s*(\d{1,2})(?::\d{2})?", value
-            )
-            if hour_match:
-                h = int(hour_match.group(1))
+            four_m = re.match(r"^(\d{2})(\d{2})$", value)
+            hour_m = re.search(r"\b(\d{1,2})(?::\d{2})?\b", value)
+            if four_m:
+                h = int(four_m.group(1))
                 if 0 <= h <= 23:
                     structure.vulnerability_hour = h
-                    start_h = (h - 3 + 24) % 24
-                    end_h = (h + 3) % 24
-                    structure.vulnerability_window = (
-                        f"{start_h:02d}:00 - {end_h:02d}:00 UTC"
-                    )
+                    structure.vulnerability_window = f"{h:02d}:00 UTC"
                 else:
                     return JsonResponse(
                         {
                             "success": False,
-                            "error": "Vulnerability hour must be between 0 and 23.",
+                            "error": "Reinforcement hour must be between 00 and 23.",
                         },
                         status=400,
                     )
-            elif range_match:
-                start_h = int(range_match.group(1)) % 24
-                end_h = int(range_match.group(2)) % 24
-                mid_h = (start_h + 3) % 24
-                structure.vulnerability_hour = mid_h
-                structure.vulnerability_window = (
-                    f"{start_h:02d}:00 - {end_h:02d}:00 UTC"
-                )
+            elif hour_m:
+                h = int(hour_m.group(1))
+                if 0 <= h <= 23:
+                    structure.vulnerability_hour = h
+                    structure.vulnerability_window = f"{h:02d}:00 UTC"
+                else:
+                    return JsonResponse(
+                        {
+                            "success": False,
+                            "error": "Reinforcement hour must be between 0 and 23.",
+                        },
+                        status=400,
+                    )
             else:
                 structure.vulnerability_window = value[:64]
 
@@ -1214,7 +1218,7 @@ def structure_inline_update(request: WSGIRequest, structure_id: int) -> JsonResp
             request.user,
             "EDIT",
             structure,
-            f"Inline updated vulnerability window to '{structure.vulnerability_window or 'Unknown'}'.",
+            f"Inline updated reinforcement timer to '{structure.vulnerability_window or 'Unknown'}'.",
         )
 
     elif field in ("state", "structure_state"):
@@ -3985,6 +3989,8 @@ def _calculation_payload(result) -> dict:
         "is_applicable": result.is_applicable,
         "status_message": result.status_message,
         "exit_window_str": result.exit_window_str,
+        "vulnerability_hour": result.vulnerability_hour,
+        "vulnerability_window": result.vulnerability_window,
         "reinforced_at": iso(result.reinforced_at),
         "nominal_exit": iso(result.nominal_exit),
         "earliest_exit": iso(result.earliest_exit),

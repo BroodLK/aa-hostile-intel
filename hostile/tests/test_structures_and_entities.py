@@ -74,7 +74,7 @@ class TestStructuresAndEntities(TestCase):
         self.client.force_login(self.user_officer)
 
     def test_structure_form_vulnerability_hour_calculation(self):
-        """Vulnerability hour should auto-compute +- 3 hour window"""
+        """Vulnerability hour should format as single hour string (e.g. 18:00 UTC)"""
         form = HostileStructureForm(
             data={
                 "name": "Test Astrahus",
@@ -87,9 +87,9 @@ class TestStructuresAndEntities(TestCase):
             }
         )
         self.assertTrue(form.is_valid(), form.errors)
-        self.assertEqual(form.cleaned_data["vulnerability_window"], "15:00 - 21:00 UTC")
+        self.assertEqual(form.cleaned_data["vulnerability_window"], "18:00 UTC")
 
-        # Test midnight wrap-around (e.g. 1 UTC -> 22:00 - 04:00 UTC)
+        # Test single hour with string e.g. 0200
         form_wrap = HostileStructureForm(
             data={
                 "name": "Wrap Astrahus",
@@ -97,14 +97,13 @@ class TestStructuresAndEntities(TestCase):
                 "solar_system": self.system.id,
                 "state": "ONLINE",
                 "core_status": "FITTED",
-                "vulnerability_hour": 1,
-                "vulnerability_window": "",
+                "vulnerability_hour": "",
+                "vulnerability_window": "0200",
             }
         )
         self.assertTrue(form_wrap.is_valid(), form_wrap.errors)
-        self.assertEqual(
-            form_wrap.cleaned_data["vulnerability_window"], "22:00 - 04:00 UTC"
-        )
+        self.assertEqual(form_wrap.cleaned_data["vulnerability_hour"], 2)
+        self.assertEqual(form_wrap.cleaned_data["vulnerability_window"], "02:00 UTC")
 
     def test_structure_form_anchoring_core_status(self):
         """Anchoring structures must always have core status set to UNFITTED (No Core)"""
@@ -579,7 +578,7 @@ class TestStructuresAndEntities(TestCase):
         self.assertEqual(
             new_struct.core_status, "UNFITTED"
         )  # Anchoring defaults core to UNFITTED
-        self.assertEqual(new_struct.vulnerability_window, "11:00 - 17:00 UTC")
+        self.assertEqual(new_struct.vulnerability_window, "14:00 UTC")
 
         # Timer should exist and be linked to the newly created structure
         timer = StructureTimer.objects.filter(structure=new_struct).first()
@@ -968,7 +967,7 @@ class TestStructuresAndEntities(TestCase):
             "state": "ARMOR",
             "core_status": "FITTED",
             "vulnerability_hour": 20,
-            "vulnerability_window": "17:00 - 23:00 UTC",
+            "vulnerability_window": "20:00 UTC",
             "location_details": "Planet VI Moon 3",
             "notes": "Updated combat intel: Armor reinforced",
             "timer_datetime": future_timer.strftime("%Y-%m-%dT%H:%M"),
@@ -984,7 +983,7 @@ class TestStructuresAndEntities(TestCase):
         self.assertEqual(struct.name, "1DQ1-A - Renamed Primary Keep")
         self.assertEqual(struct.state, "ARMOR")
         self.assertEqual(struct.vulnerability_hour, 20)
-        self.assertEqual(struct.vulnerability_window, "17:00 - 23:00 UTC")
+        self.assertEqual(struct.vulnerability_window, "20:00 UTC")
         self.assertEqual(struct.location_details, "Planet VI Moon 3")
         self.assertEqual(struct.notes, "Updated combat intel: Armor reinforced")
 

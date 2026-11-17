@@ -499,16 +499,16 @@
                             <div class="form-text text-muted small" id="coreStatusHelp">{% translate "Anchoring structures automatically have no quantum core." %}</div>
                         </div>
 
-                        <!-- Vulnerability Section -->
+                        <!-- Reinforcement Timer Section -->
                         <div class="col-md-6">
                             <label class="form-label text-muted small fw-bold text-uppercase">
-                                <i class="fas fa-clock text-warning me-1"></i>{% translate "Vulnerability Hour (UTC 0-23)" %}
+                                <i class="fas fa-clock text-warning me-1"></i>{% translate "Reinforcement Hour (UTC 0-23)" %}
                             </label>
                             {{ structure_form.vulnerability_hour }}
-                            <div class="form-text text-muted small">{% translate "Enter base hour set (e.g. 18). Window will auto-compute ±3 hours." %}</div>
+                            <div class="form-text text-muted small">{% translate "Enter defender reinforcement hour (e.g. 14 or 02)." %}</div>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Vulnerability Window (Auto-filled ±3h)" %}</label>
+                            <label class="form-label text-muted small fw-bold text-uppercase">{% translate "Reinforcement Timer" %}</label>
                             {{ structure_form.vulnerability_window }}
                         </div>
 
@@ -777,15 +777,13 @@ document.addEventListener("DOMContentLoaded", function() {
         });
     }
 
-    // Vulnerability hour -> +-3 hour window auto computation
+    // Reinforcement hour -> single hour format (e.g. 14:00 UTC)
     function updateVulnerabilityWindow() {
         if (!vulnHourInput) return;
         const val = parseInt(vulnHourInput.value, 10);
         if (!isNaN(val) && val >= 0 && val <= 23) {
-            const startHour = (val - 3 + 24) % 24;
-            const endHour = (val + 3) % 24;
             const pad = n => String(n).padStart(2, '0');
-            vulnWindowInput.value = `${pad(startHour)}:00 - ${pad(endHour)}:00 UTC`;
+            vulnWindowInput.value = `${pad(val)}:00 UTC`;
         }
     }
 

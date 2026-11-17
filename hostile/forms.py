@@ -2,6 +2,9 @@
 Forms for intelligence submissions, smart paste ingestion, and entity moderation
 """
 
+# Standard Library
+import re
+
 # Third Party
 from eve_sde.models import ItemType, SolarSystem
 
@@ -689,15 +692,15 @@ class HostileStructureForm(forms.ModelForm):
             ),
             "vulnerability_window": forms.TextInput(
                 attrs={
-                    "class": "form-control",
-                    "placeholder": "e.g. 15:00 - 21:00 UTC (Auto-filled +-3h)",
+                    "class": "form-control font-mono",
+                    "placeholder": "e.g. 14:00 UTC or 1400",
                     "id": "id_vulnerability_window",
                 }
             ),
             "vulnerability_hour": forms.NumberInput(
                 attrs={
-                    "class": "form-control",
-                    "placeholder": "UTC Hour (0-23)",
+                    "class": "form-control font-mono",
+                    "placeholder": "UTC Hour (0-23, e.g. 14 or 02)",
                     "min": 0,
                     "max": 23,
                     "id": "id_vulnerability_hour",
@@ -797,17 +800,31 @@ class HostileStructureForm(forms.ModelForm):
             elif cleaned_data.get("corporation") and cleaned_data["corporation"].ticker:
                 cleaned_data["owner_ticker"] = cleaned_data["corporation"].ticker
 
-        # Vulnerability hour set with +- 3 hours auto filled in
+        # Reinforcement hour normalization to single hour format (e.g. 14:00 UTC)
         vulnerability_hour = cleaned_data.get("vulnerability_hour")
+        vulnerability_window = cleaned_data.get("vulnerability_window") or ""
         if vulnerability_hour is not None:
-            start_hour = (vulnerability_hour - 3) % 24
-            end_hour = (vulnerability_hour + 3) % 24
-            computed_window = f"{start_hour:02d}:00 - {end_hour:02d}:00 UTC"
-            if (
-                not cleaned_data.get("vulnerability_window")
-                or cleaned_data.get("vulnerability_window") == ""
-            ):
-                cleaned_data["vulnerability_window"] = computed_window
+            cleaned_data["vulnerability_window"] = f"{vulnerability_hour:02d}:00 UTC"
+        elif vulnerability_window:
+            val = vulnerability_window.strip()
+            four_m = re.match(r"^(\d{2})(\d{2})$", val)
+            hour_m = re.search(r"\b(\d{1,2})(?::\d{2})?\b", val)
+            if four_m:
+                try:
+                    h = int(four_m.group(1))
+                    if 0 <= h <= 23:
+                        cleaned_data["vulnerability_hour"] = h
+                        cleaned_data["vulnerability_window"] = f"{h:02d}:00 UTC"
+                except ValueError:
+                    pass
+            elif hour_m:
+                try:
+                    h = int(hour_m.group(1))
+                    if 0 <= h <= 23:
+                        cleaned_data["vulnerability_hour"] = h
+                        cleaned_data["vulnerability_window"] = f"{h:02d}:00 UTC"
+                except ValueError:
+                    pass
 
         # Anchoring status: core status will always be not in (UNFITTED)
         state = cleaned_data.get("state")
@@ -1510,12 +1527,28 @@ class StructureTimerForm(forms.ModelForm):
                 cleaned_data["core_status"] = "UNFITTED"
 
             vuln_hour = cleaned_data.get("vulnerability_hour")
-            if vuln_hour is not None and not cleaned_data.get("vulnerability_window"):
-                start_h = (vuln_hour - 3) % 24
-                end_h = (vuln_hour + 3) % 24
-                cleaned_data["vulnerability_window"] = (
-                    f"{start_h:02d}:00 - {end_h:02d}:00 UTC"
-                )
+            if vuln_hour is not None:
+                cleaned_data["vulnerability_window"] = f"{vuln_hour:02d}:00 UTC"
+            elif cleaned_data.get("vulnerability_window"):
+                val = cleaned_data["vulnerability_window"].strip()
+                four_m = re.match(r"^(\d{2})(\d{2})$", val)
+                hour_m = re.search(r"\b(\d{1,2})(?::\d{2})?\b", val)
+                if four_m:
+                    try:
+                        h = int(four_m.group(1))
+                        if 0 <= h <= 23:
+                            cleaned_data["vulnerability_hour"] = h
+                            cleaned_data["vulnerability_window"] = f"{h:02d}:00 UTC"
+                    except ValueError:
+                        pass
+                elif hour_m:
+                    try:
+                        h = int(hour_m.group(1))
+                        if 0 <= h <= 23:
+                            cleaned_data["vulnerability_hour"] = h
+                            cleaned_data["vulnerability_window"] = f"{h:02d}:00 UTC"
+                    except ValueError:
+                        pass
         else:
             if not solar_system:
                 self.add_error("solar_system", "Solar System is required.")
@@ -2190,17 +2223,18 @@ class ReinforcementCalculatorForm(forms.Form):
                 "id": "id_calculator_vuln_hour",
             }
         ),
-        help_text="Crowd-sourced or scanned defender vulnerability / reinforcement hour in UTC.",
+        help_text="Crowd-sourced or scanned defender reinforcement hour in UTC.",
     )
     vulnerability_window = forms.CharField(
         required=False,
         widget=forms.TextInput(
             attrs={
-                "class": "form-control",
-                "placeholder": "e.g. 18:00 - 22:00 UTC or 19:00 UTC",
+                "class": "form-control font-mono",
+                "placeholder": "e.g. 14:00 UTC or 1400 or 0200",
                 "id": "id_calculator_vuln_window",
             }
         ),
+        help_text="Reinforcement timer (e.g. 14:00 UTC, 1400, or 0200).",
     )
     save_to_timers = forms.BooleanField(
         required=False,
@@ -2235,6 +2269,31 @@ class ReinforcementCalculatorForm(forms.Form):
 
         structure_size = cleaned_data.get("structure_size")
         timer_stage = cleaned_data.get("timer_stage")
+
+        vuln_hour = cleaned_data.get("vulnerability_hour")
+        vuln_window = cleaned_data.get("vulnerability_window") or ""
+        if vuln_hour is not None:
+            cleaned_data["vulnerability_window"] = f"{vuln_hour:02d}:00 UTC"
+        elif vuln_window:
+            val = vuln_window.strip()
+            four_m = re.match(r"^(\d{2})(\d{2})$", val)
+            hour_m = re.search(r"\b(\d{1,2})(?::\d{2})?\b", val)
+            if four_m:
+                try:
+                    h = int(four_m.group(1))
+                    if 0 <= h <= 23:
+                        cleaned_data["vulnerability_hour"] = h
+                        cleaned_data["vulnerability_window"] = f"{h:02d}:00 UTC"
+                except ValueError:
+                    pass
+            elif hour_m:
+                try:
+                    h = int(hour_m.group(1))
+                    if 0 <= h <= 23:
+                        cleaned_data["vulnerability_hour"] = h
+                        cleaned_data["vulnerability_window"] = f"{h:02d}:00 UTC"
+                except ValueError:
+                    pass
 
         if (
             structure_size in (StructureCategory.MEDIUM, StructureCategory.POCO)

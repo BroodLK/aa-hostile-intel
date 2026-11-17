@@ -729,7 +729,7 @@ class TestReinforcementCalculator(TestCase):
         self.assertEqual(data["jitter_hours"], 1.0)
 
     def test_calculator_page_renders_exit_box_and_nudges(self):
-        """The page renders the dedicated exit details box, structure section, and +30m/+1h time buttons"""
+        """The page renders the dedicated exit details box, structure section, +30m/+1h time buttons, and ref timer input"""
         response = self.client.get(reverse("hostile:calculator"))
         self.assertEqual(response.status_code, 200)
         content = response.content.decode("utf-8")
@@ -746,3 +746,91 @@ class TestReinforcementCalculator(TestCase):
         self.assertIn("+1h", content)
         self.assertIn("-30m", content)
         self.assertIn("-1h", content)
+        self.assertIn('id="calcVulnInput"', content)
+        self.assertIn('id="calcVulnHoursList"', content)
+
+    def test_calculator_parses_ref_timer_formats(self):
+        """Calculator engine parses ref timer formats such as 0200, 1400, 14:00, and 02:00 UTC"""
+        rf = datetime(2026, 11, 17, 22, 2, tzinfo=dt_timezone.utc)
+
+        # Nullsec Medium Athanor (base delay 84h / 3.5 days -> 2026-11-21 10:02)
+        # With 0200 ref timer -> target hour 2 -> next is 2026-11-22 02:00 UTC ±1.5h
+        res_0200 = ReinforcementCalculator.calculate_exit_timer(
+            reinforced_at=rf,
+            structure_size=StructureCategory.MEDIUM,
+            location_type=LocationSecurity.NULLSEC_LOWSEC,
+            vulnerability_window="0200",
+        )
+        self.assertTrue(res_0200.is_applicable)
+        self.assertEqual(res_0200.vulnerability_hour, 2)
+        self.assertEqual(
+            res_0200.nominal_exit,
+            datetime(2026, 11, 22, 2, 0, tzinfo=dt_timezone.utc),
+        )
+
+        # With 1400 ref timer -> target hour 14 -> next is 2026-11-21 14:00 UTC ±1.5h
+        res_1400 = ReinforcementCalculator.calculate_exit_timer(
+            reinforced_at=rf,
+            structure_size=StructureCategory.MEDIUM,
+            location_type=LocationSecurity.NULLSEC_LOWSEC,
+            vulnerability_window="1400",
+        )
+        self.assertTrue(res_1400.is_applicable)
+        self.assertEqual(res_1400.vulnerability_hour, 14)
+        self.assertEqual(
+            res_1400.nominal_exit,
+            datetime(2026, 11, 21, 14, 0, tzinfo=dt_timezone.utc),
+        )
+
+        # With 10:00 UTC ref timer -> target hour 10 -> next is 2026-11-22 10:00 UTC ±1.5h
+        res_1000 = ReinforcementCalculator.calculate_exit_timer(
+            reinforced_at=rf,
+            structure_size=StructureCategory.MEDIUM,
+            location_type=LocationSecurity.NULLSEC_LOWSEC,
+            vulnerability_window="10:00 UTC",
+        )
+        self.assertTrue(res_1000.is_applicable)
+        self.assertEqual(res_1000.vulnerability_hour, 10)
+        self.assertEqual(
+            res_1000.nominal_exit,
+            datetime(2026, 11, 22, 10, 0, tzinfo=dt_timezone.utc),
+        )
+
+    def test_calculator_prefill_pulls_structure_documented_ref_timer(self):
+        """Passing ?structure_id= pulls the documented ref timer into initial calculator data"""
+        struct = HostileStructure.objects.create(
+            name="43-1TL - DECOY",
+            structure_type=self.type_astrahus,
+            solar_system=self.system_null,
+            alliance=self.alliance,
+            vulnerability_hour=10,
+            vulnerability_window="10:00 UTC",
+        )
+        response = self.client.get(
+            reverse("hostile:calculator") + f"?structure_id={struct.id}"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["structure_obj"], struct)
+        calc_state = response.context["calc_state"]
+        self.assertEqual(calc_state["structure_id"], struct.id)
+        self.assertEqual(calc_state["vuln_hour"], 10)
+        self.assertEqual(calc_state["vuln_window"], "10:00 UTC")
+
+    def test_api_timer_calculate_with_ref_timer_strings(self):
+        """api_timer_calculate correctly handles vulnerability_window with 0200 or 1400 strings"""
+        response = self.client.get(
+            reverse("hostile:api_timer_calculate"),
+            {
+                "structure_size": StructureCategory.MEDIUM,
+                "location_type": LocationSecurity.NULLSEC_LOWSEC,
+                "timer_stage": TimerStage.SHIELD_REINFORCE,
+                "power_state": PowerState.FULL_POWER,
+                "reinforced_at": "2026-11-17T22:02:00.000Z",
+                "vulnerability_window": "0200",
+            },
+        )
+        data = response.json()
+        self.assertTrue(data["success"])
+        self.assertTrue(data["is_applicable"])
+        self.assertEqual(data["vulnerability_hour"], 2)
+        self.assertIn("2026-11-22T02:00:00", data["nominal_exit"])

@@ -6,6 +6,7 @@ https://support.eveonline.com/hc/en-us/articles/208289385-Upwell-Structures-Vuln
 """
 
 # Standard Library
+import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from datetime import timezone as dt_timezone
@@ -457,7 +458,26 @@ class ReinforcementCalculator:
         min_target_time = reinforced_at + base_delay
 
         # 6. Target Hour and Candidate Exit Time Calculation
-        # If vulnerability hour is unknown, default to reinforced_at.hour or 0
+        if vulnerability_hour is None and vulnerability_window:
+            val = vulnerability_window.strip()
+            four_m = re.match(r"^(\d{2})(\d{2})$", val)
+            hour_m = re.search(r"\b(\d{1,2})(?::\d{2})?\b", val)
+            if four_m:
+                try:
+                    h = int(four_m.group(1))
+                    if 0 <= h <= 23:
+                        vulnerability_hour = h
+                except ValueError:
+                    pass
+            elif hour_m:
+                try:
+                    h = int(hour_m.group(1))
+                    if 0 <= h <= 23:
+                        vulnerability_hour = h
+                except ValueError:
+                    pass
+
+        # If vulnerability hour is unknown, default to min_target_time.hour
         target_hour = (
             vulnerability_hour
             if vulnerability_hour is not None
@@ -467,14 +487,9 @@ class ReinforcementCalculator:
 
         # Find the next candidate datetime on or after min_target_time with target_hour
         candidate_exit = min_target_time.replace(minute=0, second=0, microsecond=0)
+        candidate_exit = candidate_exit.replace(hour=target_hour)
         if candidate_exit < min_target_time:
-            candidate_exit = candidate_exit.replace(hour=target_hour)
-            if candidate_exit < min_target_time:
-                candidate_exit += timedelta(days=1)
-        else:
-            candidate_exit = candidate_exit.replace(hour=target_hour)
-            if candidate_exit < min_target_time:
-                candidate_exit += timedelta(days=1)
+            candidate_exit += timedelta(days=1)
 
         nominal_exit = candidate_exit
         earliest_exit = nominal_exit - jitter_delta

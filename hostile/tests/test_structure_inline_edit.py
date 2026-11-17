@@ -331,22 +331,22 @@ class StructureInlineEditTests(TestCase):
         data = response_hour.json()
         self.assertTrue(data["success"])
         self.assertEqual(data["vulnerability_hour"], 14)
-        self.assertEqual(data["vulnerability_window"], "11:00 - 17:00 UTC")
+        self.assertEqual(data["vulnerability_window"], "14:00 UTC")
 
         self.struct_1.refresh_from_db()
         self.assertEqual(self.struct_1.vulnerability_hour, 14)
-        self.assertEqual(self.struct_1.vulnerability_window, "11:00 - 17:00 UTC")
+        self.assertEqual(self.struct_1.vulnerability_window, "14:00 UTC")
 
-        # By window string
+        # By 4-digit string (e.g. 0200)
         response_window = self.client.post(
             url,
-            data=json.dumps({"field": "vulnerability", "value": "20:00 - 02:00 UTC"}),
+            data=json.dumps({"field": "vulnerability", "value": "0200"}),
             content_type="application/json",
         )
         self.assertEqual(response_window.status_code, 200)
         self.struct_1.refresh_from_db()
-        self.assertEqual(self.struct_1.vulnerability_window, "20:00 - 02:00 UTC")
-        self.assertEqual(self.struct_1.vulnerability_hour, 23)
+        self.assertEqual(self.struct_1.vulnerability_window, "02:00 UTC")
+        self.assertEqual(self.struct_1.vulnerability_hour, 2)
 
         # Clear vulnerability
         response_clear = self.client.post(

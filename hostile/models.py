@@ -618,12 +618,12 @@ class HostileStructure(models.Model):
     vulnerability_window = models.CharField(
         max_length=64,
         blank=True,
-        help_text="Crowd-sourced defense vulnerability / reinforcement window (e.g. 18:00 - 22:00 UTC or 19:00 UTC)",
+        help_text="Reinforcement hour representation (e.g. 14:00 UTC or 02:00 UTC)",
     )
     vulnerability_hour = models.PositiveSmallIntegerField(
         null=True,
         blank=True,
-        help_text="Crowd-sourced defense vulnerability hour in UTC (0-23)",
+        help_text="Crowd-sourced defense reinforcement hour in UTC (0-23)",
     )
     location_details = models.CharField(
         max_length=254, blank=True, help_text="Celestial / Planet / Moon location"
@@ -676,10 +676,27 @@ class HostileStructure(models.Model):
             self.name = normalize_structure_name(self.name)
         if self.state == "ANCHORING":
             self.core_status = "UNFITTED"
-        if self.vulnerability_hour is not None and not self.vulnerability_window:
-            start_hour = (self.vulnerability_hour - 3) % 24
-            end_hour = (self.vulnerability_hour + 3) % 24
-            self.vulnerability_window = f"{start_hour:02d}:00 - {end_hour:02d}:00 UTC"
+        if self.vulnerability_hour is not None:
+            self.vulnerability_window = f"{self.vulnerability_hour:02d}:00 UTC"
+        elif self.vulnerability_window:
+            four_m = re.match(r"^(\d{2})(\d{2})$", self.vulnerability_window.strip())
+            hour_m = re.search(r"\b(\d{1,2})(?::\d{2})?\b", self.vulnerability_window)
+            if four_m:
+                try:
+                    h = int(four_m.group(1))
+                    if 0 <= h <= 23:
+                        self.vulnerability_hour = h
+                        self.vulnerability_window = f"{h:02d}:00 UTC"
+                except ValueError:
+                    pass
+            elif hour_m:
+                try:
+                    h = int(hour_m.group(1))
+                    if 0 <= h <= 23:
+                        self.vulnerability_hour = h
+                        self.vulnerability_window = f"{h:02d}:00 UTC"
+                except ValueError:
+                    pass
         super().save(*args, **kwargs)
 
     @property

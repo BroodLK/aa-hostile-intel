@@ -230,17 +230,27 @@ class StructureShowInfoParser:
                 re.I,
             )
             if vuln_match:
-                vulnerability_window = vuln_match.group(1).strip()
-                hour_match = re.search(
-                    r"\b(\d{1,2})(?::(\d{2}))?\b", vulnerability_window
-                )
-                if hour_match:
+                raw_window = vuln_match.group(1).strip()
+                four_m = re.match(r"^(\d{2})(\d{2})$", raw_window)
+                hour_match = re.search(r"\b(\d{1,2})(?::(\d{2}))?\b", raw_window)
+                if four_m:
+                    try:
+                        h = int(four_m.group(1))
+                        if 0 <= h <= 23:
+                            vulnerability_hour = h
+                            vulnerability_window = f"{h:02d}:00 UTC"
+                    except ValueError:
+                        vulnerability_window = raw_window
+                elif hour_match:
                     try:
                         h = int(hour_match.group(1))
                         if 0 <= h <= 23:
                             vulnerability_hour = h
+                            vulnerability_window = f"{h:02d}:00 UTC"
                     except ValueError:
-                        pass
+                        vulnerability_window = raw_window
+                else:
+                    vulnerability_window = raw_window
                 continue
 
             # Key-value lines

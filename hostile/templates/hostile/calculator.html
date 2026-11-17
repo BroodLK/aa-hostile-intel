@@ -85,10 +85,21 @@
         <button type="button" data-shift="30">{% translate "+30m" %}</button>
         <button type="button" data-shift="60">{% translate "+1h" %}</button>
     </div>
-    <select id="calcVuln" class="form-select form-select-sm w-auto no-searchable font-mono" title="{% translate 'Defender vulnerability hour (UTC)' %}">
-        <option value="">{% translate "Vuln: unknown" %}</option>
+    <div class="input-group input-group-sm flex-nowrap" style="max-width: 250px;">
+        <span class="input-group-text bg-transparent sr-muted" title="{% translate 'Defender reinforcement timer (e.g. 0200, 1400, or 14:00 UTC)' %}">
+            <i class="fas fa-shield-alt me-1"></i>{% translate "Ref Timer" %}
+        </span>
+        <input type="text" id="calcVulnInput" class="form-control form-control-sm font-mono" placeholder="{% translate 'e.g. 0200, 14:00' %}" list="calcVulnHoursList" title="{% translate 'Defender reinforcement timer (e.g. 0200, 1400, or 14:00 UTC)' %}">
+        <datalist id="calcVulnHoursList">
+            {% for hour in vuln_hours %}
+            <option value="{{ hour|stringformat:'02d' }}:00">{{ hour|stringformat:"02d" }}:00 UTC</option>
+            {% endfor %}
+        </datalist>
+    </div>
+    <select id="calcVuln" class="form-select form-select-sm w-auto no-searchable font-mono d-none" title="{% translate 'Defender reinforcement hour (UTC)' %}">
+        <option value="">{% translate "Ref: unknown" %}</option>
         {% for hour in vuln_hours %}
-        <option value="{{ hour }}">{% translate "Vuln" %} {{ hour|stringformat:"02d" }}:00</option>
+        <option value="{{ hour }}">{% translate "Ref" %} {{ hour|stringformat:"02d" }}:00</option>
         {% endfor %}
     </select>
     <button type="button" class="btn btn-outline-secondary btn-sm" id="calcReset" title="{% translate 'Reset everything' %}">
@@ -327,16 +338,37 @@ document.addEventListener("DOMContentLoaded", function () {
         : `<i class="fas fa-building sr-muted text-center" style="width: 28px;"></i>`;
 
     // --- State ---
+    function parseVulnInput(val) {
+        if (!val || !val.trim()) return { vuln: "", vulnWindow: "" };
+        const clean = val.trim();
+        const four = clean.match(/^(\d{2})(\d{2})$/);
+        const match = four || clean.match(/\b(\d{1,2})(?::(\d{2}))?\b/);
+        if (match) {
+            const h = Number(match[1]);
+            if (h >= 0 && h <= 23) {
+                return { vuln: String(h), vulnWindow: `${pad(h)}:00 UTC` };
+            }
+        }
+        return { vuln: "", vulnWindow: clean };
+    }
+
     const byId = id => PICKER.find(p => p.id === id) || null;
     function initialState() {
+        let initVuln = INITIAL.vuln_hour === null || INITIAL.vuln_hour === undefined ? "" : String(INITIAL.vuln_hour);
+        let initWindow = INITIAL.vuln_window || "";
+        if (!initVuln && initWindow) {
+            const parsed = parseVulnInput(initWindow);
+            initVuln = parsed.vuln;
+            initWindow = parsed.vulnWindow;
+        }
         return {
             pick: byId(INITIAL.structure_id),
             size: INITIAL.size,
             space: INITIAL.space,
             stage: INITIAL.stage,
             power: INITIAL.power || "FULL_POWER",
-            vuln: INITIAL.vuln_hour === null || INITIAL.vuln_hour === undefined ? "" : String(INITIAL.vuln_hour),
-            vulnWindow: INITIAL.vuln_window || "",
+            vuln: initVuln,
+            vulnWindow: initWindow,
             rf: new Date(INITIAL.reinforced_at),
         };
     }
@@ -416,7 +448,12 @@ document.addEventListener("DOMContentLoaded", function () {
         document.querySelector('#calcStageCtl [data-stage="ARMOR"]').textContent = st.size === "POCO" ? I18N.single : I18N.armor;
 
         el("calcRf").value = st.rf.toISOString().slice(0, 16);
-        el("calcVuln").value = st.vuln;
+        if (el("calcVulnInput")) {
+            if (document.activeElement !== el("calcVulnInput")) {
+                el("calcVulnInput").value = st.vuln !== "" ? `${pad(st.vuln)}:00` : (st.vulnWindow || "");
+            }
+        }
+        if (el("calcVuln")) el("calcVuln").value = st.vuln;
         el("calcPickClear").classList.toggle("d-none", !st.pick);
         el("calcSummary").textContent = `${describe()} · ${I18N.allUtc}`;
         el("calcTarget").innerHTML = targetRow();
@@ -538,8 +575,19 @@ document.addEventListener("DOMContentLoaded", function () {
         st.space = s.space;
         st.power = s.power;
         st.stage = s.stage;
-        st.vuln = s.vuln_hour === null ? "" : String(s.vuln_hour);
-        st.vulnWindow = s.vuln_window || "";
+        let vHour = s.vuln_hour === null || s.vuln_hour === undefined ? "" : String(s.vuln_hour);
+        let vWin = s.vuln_window || "";
+        if (!vHour && vWin) {
+            const parsed = parseVulnInput(vWin);
+            vHour = parsed.vuln;
+            vWin = parsed.vulnWindow;
+        }
+        st.vuln = vHour;
+        st.vulnWindow = vWin;
+        if (el("calcVulnInput")) {
+            el("calcVulnInput").value = vHour !== "" ? `${pad(vHour)}:00` : (vWin || "");
+        }
+        if (el("calcVuln")) el("calcVuln").value = vHour;
         el("calcPickInput").value = s.name;
         closeMenu();
         recalc();
@@ -600,8 +648,39 @@ document.addEventListener("DOMContentLoaded", function () {
         st.rf = b.dataset.shift === "now" ? new Date() : new Date(st.rf.getTime() + Number(b.dataset.shift) * 60e3);
         recalc();
     });
-    el("calcVuln").addEventListener("change", () => { st.vuln = el("calcVuln").value; recalc(); });
-    el("calcReset").addEventListener("click", () => { st = { ...DEFAULTS, rf: new Date() }; unpick(); recalc(); });
+    if (el("calcVulnInput")) {
+        el("calcVulnInput").addEventListener("input", () => {
+            const parsed = parseVulnInput(el("calcVulnInput").value);
+            st.vuln = parsed.vuln;
+            st.vulnWindow = parsed.vulnWindow;
+            if (el("calcVuln")) el("calcVuln").value = st.vuln;
+            recalc();
+        });
+        el("calcVulnInput").addEventListener("change", () => {
+            const parsed = parseVulnInput(el("calcVulnInput").value);
+            st.vuln = parsed.vuln;
+            st.vulnWindow = parsed.vulnWindow;
+            if (el("calcVulnInput") && parsed.vuln !== "") {
+                el("calcVulnInput").value = `${pad(parsed.vuln)}:00`;
+            }
+            if (el("calcVuln")) el("calcVuln").value = st.vuln;
+            recalc();
+        });
+    }
+    if (el("calcVuln")) {
+        el("calcVuln").addEventListener("change", () => {
+            st.vuln = el("calcVuln").value;
+            st.vulnWindow = st.vuln !== "" ? `${pad(st.vuln)}:00 UTC` : "";
+            if (el("calcVulnInput")) el("calcVulnInput").value = st.vuln !== "" ? `${pad(st.vuln)}:00` : "";
+            recalc();
+        });
+    }
+    el("calcReset").addEventListener("click", () => {
+        st = { ...DEFAULTS, rf: new Date() };
+        if (el("calcVulnInput")) el("calcVulnInput").value = "";
+        unpick();
+        recalc();
+    });
     el("calcRules").querySelector(".grp-head").addEventListener("click", () => el("calcRules").classList.toggle("collapsed"));
 
     // --- Copy timer intel ---
