@@ -51,6 +51,18 @@ ______________________________________________________________________
 
     Saving updates the structure's state in the registry (Armor / Hull / Reinforced). Pasting a timer that already exists doesn't add it twice.
 
+- **🧮 Reinforcement Calculator**:
+
+  - Works out when a structure comes out of reinforce. It uses the same toolbar style as the Structures tab: structure size, low power / abandoned, space (Null/Low, High, WH, War HQ), armor or hull timer, the RF time (with Now / -30m / -1h) and the vulnerability hour.
+
+  - The answer updates as you change things: the exit time ± jitter, the exit window, the base delay and a countdown.
+
+  - Search for a registry structure to fill everything in from its type, system, state and vulnerability hour. A structure that's already armor-reinforced opens on its hull timer. The calculator action on a Structures row opens it the same way.
+
+  - A collapsible *Timer rules* table shows the base delay and jitter for every structure size and space. It comes from the calculator itself, so it always matches the answers.
+
+  - Copy the result as a broadcast ping, or use *Add Timer* to save it to the Timer Board with a solar system and notes.
+
 - **🎯 Local Threat Scanner & Drop Risk Engine**:
 
   - **Asynchronous Pilot Intelligence Streaming**: Non-blocking local chat paste ingestion that eliminates HTTP gateway timeouts by streaming pilot corporation, alliance, top flown ships, and loss data in the background.

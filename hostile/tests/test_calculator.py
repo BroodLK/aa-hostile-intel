@@ -665,11 +665,15 @@ class TestReinforcementCalculator(TestCase):
         self.assertTrue(large[PowerState.ABANDONED][armor])
         self.assertTrue(large[PowerState.ABANDONED][hull])
 
-        self.assertTrue(stage_map[StructureCategory.MEDIUM][PowerState.FULL_POWER][hull])
+        self.assertTrue(
+            stage_map[StructureCategory.MEDIUM][PowerState.FULL_POWER][hull]
+        )
         self.assertTrue(stage_map[StructureCategory.FLEX][PowerState.FULL_POWER][armor])
         # POCOs compute a hull timer in the engine, but only have the one timer
         self.assertTrue(stage_map[StructureCategory.POCO][PowerState.FULL_POWER][hull])
-        self.assertIsNone(stage_map[StructureCategory.POCO][PowerState.FULL_POWER][armor])
+        self.assertIsNone(
+            stage_map[StructureCategory.POCO][PowerState.FULL_POWER][armor]
+        )
 
     def test_calculator_add_timer_post_from_page_fields(self):
         """The page's hidden form fields (ISO RF time, system by name) save a timer"""

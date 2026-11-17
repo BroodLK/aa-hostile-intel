@@ -5,16 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
-## [Unreleased]
+## [0.0.30] - 2026-11-17
 
 ### Changed
 
 - **Reinforcement Calculator Redesign**: The calculator now uses the Structures tab's look.
+
   - **Toolbar:** structure search, size chips, low power / abandoned chips, Space and Timer toggles, and the RF time with Now / -30m / -1h.
   - **Live answer:** the exit time recalculates as you change things, with the window, base delay and countdown underneath.
   - **Structure search:** picking a registry structure fills in its size, space, vulnerability hour and power state. A structure that's already armor-reinforced opens on its hull timer.
   - **Timer rules:** a collapsible table, generated from the calculator itself, replaces the old reference text.
   - **Add Timer:** saving a timer now asks for the solar system and notes in a small dialog.
+
+- **Timer Calculation API**: The `api/calculate-timer/` response now also includes `reinforced_at`.
 
 - **Expired Timers Hidden After 24 Hours**: The Timer Board's *Past / Expired Timers* list now only shows timers that expired in the last 24 hours. The window is set with the new `HOSTILE_EXPIRED_TIMER_VISIBLE_HOURS` setting (`None` = never hide). Older timers are hidden, not deleted, and linked aa-structuretimers / Timerboard timers are not touched.
 
