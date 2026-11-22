@@ -3,6 +3,7 @@
     <h5 class="modal-title">
         <i class="fas fa-moon text-info me-2"></i>{{ row.name }}
         {% if row.rarity %}<span class="md-rarity r-{{ row.rarity }} ms-2">R{{ row.rarity }}</span>{% endif %}
+        {% if not row.scanned %}<span class="md-unscanned-pill ms-2" title="{% translate 'In the SDE but no moon survey uploaded yet' %}"><i class="fas fa-question-circle me-1"></i>{% translate "Not scanned" %}</span>{% endif %}
         {% if row.label %}<span class="badge bg-{{ row.label.style|default:'secondary' }} ms-1 small">{{ row.label.name }}</span>{% endif %}
     </h5>
     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>

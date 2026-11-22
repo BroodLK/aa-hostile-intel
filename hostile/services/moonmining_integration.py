@@ -2,6 +2,7 @@
 
 # Standard Library
 import re
+from types import SimpleNamespace
 from typing import Any
 
 # Django
@@ -530,6 +531,7 @@ def build_moon_data_payload(
         updated_at = getattr(moon, "products_updated_at", None)
         location = _moon_location(moon)
         value = moon.value
+        products = _moon_products(moon, ores, volume_per_month)
         row = {
             "id": moon.eve_moon_id,
             "name": moon.eve_moon.name,
@@ -547,7 +549,8 @@ def build_moon_data_payload(
                 if label
                 else None
             ),
-            "products": _moon_products(moon, ores, volume_per_month),
+            "products": products,
+            "scanned": bool(products),
             "updated_at": updated_at.isoformat() if updated_at else None,
             "structures": structure_rows,
             "refinery": refinery,
@@ -589,7 +592,9 @@ def moon_structures_queryset(system_ids: Any = None) -> list[Any]:
             Q(structure_type__group_id__in=[REFINERY_GROUP_ID, MOON_DRILL_GROUP_ID])
             | Q(structure_type__name__iregex=MOON_STRUCTURE_NAME_REGEX)
         )
-        .select_related("structure_type", "solar_system", "alliance", "corporation")
+        .select_related(
+            "structure_type", "solar_system__constellation", "alliance", "corporation"
+        )
     )
     if system_ids is not None:
         structures = structures.filter(solar_system_id__in=list(system_ids))
@@ -610,20 +615,169 @@ def load_moon_data_payload(moon_ids: Any = None) -> dict[str, Any] | None:
 
     moons = _moon_queryset()
     if moon_ids is None:
-        return build_moon_data_payload(
-            list(moons), moon_structures_queryset(), MOONMINING_VOLUME_PER_MONTH
+        moons = list(moons)
+        structures = moon_structures_queryset()
+        region_ids = set(
+            Moon.objects.values_list(
+                "eve_moon__eve_planet__eve_solar_system__eve_constellation__eve_region_id",
+                flat=True,
+            )
         )
+        region_ids |= {_structure_region_id(s) for s in structures}
+        region_ids.discard(None)
+        unscanned = sde_moons_in_regions(
+            region_ids, exclude_ids={m.eve_moon_id for m in moons}
+        )
+        return build_moon_data_payload(
+            moons + unscanned, structures, MOONMINING_VOLUME_PER_MONTH
+        )
+
+    # Details: the moon may be scanned (moonmining) or only known from the SDE.
+    moon_ids = [int(i) for i in moon_ids]
     system_ids = set(
-        Moon.objects.filter(pk__in=list(moon_ids)).values_list(
+        Moon.objects.filter(pk__in=moon_ids).values_list(
             "eve_moon__eve_planet__eve_solar_system_id", flat=True
         )
-    )
+    ) | _sde_system_ids(moon_ids)
+    system_ids.discard(None)
     if not system_ids:
         return build_moon_data_payload([], [], MOONMINING_VOLUME_PER_MONTH)
-    moons = moons.filter(eve_moon__eve_planet__eve_solar_system_id__in=system_ids)
+    moons = list(moons.filter(eve_moon__eve_planet__eve_solar_system_id__in=system_ids))
+    unscanned = sde_moons_in_systems(
+        system_ids, exclude_ids={m.eve_moon_id for m in moons}
+    )
     return build_moon_data_payload(
-        list(moons),
+        moons + unscanned,
         moon_structures_queryset(system_ids),
         MOONMINING_VOLUME_PER_MONTH,
         only_moon_ids=moon_ids,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Unscanned moons from the SDE
+# ---------------------------------------------------------------------------
+
+_SDE_MOON_FIELDS = (
+    "id",
+    "name",
+    "solar_system__id",
+    "solar_system__name",
+    "solar_system__security_status",
+    "solar_system__constellation__id",
+    "solar_system__constellation__name",
+    "solar_system__constellation__region__id",
+    "solar_system__constellation__region__name",
+)
+
+
+def _structure_region_id(structure: Any) -> int | None:
+    constellation = getattr(
+        getattr(structure, "solar_system", None), "constellation", None
+    )
+    return getattr(constellation, "region_id", None)
+
+
+def _sde_moon_adapter(sde_moon: Any) -> Any:
+    """Wrap an ``eve_sde`` Moon so it reads like an (unsurveyed) moonmining Moon.
+
+    Gives the same ``eve_moon`` -> planet -> system -> constellation -> region chain used by
+    matching and ``build_moon_data_payload``, with no products, value or rarity.
+    """
+    system = getattr(sde_moon, "solar_system", None)
+    constellation = getattr(system, "constellation", None)
+    region = getattr(constellation, "region", None)
+    name = sde_moon.name or ""
+    planet_name = name.split(" - ", 1)[0] if " - " in name else ""
+    eve_system = SimpleNamespace(
+        id=getattr(system, "id", None),
+        name=getattr(system, "name", "") or "",
+        security_status=getattr(system, "security_status", None),
+        eve_constellation=SimpleNamespace(
+            name=getattr(constellation, "name", "") or "",
+            eve_region=SimpleNamespace(name=getattr(region, "name", "") or ""),
+        ),
+    )
+    return SimpleNamespace(
+        eve_moon_id=sde_moon.id,
+        eve_moon=SimpleNamespace(
+            id=sde_moon.id,
+            name=name,
+            eve_planet=SimpleNamespace(name=planet_name, eve_solar_system=eve_system),
+        ),
+        value=None,
+        rarity_class=0,
+        products=_EmptyProducts(),
+        label=None,
+        products_updated_at=None,
+        refinery=None,
+    )
+
+
+class _EmptyProducts(list):
+    def all(self):
+        return self
+
+
+def _sde_moon_from_values(values: dict[str, Any]) -> Any:
+    """Rebuild the moon -> system -> constellation -> region chain from a values() row."""
+    region = SimpleNamespace(
+        id=values["solar_system__constellation__region__id"],
+        name=values["solar_system__constellation__region__name"],
+    )
+    constellation = SimpleNamespace(
+        id=values["solar_system__constellation__id"],
+        name=values["solar_system__constellation__name"],
+        region=region,
+    )
+    system = SimpleNamespace(
+        id=values["solar_system__id"],
+        name=values["solar_system__name"],
+        security_status=values["solar_system__security_status"],
+        constellation=constellation,
+    )
+    return SimpleNamespace(id=values["id"], name=values["name"], solar_system=system)
+
+
+def _sde_moons(exclude_ids: Any, **filters: Any) -> list[Any]:
+    # Third Party
+    from eve_sde.models import Moon as SdeMoon
+
+    # values() keeps tens of thousands of rows cheap and sidesteps the SDE manager's
+    # default select_related.
+    exclude = set(exclude_ids)
+    rows = SdeMoon.objects.filter(**filters).values(*_SDE_MOON_FIELDS)
+    return [
+        _sde_moon_adapter(_sde_moon_from_values(row))
+        for row in rows
+        if row["id"] not in exclude
+    ]
+
+
+def sde_moons_in_regions(region_ids: Any, exclude_ids: Any = ()) -> list[Any]:
+    """Adapters for every SDE moon in the given regions, minus ``exclude_ids`` (scanned)."""
+    region_ids = [r for r in region_ids if r is not None]
+    if not region_ids:
+        return []
+    return _sde_moons(
+        exclude_ids, solar_system__constellation__region_id__in=region_ids
+    )
+
+
+def sde_moons_in_systems(system_ids: Any, exclude_ids: Any = ()) -> list[Any]:
+    """Adapters for every SDE moon in the given systems, minus ``exclude_ids``."""
+    system_ids = [s for s in system_ids if s is not None]
+    if not system_ids:
+        return []
+    return _sde_moons(exclude_ids, solar_system_id__in=system_ids)
+
+
+def _sde_system_ids(moon_ids: Any) -> set[int]:
+    # Third Party
+    from eve_sde.models import Moon as SdeMoon
+
+    return set(
+        SdeMoon.objects.filter(pk__in=list(moon_ids)).values_list(
+            "solar_system_id", flat=True
+        )
     )

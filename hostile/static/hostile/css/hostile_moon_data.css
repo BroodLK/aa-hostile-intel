@@ -85,6 +85,69 @@
     background: currentcolor;
 }
 
+/* Moons in the SDE without an uploaded survey */
+.moon-data .md-unscanned,
+.moon-data .structure-name-text.md-unscanned,
+.md-modal .md-unscanned {
+    color: var(--md-unscanned, #f0883e);
+}
+
+.moon-data .sr-chip.md-unscanned.active {
+    border-color: #f0883e;
+}
+
+.moon-data .md-unscanned-pill,
+.md-modal .md-unscanned-pill {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 0 0.5rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #f0883e;
+    border: 1px solid rgba(240, 136, 62, 0.45);
+    background: rgba(240, 136, 62, 0.1);
+    white-space: nowrap;
+}
+
+/* Scan completion in group headers */
+.moon-data .md-completion {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    color: var(--c);
+}
+
+.moon-data .md-completion-bar {
+    display: inline-block;
+    width: 64px;
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+}
+
+.moon-data .md-completion-bar > span {
+    display: block;
+    height: 100%;
+    background: var(--c);
+}
+
+.moon-data .md-completion.c-low { --c: #f0883e; }
+.moon-data .md-completion.c-mid { --c: #e3b341; }
+.moon-data .md-completion.c-full { --c: #3fb950; }
+
+.moon-data .lvl-alliance .md-completion {
+    margin-left: 0.75rem;
+}
+
+.moon-data .md-kpi-drill {
+    color: var(--sr-isk);
+    font-weight: 600;
+}
+
 /* Row highlight after ?moon= jumps */
 .moon-data tr.moon-row.flash > td {
     animation: sr-flash 1.6s ease-out;

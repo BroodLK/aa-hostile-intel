@@ -15,6 +15,7 @@ from allianceauth.tests.auth_utils import AuthUtils
 # AA Hostile Intel
 from hostile.services.moonmining_integration import (
     DRILL_SHARE,
+    _sde_moon_adapter,
     build_moon_data_payload,
     is_moon_structure,
     is_refinery,
@@ -22,6 +23,8 @@ from hostile.services.moonmining_integration import (
     match_structures_to_moons,
     moon_match_data,
     product_monthly_value,
+    sde_moons_in_regions,
+    sde_moons_in_systems,
 )
 
 VOLUME_PER_MONTH = 30_000_000
@@ -306,6 +309,114 @@ class MoonDataPayloadTests(SimpleTestCase):
         )
 
 
+def _sde_moon(moon_id, system="BNX-AS", planet="VI", number=2, system_id=30000001):
+    region = SimpleNamespace(name="Fountain")
+    constellation = SimpleNamespace(name="Y-ZXZ5", region=region, region_id=10000058)
+    solar_system = SimpleNamespace(
+        id=system_id, name=system, security_status=-0.42, constellation=constellation
+    )
+    return SimpleNamespace(
+        id=moon_id,
+        name=f"{system} {planet} - Moon {number}",
+        solar_system=solar_system,
+    )
+
+
+class UnscannedMoonTests(SimpleTestCase):
+    def test_sde_moon_becomes_unscanned_row(self):
+        row = build_moon_data_payload(
+            [_sde_moon_adapter(_sde_moon(40009))], [], VOLUME_PER_MONTH
+        )["rows"][0]
+        self.assertFalse(row["scanned"])
+        self.assertIsNone(row["value"])
+        self.assertIsNone(row["drill_value"])
+        self.assertEqual(row["products"], [])
+        self.assertEqual(row["location"], "P6M2")
+        self.assertEqual(row["system"], "BNX-AS")
+        self.assertEqual(row["system_id"], 30000001)
+        self.assertEqual(row["constellation"], "Y-ZXZ5")
+        self.assertEqual(row["region"], "Fountain")
+        self.assertEqual(row["security"], -0.42)
+        self.assertEqual(row["status"], "unclaimed")
+
+    def test_structure_is_placed_on_unscanned_moon(self):
+        alliance = SimpleNamespace(ticker="EVIL", is_friendly=False)
+        drill = _structure(
+            1,
+            location_details="P6M2",
+            alliance_id=99,
+            alliance=alliance,
+            owner_name="Evil Alliance",
+        )
+        row = build_moon_data_payload(
+            [_sde_moon_adapter(_sde_moon(40009))], [drill], VOLUME_PER_MONTH
+        )["rows"][0]
+        self.assertFalse(row["scanned"])
+        self.assertEqual(row["structures"][0]["id"], 1)
+        self.assertEqual(row["status"], "hostile")
+        self.assertEqual(row["owner_ticker"], "EVIL")
+
+    def test_scanned_flag_follows_products(self):
+        ore = _ore(45510, "Xenotime", 1923, 2000.0)
+        rows = build_moon_data_payload(
+            [
+                _moon(40001, products=[SimpleNamespace(ore_type=ore, amount=1.0)]),
+                _moon(40002, number=3, value=None),  # moonmining moon, no survey
+            ],
+            [],
+            VOLUME_PER_MONTH,
+        )["rows"]
+        self.assertEqual([r["scanned"] for r in rows], [True, False])
+
+
+class SdeMoonLoaderTests(TestCase):
+    """``sde_moons_in_regions`` / ``sde_moons_in_systems`` against real eve_sde models."""
+
+    @classmethod
+    def setUpTestData(cls):
+        # Third Party
+        from eve_sde.models import Constellation, Moon, Region, SolarSystem
+
+        fountain = Region.objects.create(id=10000058, name="Fountain")
+        delve = Region.objects.create(id=10000060, name="Delve")
+        yz = Constellation.objects.create(id=20000001, name="Y-ZXZ5", region=fountain)
+        dc = Constellation.objects.create(id=20000002, name="0-EKCC", region=delve)
+        bnx = SolarSystem.objects.create(
+            id=30000001, name="BNX-AS", constellation=yz, security_status=-0.42
+        )
+        other = SolarSystem.objects.create(
+            id=30000002, name="9-VO0Q", constellation=yz, security_status=-0.3
+        )
+        dq = SolarSystem.objects.create(
+            id=30000003, name="1DQ1-A", constellation=dc, security_status=-0.4
+        )
+        Moon.objects.create(id=40000011, name="BNX-AS VI - Moon 2", solar_system=bnx)
+        Moon.objects.create(id=40000012, name="BNX-AS VI - Moon 3", solar_system=bnx)
+        Moon.objects.create(id=40000021, name="9-VO0Q I - Moon 1", solar_system=other)
+        Moon.objects.create(id=40000031, name="1DQ1-A I - Moon 1", solar_system=dq)
+
+    def test_region_filter_and_exclusion(self):
+        moons = sde_moons_in_regions([10000058], exclude_ids={40000011})
+        self.assertEqual(sorted(m.eve_moon_id for m in moons), [40000012, 40000021])
+        self.assertEqual(sde_moons_in_regions([]), [])
+
+    def test_system_filter(self):
+        moons = sde_moons_in_systems([30000001])
+        self.assertEqual(sorted(m.eve_moon_id for m in moons), [40000011, 40000012])
+
+    def test_adapter_fields(self):
+        moon = next(
+            m for m in sde_moons_in_systems([30000001]) if m.eve_moon_id == 40000012
+        )
+        row = build_moon_data_payload([moon], [], VOLUME_PER_MONTH)["rows"][0]
+        self.assertEqual(row["name"], "BNX-AS VI - Moon 3")
+        self.assertEqual(row["location"], "P6M3")
+        self.assertEqual(row["region"], "Fountain")
+        self.assertEqual(row["constellation"], "Y-ZXZ5")
+        self.assertEqual(row["security"], -0.42)
+        self.assertFalse(row["scanned"])
+
+
 class MoonDataViewTests(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -346,6 +457,7 @@ class MoonDataViewTests(TestCase):
                     "drill_value": 2_000_000_000.0,
                     "label": None,
                     "products": [[45510, 1.0, 5_000_000_000.0]],
+                    "scanned": True,
                     "updated_at": "2026-11-01T12:00:00+00:00",
                     "structures": [],
                     "refinery": None,
@@ -440,6 +552,30 @@ class MoonDataViewTests(TestCase):
         self.assertContains(response, "Xenotime")
         self.assertContains(response, "5.0b")
         self.assertContains(response, "Add structure on this moon")
+
+    def test_detail_modal_for_unscanned_moon(self):
+        self.client.force_login(self.user_basic)
+        payload = self._payload()
+        payload["rows"][0].update(
+            {
+                "products": [],
+                "scanned": False,
+                "value": None,
+                "drill_value": None,
+                "rarity": 0,
+                "updated_at": None,
+            }
+        )
+        with patch(
+            "hostile.services.moonmining_integration.load_moon_data_payload",
+            return_value=payload,
+        ):
+            response = self.client.get(
+                reverse("hostile:moon_data_detail", args=[40001])
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Not scanned")
+        self.assertContains(response, "There is no survey for this moon yet.")
 
     def test_detail_unknown_moon_is_404(self):
         self.client.force_login(self.user_basic)

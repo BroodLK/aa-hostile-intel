@@ -38,8 +38,8 @@
 <div class="row g-2 mb-3 md-kpis" id="moonKpis">
     <div class="col-6 col-md-4 col-xl-2">
         <div class="hostile-stat-card h-100">
-            <div class="hostile-stat-icon text-info"><i class="fas fa-moon"></i></div>
-            <div><div class="hostile-stat-value text-info" data-kpi="moons">—</div><div class="hostile-stat-label">{% translate "Surveyed moons" %}</div></div>
+            <div class="hostile-stat-icon text-info"><i class="fas fa-satellite"></i></div>
+            <div><div class="hostile-stat-value text-info" data-kpi="completion">—</div><div class="hostile-stat-label">{% translate "Scanned" %} <span data-kpi="scanned">—</span></div></div>
         </div>
     </div>
     <div class="col-6 col-md-4 col-xl-2">
@@ -57,13 +57,13 @@
     <div class="col-6 col-md-4 col-xl-2">
         <div class="hostile-stat-card h-100">
             <div class="hostile-stat-icon text-info"><i class="fas fa-coins"></i></div>
-            <div><div class="hostile-stat-value text-info" data-kpi="value">—</div><div class="hostile-stat-label">{% translate "Total value / month" %}</div></div>
+            <div><div class="hostile-stat-value text-info" data-kpi="value">—</div><div class="hostile-stat-label">{% translate "Total / month" %} · {% translate "Drill" %} <span class="md-kpi-drill" data-kpi="value-drill">—</span></div></div>
         </div>
     </div>
     <div class="col-6 col-md-4 col-xl-2">
         <div class="hostile-stat-card h-100">
             <div class="hostile-stat-icon text-danger"><i class="fas fa-skull-crossbones"></i></div>
-            <div><div class="hostile-stat-value text-danger" data-kpi="hostile">—</div><div class="hostile-stat-label">{% translate "Hostile-held / month" %}</div></div>
+            <div><div class="hostile-stat-value text-danger" data-kpi="hostile">—</div><div class="hostile-stat-label">{% translate "Hostile-held / month" %} · {% translate "Drill" %} <span class="md-kpi-drill" data-kpi="hostile-drill">—</span></div></div>
         </div>
     </div>
     <div class="col-6 col-md-4 col-xl-2">
@@ -90,6 +90,11 @@
         <span class="sr-chip" data-rarity="16"><span class="dot rarity r-16"></span>R16</span>
         <span class="sr-chip" data-rarity="8"><span class="dot rarity r-8"></span>R8</span>
         <span class="sr-chip" data-rarity="4"><span class="dot rarity r-4"></span>R4</span>
+    </div>
+    <div class="d-flex gap-1 flex-wrap" id="moonScanChips">
+        <span class="sr-chip active" data-scan="">{% translate "Any scan" %}</span>
+        <span class="sr-chip" data-scan="scanned"><i class="fas fa-satellite me-1"></i>{% translate "Scanned" %}</span>
+        <span class="sr-chip md-unscanned" data-scan="unscanned"><i class="fas fa-question-circle me-1"></i>{% translate "Not scanned" %}</span>
     </div>
     <div class="d-flex gap-1 flex-wrap" id="moonStatusChips">
         <span class="sr-chip active" data-status="">{% translate "Any owner" %}</span>
@@ -238,6 +243,10 @@ document.addEventListener("DOMContentLoaded", function() {
         unclaimed: "{{ _('Unclaimed')|escapejs }}",
         unknownRegion: "{{ _('Unknown Region')|escapejs }}",
         noSurvey: "{{ _('No survey')|escapejs }}",
+        notScanned: "{{ _('Not scanned')|escapejs }}",
+        notScannedHint: "{{ _('In the SDE but no moon survey uploaded yet')|escapejs }}",
+        scanned: "{{ _('scanned')|escapejs }}",
+        scanCompletion: "{{ _('Moon survey completion')|escapejs }}",
         noMoons: "{{ _('No moons surveyed yet. Upload a moon survey to get started.')|escapejs }}",
         loadFailed: "{{ _('Moon data could not be loaded.')|escapejs }}",
         moonmining: "{{ _('moonmining refinery (ESI)')|escapejs }}",
@@ -261,6 +270,7 @@ document.addEventListener("DOMContentLoaded", function() {
     const clearSearchBtn = document.getElementById("clearMoonSearchBtn");
     const rarityChips = document.getElementById("moonRarityChips");
     const statusChips = document.getElementById("moonStatusChips");
+    const scanChips = document.getElementById("moonScanChips");
     const structureFilter = document.getElementById("moonStructureFilter");
     const regionFilter = document.getElementById("moonRegionFilter");
     const oreFilter = document.getElementById("moonOreFilter");
@@ -282,6 +292,8 @@ document.addEventListener("DOMContentLoaded", function() {
     let overrides = {};
     let activeRarity = "";
     let activeStatus = "";
+    let activeScan = "";      // "", "scanned", "unscanned"
+    let COMPLETION = new Map(); // geo key (r:/c:/s:) -> {scanned, total}, over all rows
     let ownerFilter = "";     // ?owner=<key> deep link
     let sortColumn = "value";
     let sortDir = "desc";
@@ -355,6 +367,36 @@ document.addEventListener("DOMContentLoaded", function() {
         return rows.reduce((sum, r) => sum + (r.value || 0), 0);
     }
 
+    function drillTotal(rows) {
+        return rows.reduce((sum, r) => sum + (r.drill_value || 0), 0);
+    }
+
+    // Completion counts every moon in the area (not just the filtered ones) so it stays stable.
+    function buildCompletion(rows) {
+        COMPLETION = new Map();
+        const bump = (key, scanned) => {
+            const c = COMPLETION.get(key) || {scanned: 0, total: 0};
+            c.total += 1;
+            if (scanned) c.scanned += 1;
+            COMPLETION.set(key, c);
+        };
+        rows.forEach(r => {
+            bump(`r:${r._region}`, r.scanned);
+            bump(`c:${r._region}|${r.constellation || "—"}`, r.scanned);
+            bump(`s:${r.system}`, r.scanned);
+        });
+    }
+
+    function completionHtml(key) {
+        const c = COMPLETION.get(key);
+        if (!c || !c.total) return "";
+        const pct = Math.floor((c.scanned / c.total) * 100);
+        const cls = c.scanned === c.total ? "c-full" : (pct >= 50 ? "c-mid" : "c-low");
+        return `<span class="md-completion ${cls}" title="${I18N.scanCompletion}: ${c.scanned} / ${c.total}">
+            <span class="md-completion-bar"><span style="width:${pct}%"></span></span>
+            <b>${pct}%</b> ${I18N.scanned} <span class="sr-muted">(${c.scanned}/${c.total})</span></span>`;
+    }
+
     // ---------- data ----------
     function prepare(payload) {
         ORES = payload.ores || {};
@@ -370,6 +412,7 @@ document.addEventListener("DOMContentLoaded", function() {
             return r;
         });
         ROW_BY_ID = new Map(ROWS.map(r => [r.id, r]));
+        buildCompletion(ROWS);
 
         OWNER_INFO = {};
         groupBy(ROWS, r => r.owner_key)
@@ -403,6 +446,8 @@ document.addEventListener("DOMContentLoaded", function() {
     function rowMatches(r, terms, minValue, ore) {
         if (!terms.every(t => r._search.includes(t))) return false;
         if (activeRarity && String(r.rarity) !== activeRarity) return false;
+        if (activeScan === "scanned" && !r.scanned) return false;
+        if (activeScan === "unscanned" && r.scanned) return false;
         if (activeStatus === "structure" && !r.structures.length) return false;
         if (activeStatus && activeStatus !== "structure" && r.status !== activeStatus) return false;
         if (ownerFilter && r.owner_key !== ownerFilter) return false;
@@ -422,7 +467,12 @@ document.addEventListener("DOMContentLoaded", function() {
             case "structure": return text(a.structures[0] ? a.structures[0].type : "", b.structures[0] ? b.structures[0].type : "");
             case "owner": return text(a.owner_name, b.owner_name);
             case "updated": return ((a.updated_at ? Date.parse(a.updated_at) : 0) - (b.updated_at ? Date.parse(b.updated_at) : 0)) * dir;
-            case "value": return ((a.value || 0) - (b.value || 0)) * dir;
+            case "value": {
+                const av = a.value === null || a.value === undefined;
+                const bv = b.value === null || b.value === undefined;
+                if (av || bv) return av === bv ? 0 : (av ? 1 : -1);
+                return (a.value - b.value) * dir;
+            }
             default: return a._order - b._order;
         }
     }
@@ -462,7 +512,7 @@ document.addEventListener("DOMContentLoaded", function() {
         return `<span class="meta">
             <span><b>${rows.length}</b> ${rows.length === 1 ? I18N.moon : I18N.moons}</span>
             ${extra || ""}
-            <span><i class="fas fa-coins me-1"></i><b class="sr-isk">${formatIsk(total(rows))}</b> ${I18N.iskPerMonth}</span>
+            <span title="${I18N.drillPotential}"><i class="fas fa-coins me-1"></i><b class="sr-isk">${formatIsk(total(rows))}</b> / ${I18N.drill} <b class="sr-isk">${formatIsk(drillTotal(rows))}</b> ${I18N.iskPerMonth}</span>
             ${withStructure ? `<span><i class="fas fa-monument me-1"></i>${withStructure} ${I18N.withStructure}</span>` : ""}
             ${rarityMix(rows)}
         </span>`;
@@ -481,19 +531,21 @@ document.addEventListener("DOMContentLoaded", function() {
         if (level === 0) {
             return `<div>
                 <span class="a-name"><i class="fas fa-map me-2 sr-muted"></i>${escapeHtml(key)}</span>
+                ${completionHtml(`r:${key}`)}
                 <div class="mt-1">${metaHtml(rows, `<span>${plural(new Set(rows.map(r => r.system)).size, I18N.system, I18N.systems)}</span>`)}</div>
             </div>${ownerMix(rows)}`;
         }
         if (level === 1) {
             const label = path[1];
+            const completionKey = mode === "owner" ? `r:${path[1]}` : `c:${path[0]}|${path[1]}`;
             return `<span class="r-name"><i class="fas ${mode === "owner" ? "fa-map" : "fa-project-diagram"} me-2"></i>${escapeHtml(label)}</span>
-                ${metaHtml(rows, "")}${ownerMix(rows)}`;
+                ${completionHtml(completionKey)}${metaHtml(rows, "")}${ownerMix(rows)}`;
         }
         const first = rows[0];
         const sec = first.security;
         return `<span class="sys-name">${escapeHtml(path[2])}</span>
             ${sec !== null && sec !== undefined ? `<span class="sec ${secClass(sec)}">${sec.toFixed(1)}</span>` : ""}
-            ${metaHtml(rows, "")}${ownerMix(rows)}`;
+            ${completionHtml(`s:${path[2]}`)}${metaHtml(rows, "")}${ownerMix(rows)}`;
     }
 
     function buildChildren(level, key, rows) {
@@ -524,7 +576,7 @@ document.addEventListener("DOMContentLoaded", function() {
     }
 
     function compositionHtml(r) {
-        if (!r.products.length) return `<span class="sr-muted small">${I18N.noSurvey}</span>`;
+        if (!r.scanned) return `<span class="md-unscanned-pill" title="${I18N.notScannedHint}"><i class="fas fa-question-circle me-1"></i>${I18N.notScanned}</span>`;
         return `<div class="md-comp">${r.products.slice(0, 4).map(([oreId, amount, isk]) => {
             const ore = ORES[oreId] || {name: "?", rarity: 0, icon: ""};
             return `<span class="md-ore r-${ore.rarity}" title="${escapeHtml(ore.name)}: ${(amount * 100).toFixed(1)}% · ${formatIsk(isk)} ${I18N.iskPerMonth}">
@@ -560,8 +612,9 @@ document.addEventListener("DOMContentLoaded", function() {
     function valueHtml(r) {
         if (r.value === null || r.value === undefined) return `<span class="sr-muted">—</span>`;
         const hourly = r.drill_value !== null ? r.drill_value / 720 : null;
+        const hourlyText = hourly !== null ? ` · ${formatIsk(hourly)}${I18N.perHour}` : "";
         return `<span class="sr-isk">${formatIsk(r.value)}</span>
-            <div class="sr-sub" title="${I18N.drillPotential}">${I18N.drill} ${formatIsk(r.drill_value)}${hourly !== null ? ` (${formatIsk(hourly)}${I18N.perHour})` : ""}</div>`;
+            <div class="sr-sub" title="${I18N.drillPotential}${hourlyText}">${I18N.drill} <span class="sr-isk">${formatIsk(r.drill_value)}</span></div>`;
     }
 
     function addHereUrl(r) {
@@ -579,8 +632,9 @@ document.addEventListener("DOMContentLoaded", function() {
             s ? `<a class="sr-act warn" href="${URLS.calculator}?structure_id=${s.id}" title="${I18N.calculator}" data-hostile-loading="{{ _('Loading Timer Calculator')|escapejs }}"><i class="fas fa-calculator"></i></a>` : "",
             !s ? `<a class="sr-act ok" href="${escapeHtml(addHereUrl(r))}" title="${I18N.addHere}"><i class="fas fa-plus"></i></a>` : "",
         ].join("");
-        return `<tr class="structure-row moon-row" data-moon-id="${r.id}">
-            <td class="sr-col-name"><div class="structure-name-text text-truncate" title="${escapeHtml(r.name)}">${escapeHtml(r.name)}${label}</div>
+        const nameTitle = r.scanned ? escapeHtml(r.name) : `${escapeHtml(r.name)} · ${I18N.notScanned}`;
+        return `<tr class="structure-row moon-row${r.scanned ? "" : " unscanned"}" data-moon-id="${r.id}">
+            <td class="sr-col-name"><div class="structure-name-text text-truncate${r.scanned ? "" : " md-unscanned"}" title="${nameTitle}">${escapeHtml(r.name)}${label}</div>
                 <div class="sr-sub">${escapeHtml(r.location)}${r.location ? " · " : ""}${escapeHtml(r.constellation)}</div></td>
             <td>${r.rarity ? `<span class="md-rarity r-${r.rarity}">R${r.rarity}</span>` : `<span class="sr-muted">—</span>`}</td>
             <td>${compositionHtml(r)}</td>
@@ -594,11 +648,16 @@ document.addEventListener("DOMContentLoaded", function() {
 
     function updateKpis(rows) {
         const set = (k, v) => { const el = document.querySelector(`[data-kpi="${k}"]`); if (el) el.textContent = v; };
-        set("moons", rows.length.toLocaleString());
+        const scannedCount = rows.filter(r => r.scanned).length;
+        set("completion", rows.length ? `${Math.floor((scannedCount / rows.length) * 100)}%` : "—");
+        set("scanned", `${scannedCount.toLocaleString()} / ${rows.length.toLocaleString()}`);
         set("r64", rows.filter(r => r.rarity === 64).length.toLocaleString());
         set("r32", rows.filter(r => r.rarity === 32).length.toLocaleString());
+        const hostileRows = rows.filter(r => r.status === "hostile");
         set("value", formatIsk(total(rows)));
-        set("hostile", formatIsk(total(rows.filter(r => r.status === "hostile"))));
+        set("value-drill", formatIsk(drillTotal(rows)));
+        set("hostile", formatIsk(total(hostileRows)));
+        set("hostile-drill", formatIsk(drillTotal(hostileRows)));
         set("unclaimed", rows.filter(r => r.status === "unclaimed" && r.rarity >= 32).length.toLocaleString());
     }
 
@@ -631,8 +690,10 @@ document.addEventListener("DOMContentLoaded", function() {
             const systems = new Set(visibleRows.map(r => r.system)).size;
             const regions = new Set(visibleRows.map(r => r._region)).size;
             const owned = new Set(visibleRows.filter(r => r.status !== "unclaimed").map(r => r.owner_key)).size;
+            const unscannedCount = visibleRows.filter(r => !r.scanned).length;
             summaryEl.innerHTML = `<span id="moonVisibleCount">${visibleRows.length}</span> ${I18N.of} ${plural(ROWS.length, I18N.moon, I18N.moons)}
-                · ${plural(regions, I18N.region, I18N.regions)} · ${plural(systems, I18N.system, I18N.systems)} · ${plural(owned, I18N.owner, I18N.owners)}`;
+                · ${plural(regions, I18N.region, I18N.regions)} · ${plural(systems, I18N.system, I18N.systems)} · ${plural(owned, I18N.owner, I18N.owners)}
+                ${unscannedCount ? `· <span class="md-unscanned">${unscannedCount} ${I18N.notScanned.toLowerCase()}</span>` : ""}`;
         }
     }
 
@@ -671,7 +732,9 @@ document.addEventListener("DOMContentLoaded", function() {
         if (typeof oreFilter.syncSearchableSelect === "function") oreFilter.syncSearchableSelect();
         activeRarity = "";
         activeStatus = "";
+        activeScan = "";
         ownerFilter = "";
+        scanChips.querySelectorAll(".sr-chip").forEach(c => c.classList.toggle("active", c.dataset.scan === ""));
         rarityChips.querySelectorAll(".sr-chip").forEach(c => c.classList.toggle("active", c.dataset.rarity === ""));
         statusChips.querySelectorAll(".sr-chip").forEach(c => c.classList.toggle("active", c.dataset.status === ""));
         if (rerender) render();
@@ -734,6 +797,13 @@ document.addEventListener("DOMContentLoaded", function() {
         if (!chip) return;
         activeRarity = chip.dataset.rarity;
         rarityChips.querySelectorAll(".sr-chip").forEach(c => c.classList.toggle("active", c === chip));
+        render();
+    });
+    scanChips.addEventListener("click", function(e) {
+        const chip = e.target.closest(".sr-chip");
+        if (!chip) return;
+        activeScan = chip.dataset.scan;
+        scanChips.querySelectorAll(".sr-chip").forEach(c => c.classList.toggle("active", c === chip));
         render();
     });
     statusChips.addEventListener("click", function(e) {

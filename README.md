@@ -53,7 +53,8 @@ ______________________________________________________________________
 
 - **🌙 Moon Data** (needs [aa-moonmining](https://gitlab.com/ErikKalkoken/aa-moonmining)):
 
-  - Lists every surveyed moon: what it produces (ore shares and ISK per month for each ore), rarity, and aa-moonmining's monthly value with the Metenox drill share (40%).
+  - Lists every surveyed moon: what it produces (ore shares and ISK per month for each ore), rarity, and aa-moonmining's monthly value with the Metenox drill share (40%). Every value, including group totals and the KPI cards, shows both the full moon value and the drill value.
+  - Moons that haven't been scanned are added from the SDE for every region that has at least one scan or one known drill or refinery. They're shown in orange as *Not scanned*. Each region, constellation and system shows how much of it has been scanned (e.g. `62% scanned (412/660)`), and a chip filters the list to scanned or unscanned moons.
   - Shows the drill or refinery (Athanor / Tatara) on each moon and who owns it, taken from the structure registry. For your own corporations it can also come from aa-moonmining's refinery data. Moons with nothing on them are marked *Unclaimed*.
   - Uses the Structures tab's layout. You can group by Region › Constellation › System or by owner, filter by rarity, owner status, structure type, region, ore or minimum value, and a KPI strip shows totals for the moons currently shown.
   - The details window shows the full product table and lets you link a registry structure to the moon. *Add structure on this moon* opens the Add Structure form with the system and moon filled in. Moon surveys can be uploaded from the tab.

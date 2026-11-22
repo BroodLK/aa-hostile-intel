@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **Unscanned Moons from the SDE**: Moon Data now lists every moon in the SDE for each region that has at least one moon scan or one known drill or refinery. Moons without a survey are shown in orange as *Not scanned*. A structure in the registry is still shown on its moon, with its owner, even if the moon hasn't been scanned.
+- **Scan Completion**: Region, constellation and system groups show how much of the area has been scanned, with a progress bar and `scanned / total` counts. The first KPI card shows completion for the moons currently listed, and a new chip filters to scanned or unscanned moons.
+
+### Changed
+
+- **Full and Drill Values Everywhere**: Group totals and the *Total* and *Hostile-held* KPI cards now show the Metenox drill value next to the full moon value, like the rows do.
+
 ## [0.0.33] - 2026-11-22
 
 ### Added
