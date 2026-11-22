@@ -329,9 +329,11 @@ document.addEventListener("DOMContentLoaded", function() {
         if (value === null || value === undefined || isNaN(value)) return "—";
         const trim = s => s.replace(/\.0$/, "");
         const abs = Math.abs(value);
-        if (abs >= 1e9) return trim((value / 1e9).toFixed(1)) + "b";
-        if (abs >= 1e6) return trim((value / 1e6).toFixed(1)) + "m";
-        if (abs >= 1e3) return trim((value / 1e3).toFixed(1)) + "k";
+        // Thresholds sit just under each unit so e.g. 999.96b shows as 1t, not 1000b.
+        if (abs >= 999.95e9) return trim((value / 1e12).toFixed(1)) + "t";
+        if (abs >= 999.95e6) return trim((value / 1e9).toFixed(1)) + "b";
+        if (abs >= 999.95e3) return trim((value / 1e6).toFixed(1)) + "m";
+        if (abs >= 999.5) return trim((value / 1e3).toFixed(1)) + "k";
         return value.toFixed(0);
     }
 

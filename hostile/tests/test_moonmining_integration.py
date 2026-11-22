@@ -22,6 +22,17 @@ class MoonminingIntegrationTests(SimpleTestCase):
         self.assertEqual(format_isk(4_176_332_870), "4.2b")
         self.assertEqual(format_isk(1_670_533_148 * 0.001), "1.7m")
 
+    def test_isk_trillions_and_unit_boundaries(self):
+        self.assertEqual(format_isk(1_234_500_000_000), "1.2t")
+        self.assertEqual(format_isk(-2_500_000_000_000), "-2.5t")
+        # values that would round to "1000.0" of a unit move up to the next unit
+        self.assertEqual(format_isk(999_960_000_000), "1.0t")
+        self.assertEqual(format_isk(999_960_000), "1.0b")
+        self.assertEqual(format_isk(999_960), "1.0m")
+        self.assertEqual(format_isk(999.6), "1.0k")
+        self.assertEqual(format_isk(999_900_000_000), "999.9b")
+        self.assertEqual(format_isk(999), "999")
+
     def test_location_parser_accepts_compact_and_spaced_formats(self):
         self.assertEqual(_location("Planet 8 Moon 1 / P8M1"), (8, 1))
         self.assertEqual(_location("P 1 M 2"), (1, 2))

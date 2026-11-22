@@ -62,11 +62,14 @@ def format_isk(value: float | int | None) -> str:
     if value is None:
         return "—"
     value = float(value)
-    if abs(value) >= 1_000_000_000:
+    # Thresholds sit just under each unit so e.g. 999.96b shows as 1.0t, not 1000.0b.
+    if abs(value) >= 999_950_000_000:
+        return f"{value / 1_000_000_000_000:.1f}t".rstrip("0").rstrip(".")
+    if abs(value) >= 999_950_000:
         return f"{value / 1_000_000_000:.1f}b".rstrip("0").rstrip(".")
-    if abs(value) >= 1_000_000:
+    if abs(value) >= 999_950:
         return f"{value / 1_000_000:.1f}m".rstrip("0").rstrip(".")
-    if abs(value) >= 1_000:
+    if abs(value) >= 999.5:
         return f"{value / 1_000:.1f}k".rstrip("0").rstrip(".")
     return f"{value:.0f}"
 

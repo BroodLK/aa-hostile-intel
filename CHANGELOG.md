@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 ### Changed
 
 - **Drill Value from aa-metenox (Moon Data)**: When aa-metenox is installed, the Moon Data drill value is aa-metenox's own calculation (30,000 m³/h reprocessed at 40%, moon goo at Jita buy) for every moon it has. Other moons keep the 40%-of-moon-value estimate, marked as an estimate. The Structures tab is unchanged.
+- **Trillion ISK Values**: Values of 1,000b or more are now shown in trillions (e.g. `1.2t`). Values just under a unit boundary round up to the next unit (`1b` rather than `1000.0m`).
 
 ## [0.0.34] - 2026-11-22
 
