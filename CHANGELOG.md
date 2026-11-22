@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
-## [Unreleased]
+## [0.0.33] - 2026-11-22
 
 ### Added
 
@@ -19,6 +19,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 ### Changed
 
 - **Refineries Matched to Moons**: Athanors and Tataras are now matched to aa-moonmining moons like Metenox drills. On the Structures tab they show the moon value (no drill value) and can be linked to a moon scan.
+- **Moon Data Structure Query**: Moon structures are now looked up by structure type instead of a long list of solar systems, which helps on large installs.
+
+### Fixed
+
+- **Moon Location Parsing**: Planet numbers are now read from the end of the planet name. Moons in systems whose names start with Roman-looking letters (`I-`, `V-`, `X-`) and on planets above X now match the right structures. This also improves moon matching on the Structures tab.
+- **Moon Details Placement**: The moon details window no longer shows a structure that was manually linked to a different moon in the same system.
+- **Moon Label Colours**: aa-moonmining labels now use valid Bootstrap 5 colours, so grey labels are no longer invisible.
+- **Filters Kept After Linking**: Linking a structure from the moon details window no longer clears the region and ore filters.
 
 ## [0.0.32] - 2026-11-17
 
