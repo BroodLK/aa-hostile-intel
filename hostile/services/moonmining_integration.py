@@ -10,21 +10,22 @@ from django.db.models import Q
 _LOCATION_RE = re.compile(
     r"(?:\bP\s*(\d+)\s*M\s*(\d+)\b"
     r"|\bPlanet\s*(\d+)\s*-?\s*Moon\s*(\d+)\b"
-    r"|\b(X|IX|VIII|VII|VI|V|IV|III|II|I)\s*-\s*Moon\s*(\d+)\b)",
+    r"|\b([IVXL]+)\s*-\s*Moon\s*(\d+)\b)",
     re.IGNORECASE,
 )
-_ROMAN = {
-    "I": 1,
-    "II": 2,
-    "III": 3,
-    "IV": 4,
-    "V": 5,
-    "VI": 6,
-    "VII": 7,
-    "VIII": 8,
-    "IX": 9,
-    "X": 10,
-}
+# The planet numeral is the last word of an EVE planet name ("I-E3TG VII"); reading it
+# from the end keeps Roman-looking system-name prefixes (I-, V-, X-) out of the match.
+_PLANET_NUMERAL_RE = re.compile(r"\b([IVXL]+)\s*$", re.IGNORECASE)
+_ROMAN_VALUES = {"I": 1, "V": 5, "X": 10, "L": 50}
+
+
+def _roman_to_int(numeral: str) -> int:
+    """Convert a Roman numeral (I..L range, as used for EVE planets) to an int."""
+    total = 0
+    values = [_ROMAN_VALUES[c] for c in numeral.upper()]
+    for i, value in enumerate(values):
+        total += -value if i + 1 < len(values) and value < values[i + 1] else value
+    return total
 
 
 def _location(value: str | None) -> tuple[int, int] | None:
@@ -33,7 +34,7 @@ def _location(value: str | None) -> tuple[int, int] | None:
         return None
     if match.group(5):
         # EVE celestial name, e.g. "BNX-AS VI - Moon 2"
-        return _ROMAN[match.group(5).upper()], int(match.group(6))
+        return _roman_to_int(match.group(5)), int(match.group(6))
     return (
         int(match.group(1) or match.group(3)),
         int(match.group(2) or match.group(4)),
@@ -43,13 +44,11 @@ def _location(value: str | None) -> tuple[int, int] | None:
 def _moon_location(moon: Any) -> tuple[int, int] | None:
     planet_name = getattr(getattr(moon.eve_moon, "eve_planet", None), "name", "")
     moon_name = getattr(moon.eve_moon, "name", "")
-    planet_match = re.search(
-        r"\b(I|II|III|IV|V|VI|VII|VIII|IX|X)\b", planet_name.upper()
-    )
+    planet_match = _PLANET_NUMERAL_RE.search(planet_name or "")
     moon_match = re.search(r"(?:-|\s)(\d+)\s*$", moon_name)
     if not planet_match or not moon_match:
         return None
-    return _ROMAN[planet_match.group(1)], int(moon_match.group(1))
+    return _roman_to_int(planet_match.group(1)), int(moon_match.group(1))
 
 
 def is_drill(structure: Any) -> bool:
@@ -76,7 +75,11 @@ HOURS_PER_MONTH = 720
 # A Metenox drill yields this share of the moon's full monthly value.
 DRILL_SHARE = 0.4
 REFINERY_GROUP_ID = 1406
+MOON_DRILL_GROUP_ID = 4807
 REFINERY_TYPE_NAMES = ("athanor", "tatara")
+MOON_STRUCTURE_NAME_REGEX = r"metenox|moon drill|athanor|tatara"
+# Bootstrap 5 has no "default" contextual class; moonmining's grey label maps to secondary.
+LABEL_STYLE_FALLBACK = "secondary"
 # moonmining ore group id -> rarity class (R4..R64)
 ORE_GROUP_RARITY = {1884: 4, 1920: 8, 1921: 16, 1922: 32, 1923: 64}
 REINFORCE_TIMER_TYPES = ("ARMOR", "HULL")
@@ -483,8 +486,20 @@ def _moon_products(
     return products
 
 
+def _label_bootstrap_style(label: Any) -> str:
+    """Bootstrap 5 class suffix for a moonmining Label (style lives on ``Label.Style``)."""
+    try:
+        return str(type(label).Style(label.style).bootstrap_style)
+    except (AttributeError, ValueError, TypeError):
+        style = getattr(label, "style", "") or ""
+        return style if style and style != "default" else LABEL_STYLE_FALLBACK
+
+
 def build_moon_data_payload(
-    moons: Any, structures: Any, volume_per_month: float
+    moons: Any,
+    structures: Any,
+    volume_per_month: float,
+    only_moon_ids: Any = None,
 ) -> dict[str, Any]:
     """Join moonmining moons with registry drills/refineries into the Moon Data payload.
 
@@ -494,10 +509,14 @@ def build_moon_data_payload(
     """
     moons = list(moons)
     structures = [s for s in structures if getattr(s, "state", "") != "DESTROYED"]
+    # Match against every moon given, even ones not returned as rows (only_moon_ids).
     by_moon = match_structures_to_moons(moons, structures)
+    wanted = {int(i) for i in only_moon_ids} if only_moon_ids is not None else None
     ores: dict[int, dict[str, Any]] = {}
     rows = []
     for moon in moons:
+        if wanted is not None and moon.eve_moon_id not in wanted:
+            continue
         system = _moon_system(moon)
         constellation = getattr(system, "eve_constellation", None)
         region = getattr(constellation, "eve_region", None)
@@ -524,11 +543,7 @@ def build_moon_data_payload(
             "value": value,
             "drill_value": value * DRILL_SHARE if value is not None else None,
             "label": (
-                {
-                    "name": label.name,
-                    "style": getattr(label, "bootstrap_style", "")
-                    or getattr(label, "style", ""),
-                }
+                {"name": label.name, "style": _label_bootstrap_style(label)}
                 if label
                 else None
             ),
@@ -559,30 +574,56 @@ def _moon_queryset():
     )
 
 
-def moon_structures_queryset(system_ids: Any) -> list[Any]:
-    """Live (not destroyed) drills and refineries in the given solar systems."""
+def moon_structures_queryset(system_ids: Any = None) -> list[Any]:
+    """Live (not destroyed) drills and refineries, optionally limited to some systems.
+
+    Filters on structure type in the database so the full Moon Data list doesn't need a
+    (potentially huge) ``solar_system_id IN (...)`` clause.
+    """
     # AA Hostile Intel
     from hostile.models import HostileStructure
 
     structures = (
         HostileStructure.objects.exclude(state="DESTROYED")
-        .filter(solar_system_id__in=list(system_ids))
+        .filter(
+            Q(structure_type__group_id__in=[REFINERY_GROUP_ID, MOON_DRILL_GROUP_ID])
+            | Q(structure_type__name__iregex=MOON_STRUCTURE_NAME_REGEX)
+        )
         .select_related("structure_type", "solar_system", "alliance", "corporation")
     )
+    if system_ids is not None:
+        structures = structures.filter(solar_system_id__in=list(system_ids))
     return [s for s in structures if is_moon_structure(s)]
 
 
 def load_moon_data_payload(moon_ids: Any = None) -> dict[str, Any] | None:
-    """Build the Moon Data payload from the database; ``None`` without aa-moonmining."""
+    """Build the Moon Data payload from the database; ``None`` without aa-moonmining.
+
+    With ``moon_ids`` only those rows are returned, but matching still sees every moon
+    in their systems, so a structure linked to a sibling moon isn't misplaced onto them.
+    """
     if not moonmining_available():
         return None
     # Third Party
     from moonmining.app_settings import MOONMINING_VOLUME_PER_MONTH
+    from moonmining.models import Moon
 
     moons = _moon_queryset()
-    if moon_ids is not None:
-        moons = moons.filter(pk__in=list(moon_ids))
-    moons = list(moons)
-    system_ids = {_moon_system(m).id for m in moons if _moon_system(m) is not None}
-    structures = moon_structures_queryset(system_ids) if system_ids else []
-    return build_moon_data_payload(moons, structures, MOONMINING_VOLUME_PER_MONTH)
+    if moon_ids is None:
+        return build_moon_data_payload(
+            list(moons), moon_structures_queryset(), MOONMINING_VOLUME_PER_MONTH
+        )
+    system_ids = set(
+        Moon.objects.filter(pk__in=list(moon_ids)).values_list(
+            "eve_moon__eve_planet__eve_solar_system_id", flat=True
+        )
+    )
+    if not system_ids:
+        return build_moon_data_payload([], [], MOONMINING_VOLUME_PER_MONTH)
+    moons = moons.filter(eve_moon__eve_planet__eve_solar_system_id__in=system_ids)
+    return build_moon_data_payload(
+        list(moons),
+        moon_structures_queryset(system_ids),
+        MOONMINING_VOLUME_PER_MONTH,
+        only_moon_ids=moon_ids,
+    )

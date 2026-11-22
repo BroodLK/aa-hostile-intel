@@ -265,6 +265,46 @@ class MoonDataPayloadTests(SimpleTestCase):
         self.assertEqual(row["updated_at"], when.isoformat())
         self.assertEqual(row["rarity"], 32)
 
+    def test_only_moon_ids_still_matches_against_sibling_moons(self):
+        """Details modal: a drill linked to moon Y must not land on moon X by location."""
+        moon_x = _moon(40001, "VI", 2)
+        moon_y = _moon(40002, "VI", 3)
+        # location says P6M2 (moon X) but it was manually linked to moon Y
+        drill = _structure(1, location_details="P6M2", moonmining_moon_id=40002)
+        payload = build_moon_data_payload(
+            [moon_x, moon_y], [drill], VOLUME_PER_MONTH, only_moon_ids=[40001]
+        )
+        self.assertEqual([r["id"] for r in payload["rows"]], [40001])
+        self.assertEqual(payload["rows"][0]["structures"], [])
+
+        sibling = build_moon_data_payload(
+            [moon_x, moon_y], [drill], VOLUME_PER_MONTH, only_moon_ids=[40002]
+        )["rows"][0]
+        self.assertEqual(sibling["structures"][0]["id"], 1)
+
+    def test_label_style_maps_to_bootstrap5(self):
+        class Label(SimpleNamespace):
+            class Style(str):
+                @property
+                def bootstrap_style(self):
+                    return {"default": "secondary", "danger": "danger"}[self]
+
+        grey = Label(name="Grey", style="default")
+        red = Label(name="Red", style="danger")
+        plain = SimpleNamespace(name="Plain", style="default")  # no Style enum
+        rows = build_moon_data_payload(
+            [
+                _moon(40001, label=grey),
+                _moon(40002, number=3, label=red),
+                _moon(40003, number=4, label=plain),
+            ],
+            [],
+            VOLUME_PER_MONTH,
+        )["rows"]
+        self.assertEqual(
+            [r["label"]["style"] for r in rows], ["secondary", "danger", "secondary"]
+        )
+
 
 class MoonDataViewTests(TestCase):
     @classmethod

@@ -385,12 +385,17 @@ document.addEventListener("DOMContentLoaded", function() {
                 };
             });
 
+        // Rebuilding the options (e.g. reload after linking) must keep the current selection.
+        const keepRegion = regionFilter.value;
+        const keepOre = oreFilter.value;
         const regions = Array.from(new Set(ROWS.map(r => r._region))).sort();
         regionFilter.innerHTML = `<option value="">{{ _('Any region')|escapejs }}</option>` +
             regions.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join("");
 
         const ores = Object.entries(ORES).sort((a, b) => b[1].rarity - a[1].rarity || a[1].name.localeCompare(b[1].name));
         oreFilter.innerHTML = `<option value="">{{ _('Any ore')|escapejs }}</option>` + ores.map(([id, ore]) => `<option value="${id}">R${ore.rarity} · ${escapeHtml(ore.name)}</option>`).join("");
+        if (keepRegion && regions.includes(keepRegion)) regionFilter.value = keepRegion;
+        if (keepOre && keepOre in ORES) oreFilter.value = keepOre;
         if (typeof oreFilter.syncSearchableSelect === "function") oreFilter.syncSearchableSelect();
     }
 

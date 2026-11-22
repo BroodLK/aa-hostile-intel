@@ -20,7 +20,7 @@ from django.core.handlers.wsgi import WSGIRequest
 from django.db.models import Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse
+from django.urls import NoReverseMatch, reverse
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
@@ -3779,7 +3779,7 @@ def moon_data(request: WSGIRequest) -> HttpResponse:
     if installed and request.user.has_perm("moonmining.basic_access"):
         try:
             moonmining_list_url = reverse("moonmining:moons")
-        except Exception:
+        except NoReverseMatch:
             moonmining_list_url = ""
     context = {
         "moonmining_installed": installed,
@@ -3855,12 +3855,11 @@ def moon_data_detail(request: WSGIRequest, moon_id: int) -> HttpResponse:
         for ore_id, amount, value in row["products"]
     ]
     drill_value = row["drill_value"]
-    has_drill = any(s["is_drill"] for s in row["structures"])
     moonmining_url = ""
     if request.user.has_perm("moonmining.basic_access"):
         try:
             moonmining_url = reverse("moonmining:moon_details", args=[moon_id])
-        except Exception:
+        except NoReverseMatch:
             moonmining_url = ""
     context = {
         "row": row,
@@ -3872,7 +3871,6 @@ def moon_data_detail(request: WSGIRequest, moon_id: int) -> HttpResponse:
             if drill_value is not None
             else "—"
         ),
-        "has_drill": has_drill,
         "link_candidates": _moon_link_candidates(request, row),
         "moonmining_url": moonmining_url,
         "updated_at": parse_datetime(row["updated_at"]) if row["updated_at"] else None,

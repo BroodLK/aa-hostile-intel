@@ -8,6 +8,7 @@ from django.test import SimpleTestCase
 # AA Hostile Intel
 from hostile.services.moonmining_integration import (
     _location,
+    _moon_location,
     drill_hourly_value,
     format_isk,
     is_drill,
@@ -24,6 +25,26 @@ class MoonminingIntegrationTests(SimpleTestCase):
     def test_location_parser_accepts_compact_and_spaced_formats(self):
         self.assertEqual(_location("Planet 8 Moon 1 / P8M1"), (8, 1))
         self.assertEqual(_location("P 1 M 2"), (1, 2))
+
+    def test_location_parser_reads_eve_celestial_names_above_ten(self):
+        self.assertEqual(_location("BNX-AS VI - Moon 2"), (6, 2))
+        self.assertEqual(_location("BNX-AS XI - Moon 4"), (11, 4))
+        self.assertEqual(_location("X-7OMU XIV - Moon 1 - Drill"), (14, 1))
+        self.assertIsNone(_location("X-7OMU Citadel"))
+
+    def test_moon_location_ignores_roman_looking_system_prefix(self):
+        def moon(system, planet, number):
+            planet_obj = SimpleNamespace(name=f"{system} {planet}")
+            return SimpleNamespace(
+                eve_moon=SimpleNamespace(
+                    name=f"{system} {planet} - Moon {number}", eve_planet=planet_obj
+                )
+            )
+
+        self.assertEqual(_moon_location(moon("I-E3TG", "VII", 3)), (7, 3))
+        self.assertEqual(_moon_location(moon("X-7OMU", "XII", 1)), (12, 1))
+        self.assertEqual(_moon_location(moon("V-3YG7", "IV", 9)), (4, 9))
+        self.assertEqual(_moon_location(moon("BNX-AS", "IX", 2)), (9, 2))
 
     def test_drill_names_are_consistent(self):
         structure = SimpleNamespace(
