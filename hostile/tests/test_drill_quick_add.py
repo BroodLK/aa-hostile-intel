@@ -2,6 +2,7 @@
 
 # Standard Library
 import json
+from unittest.mock import patch
 
 # Third Party
 from eve_sde.models import (
@@ -140,9 +141,8 @@ class DrillQuickAddTests(TestCase):
 
     def test_parse_without_drills_is_an_error(self):
         response = self._parse("hello there")
-        # A single plain line is read as a drill name; with no system it still parses.
-        self.assertEqual(response.status_code, 200)
-        self.assertIsNone(response.json()["drills"][0]["system"])
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(response.json()["success"])
         response = self._parse("35832\tF9-FUV - Home\tAstrahus\t2.1 AU")
         self.assertEqual(response.status_code, 400)
         self.assertFalse(response.json()["success"])
@@ -221,7 +221,77 @@ class DrillQuickAddTests(TestCase):
         ).json()["results"][0]
         struct = HostileStructure.objects.get(pk=result["structure_id"])
         self.assertEqual(struct.location_details, "P3M1")
+        # The name's planet-moon is a real moon here, so the drill is linked to it.
+        self.assertEqual(struct.moonmining_moon_id, 40000031)
+
+    def test_name_location_that_is_not_a_moon(self):
+        drill = self._parse("F9-FUV - Bucket 12-9").json()["drills"][0]
+        self.assertEqual(drill["location"], "P12M9")
+        self.assertTrue(drill["location_missing"])
+        self.assertIsNone(drill["moon_id"])
+        result = self._save(
+            [{"name": "F9-FUV - Bucket 12-9", "solar_system": "30000001"}]
+        ).json()["results"][0]
+        struct = HostileStructure.objects.get(pk=result["structure_id"])
+        self.assertEqual(struct.location_details, "")
         self.assertIsNone(struct.moonmining_moon_id)
+        self.assertFalse(
+            self._parse(PASTE_OVERVIEW).json()["drills"][0]["location_missing"]
+        )
+
+    def test_blocked_relink_does_not_backfill_location(self):
+        other_user = AuthUtils.create_user("drill_other2")
+        existing = HostileStructure.objects.create(
+            name="F9-FUV - Bucket 10-10",
+            structure_type=self.metenox,
+            solar_system=self.f9,
+            moonmining_moon_id=40000031,
+            location_details="",
+            created_by=other_user,
+        )
+        result = self._save(
+            [
+                {
+                    "name": "F9-FUV - Bucket 10-10",
+                    "solar_system": "30000001",
+                    "moon_id": "40000110",
+                }
+            ]
+        ).json()["results"][0]
+        self.assertTrue(result["ok"])
+        self.assertEqual(
+            result["warnings"], ["Already linked to another moon; not changed."]
+        )
+        existing.refresh_from_db()
+        self.assertEqual(existing.moonmining_moon_id, 40000031)
+        self.assertEqual(existing.location_details, "")
+
+    def test_failed_row_is_rolled_back(self):
+        with patch(
+            "hostile.services.intel_manager.IntelManager.record_audit",
+            side_effect=RuntimeError("boom"),
+        ):
+            data = self._save(
+                [
+                    {
+                        "name": "F9-FUV - Bucket 10-10",
+                        "solar_system": "30000001",
+                        "moon_id": "40000110",
+                    }
+                ]
+            ).json()
+        self.assertFalse(data["results"][0]["ok"])
+        self.assertEqual(HostileStructure.objects.count(), 0)
+
+    def test_too_many_rows(self):
+        rows = [
+            {"name": f"F9-FUV - Bucket {i}", "solar_system": "30000001"}
+            for i in range(51)
+        ]
+        response = self._save(rows)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("max 50", response.json()["error"])
+        self.assertEqual(HostileStructure.objects.count(), 0)
 
     def test_cannot_relink_someone_elses_drill(self):
         other_user = AuthUtils.create_user("drill_other")

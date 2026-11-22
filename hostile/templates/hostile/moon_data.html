@@ -986,6 +986,7 @@ document.addEventListener("DOMContentLoaded", function() {
         updated: "{{ _('Updated')|escapejs }}",
         failed: "{{ _('Could not save the drills.')|escapejs }}",
         needSystem: "{{ _('Pick a solar system first.')|escapejs }}",
+        locationMissing: "{{ _('is not a moon in')|escapejs }}",
     };
     const qaModalEl = document.getElementById("drillQuickAddModal");
     const qaInput = document.getElementById("drillPasteInput");
@@ -1013,46 +1014,48 @@ document.addEventListener("DOMContentLoaded", function() {
 
     function qaRowHtml(d, i) {
         const ex = d.existing;
-        const owner = d.owner || {};
+        const f = d.form || {};   // values typed into this card before a re-render
+        const pick = (key, fallback) => (key in f ? f[key] : fallback);
         const systemField = d.system
             ? `<div class="form-control form-control-sm bg-black text-info border-secondary">${escapeHtml(d.system.name)}</div>
                 <input type="hidden" data-field="solar_system" value="${d.system.id}">`
-            : `<input type="text" class="form-control form-control-sm bg-black text-light border-warning" data-system-search list="drillSystemList" placeholder="${QA_I18N.searchSystem}" autocomplete="off">
-                <input type="hidden" data-field="solar_system" value="">`;
-        return `<div class="md-drill-card" data-index="${i}">
+            : `<input type="text" class="form-control form-control-sm bg-black text-light border-warning" data-system-search list="drillSystemList" placeholder="${QA_I18N.searchSystem}" autocomplete="off" value="${escapeHtml(d.systemText || "")}">
+                <input type="hidden" data-field="solar_system" value="${escapeHtml(f.solar_system || "")}">`;
+        return `<div class="md-drill-card${d.saved ? " saved" : ""}" data-index="${i}">
             <div class="d-flex align-items-center gap-2 mb-2">
                 <i class="fas fa-industry text-warning"></i>
                 <span class="fw-bold text-truncate">${escapeHtml(d.name)}</span>
                 ${d.distance ? `<span class="small text-muted">${escapeHtml(d.distance)}</span>` : ""}
                 ${ex ? `<a class="badge bg-info text-dark text-decoration-none" href="${URLS.structureBase}?structure=${ex.id}" target="_blank" rel="noopener" title="${escapeHtml(ex.name)}"><i class="fas fa-link me-1"></i>${QA_I18N.existing}</a>` : ""}
                 ${!d.system ? `<span class="small md-unscanned">${QA_I18N.noSystem}</span>` : ""}
+                ${d.location_missing ? `<span class="small md-unscanned"><i class="fas fa-exclamation-triangle me-1"></i>${escapeHtml(d.location)} ${QA_I18N.locationMissing} ${escapeHtml(d.system ? d.system.name : "")}</span>` : ""}
                 <span class="ms-auto small" data-row-status></span>
                 <button type="button" class="btn btn-sm btn-link text-muted p-0" data-remove title="${QA_I18N.remove}"><i class="fas fa-times"></i></button>
             </div>
             <div class="row g-2">
                 <div class="col-md-4"><label class="md-qa-label">${QA_I18N.name}</label>
-                    <input type="text" class="form-control form-control-sm bg-black text-light border-secondary" data-field="name" value="${escapeHtml(d.name)}"></div>
+                    <input type="text" class="form-control form-control-sm bg-black text-light border-secondary" data-field="name" value="${escapeHtml(pick("name", d.name))}"></div>
                 <div class="col-md-2"><label class="md-qa-label">${QA_I18N.system}</label>${systemField}</div>
                 <div class="col-md-4"><label class="md-qa-label">${QA_I18N.moon}</label>
                     <select class="form-select form-select-sm bg-black text-light border-secondary no-searchable" data-field="moon_id">${qaMoonOptions(d)}</select></div>
                 <div class="col-md-2"><label class="md-qa-label">${QA_I18N.state}</label>
-                    <select class="form-select form-select-sm bg-black text-light border-secondary no-searchable" data-field="state">${qaOptions(QA_STATES, (ex && ex.state) || "ONLINE")}</select></div>
+                    <select class="form-select form-select-sm bg-black text-light border-secondary no-searchable" data-field="state">${qaOptions(QA_STATES, pick("state", (ex && ex.state) || "ONLINE"))}</select></div>
                 <div class="col-md-2"><label class="md-qa-label">${QA_I18N.ticker}</label>
-                    <input type="text" class="form-control form-control-sm bg-black text-light border-secondary" data-field="owner_ticker" value="${escapeHtml(owner.ticker || (ex ? ex.owner_ticker : ""))}"></div>
+                    <input type="text" class="form-control form-control-sm bg-black text-light border-secondary" data-field="owner_ticker" value="${escapeHtml(pick("owner_ticker", ex ? ex.owner_ticker : ""))}"></div>
                 <div class="col-md-5"><label class="md-qa-label">${QA_I18N.alliance}</label>
-                    <input type="text" class="form-control form-control-sm bg-black text-light border-secondary" data-field="untracked_alliance" list="drillAllianceList" autocomplete="off" value="${escapeHtml(owner.alliance || "")}"></div>
+                    <input type="text" class="form-control form-control-sm bg-black text-light border-secondary" data-field="untracked_alliance" list="drillAllianceList" autocomplete="off" value="${escapeHtml(pick("untracked_alliance", ""))}"></div>
                 <div class="col-md-5"><label class="md-qa-label">${QA_I18N.corporation}</label>
-                    <input type="text" class="form-control form-control-sm bg-black text-light border-secondary" data-field="untracked_corporation" list="drillCorpList" autocomplete="off" value="${escapeHtml(owner.corp || "")}"></div>
+                    <input type="text" class="form-control form-control-sm bg-black text-light border-secondary" data-field="untracked_corporation" list="drillCorpList" autocomplete="off" value="${escapeHtml(pick("untracked_corporation", ""))}"></div>
             </div>
             <details class="mt-2">
                 <summary class="small text-muted">${QA_I18N.more}</summary>
                 <div class="row g-2 mt-1">
                     <div class="col-md-3"><label class="md-qa-label">${QA_I18N.core}</label>
-                        <select class="form-select form-select-sm bg-black text-light border-secondary no-searchable" data-field="core_status">${qaOptions(QA_CORES, "UNKNOWN")}</select></div>
+                        <select class="form-select form-select-sm bg-black text-light border-secondary no-searchable" data-field="core_status">${qaOptions(QA_CORES, pick("core_status", "UNKNOWN"))}</select></div>
                     <div class="col-md-3"><label class="md-qa-label">${QA_I18N.vulnHour}</label>
-                        <input type="number" min="0" max="23" class="form-control form-control-sm bg-black text-light border-secondary" data-field="vulnerability_hour"></div>
+                        <input type="number" min="0" max="23" class="form-control form-control-sm bg-black text-light border-secondary" data-field="vulnerability_hour" value="${escapeHtml(pick("vulnerability_hour", ""))}"></div>
                     <div class="col-md-6"><label class="md-qa-label">${QA_I18N.notes}</label>
-                        <input type="text" class="form-control form-control-sm bg-black text-light border-secondary" data-field="notes"></div>
+                        <input type="text" class="form-control form-control-sm bg-black text-light border-secondary" data-field="notes" value="${escapeHtml(pick("notes", ""))}"></div>
                 </div>
             </details>
         </div>`;
@@ -1124,9 +1127,17 @@ document.addEventListener("DOMContentLoaded", function() {
             const q = el.value.trim();
             const card = el.closest(".md-drill-card");
             const hit = qaSystemResults.find(s => s.name.toLowerCase() === q.toLowerCase());
+            const hidden = card.querySelector('[data-field="solar_system"]');
+            const d = qaDrills[parseInt(card.dataset.index, 10)];
+            if (!hit && hidden.value) {
+                // The text no longer names the matched system: forget it and its moons.
+                hidden.value = "";
+                d.moons = [];
+                d.moon_id = null;
+                card.querySelector('[data-field="moon_id"]').innerHTML = qaMoonOptions(d);
+            }
             if (hit) {
-                card.querySelector('[data-field="solar_system"]').value = hit.id;
-                const d = qaDrills[parseInt(card.dataset.index, 10)];
+                hidden.value = hit.id;
                 fetch(`${URLS.drillMoons}?system_id=${hit.id}`, {headers: {"X-Requested-With": "XMLHttpRequest"}})
                     .then(r => r.json())
                     .then(data => {
@@ -1153,10 +1164,11 @@ document.addEventListener("DOMContentLoaded", function() {
         // Keep edits in the other rows before re-rendering.
         qaRows.querySelectorAll(".md-drill-card").forEach(c => {
             const d = qaDrills[parseInt(c.dataset.index, 10)];
-            const row = qaCollect(c);
-            d.name = row.name || d.name;
-            d.moon_id = row.moon_id ? parseInt(row.moon_id, 10) : null;
-            d.owner = {ticker: row.owner_ticker, alliance: row.untracked_alliance, corp: row.untracked_corporation};
+            d.form = qaCollect(c);
+            d.moon_id = d.form.moon_id ? parseInt(d.form.moon_id, 10) : null;
+            const search = c.querySelector("[data-system-search]");
+            d.systemText = search ? search.value : "";
+            d.saved = c.classList.contains("saved");
         });
         qaDrills.splice(parseInt(card.dataset.index, 10), 1);
         qaRender();
@@ -1174,7 +1186,8 @@ document.addEventListener("DOMContentLoaded", function() {
     });
 
     qaSaveBtn.addEventListener("click", function() {
-        const cards = Array.from(qaRows.querySelectorAll(".md-drill-card"));
+        const cards = Array.from(qaRows.querySelectorAll(".md-drill-card:not(.saved)"));
+        if (!cards.length) return;
         const drills = cards.map(qaCollect);
         const missing = cards.filter((c, i) => !drills[i].solar_system);
         missing.forEach(c => {
@@ -1193,6 +1206,7 @@ document.addEventListener("DOMContentLoaded", function() {
             .then(data => {
                 qaSaveBtn.disabled = false;
                 if (!data.results) throw new Error(data.error || QA_I18N.failed);
+                const allSaved = () => !qaRows.querySelector(".md-drill-card:not(.saved)");
                 let okCount = 0;
                 let firstMoon = null;
                 data.results.forEach(res => {
@@ -1205,6 +1219,7 @@ document.addEventListener("DOMContentLoaded", function() {
                         status.className = "ms-auto small text-success";
                         status.textContent = `✓ ${res.created ? QA_I18N.created : QA_I18N.updated}${res.warnings && res.warnings.length ? ` · ${res.warnings.join(" ")}` : ""}`;
                         card.classList.add("saved");
+                        qaDrills[parseInt(card.dataset.index, 10)].saved = true;
                     } else {
                         status.className = "ms-auto small text-danger";
                         status.textContent = (res.errors || [QA_I18N.failed]).join(" ");
@@ -1213,7 +1228,7 @@ document.addEventListener("DOMContentLoaded", function() {
                 qaSummary.textContent = `${okCount} / ${data.results.length} ${QA_I18N.saved}`;
                 if (!okCount) return;
                 return load().then(() => {
-                    if (okCount === data.results.length) {
+                    if (allSaved()) {
                         bootstrap.Modal.getOrCreateInstance(qaModalEl).hide();
                         qaInput.value = "";
                         qaDrills = [];

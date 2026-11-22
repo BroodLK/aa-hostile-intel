@@ -61,6 +61,14 @@ class ParseDrillPasteTests(SimpleTestCase):
         self.assertEqual(parse_drill_paste(None), [])
         self.assertEqual(parse_drill_paste("29.9 AU\n120 m"), [])
 
+    def test_plain_text_without_system_prefix_is_ignored(self):
+        self.assertEqual(parse_drill_paste("hello there\nanother line"), [])
+        drills = parse_drill_paste("some note\nF9-FUV - Bucket 1-1\n5 km")
+        self.assertEqual(
+            [(d["name"], d["distance"]) for d in drills],
+            [("F9-FUV - Bucket 1-1", "5 km")],
+        )
+
 
 class DrillLocationTests(SimpleTestCase):
     def test_trailing_planet_moon(self):

@@ -79,7 +79,8 @@ def parse_drill_paste(text: str | None) -> list[dict[str, Any]]:
                 last["distance"] = line
             last = None
             continue
-        last = add(line)
+        # Overview / probe names follow "<System> - <Name>"; other text isn't a drill.
+        last = add(line) if " - " in line else None
     return drills
 
 

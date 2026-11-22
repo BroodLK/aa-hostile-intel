@@ -17,6 +17,7 @@ from django.contrib.auth.decorators import login_required, permission_required
 from django.contrib.humanize.templatetags.humanize import naturaltime
 from django.core.cache import cache
 from django.core.handlers.wsgi import WSGIRequest
+from django.db import transaction
 from django.db.models import Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -4506,6 +4507,9 @@ def api_solar_systems_search(request: WSGIRequest) -> JsonResponse:
     return JsonResponse({"results": results})
 
 
+MAX_QUICK_ADD_DRILLS = 50
+
+
 @login_required
 @permission_required("hostile.basic_access")
 def api_drill_paste_parse(request: WSGIRequest) -> JsonResponse:
@@ -4551,13 +4555,23 @@ def api_drill_paste_save(request: WSGIRequest) -> JsonResponse:
         return JsonResponse(
             {"success": False, "error": "No drills to save."}, status=400
         )
+    if len(rows) > MAX_QUICK_ADD_DRILLS:
+        return JsonResponse(
+            {
+                "success": False,
+                "error": f"Too many drills in one save (max {MAX_QUICK_ADD_DRILLS}).",
+            },
+            status=400,
+        )
     results = []
-    for index, row in enumerate(rows[:50]):
+    for index, row in enumerate(rows):
         if not isinstance(row, dict):
             results.append({"index": index, "ok": False, "errors": ["Invalid row."]})
             continue
         try:
-            result = save_drill(row, request.user)
+            # One row is all-or-nothing: no half-saved drill reported as a failure.
+            with transaction.atomic():
+                result = save_drill(row, request.user)
         except Exception:
             logger.exception("Moon Data quick add failed for row %s", index)
             result = {"ok": False, "errors": ["Could not save this drill."]}

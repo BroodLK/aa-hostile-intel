@@ -140,6 +140,15 @@ def preview_drills(text: str | None) -> dict[str, Any]:
                 "distance": entry["distance"],
                 "system": {"id": system.id, "name": system.name} if system else None,
                 "location": _location_text(*location) if location else "",
+                # The name gives a planet-moon that the system doesn't have.
+                "location_missing": bool(
+                    system
+                    and location
+                    and moons
+                    and not any(
+                        (m["planet"], m["moon"]) == tuple(location) for m in moons
+                    )
+                ),
                 "moons": moons,
                 "moon_id": moon_id,
                 "existing": _existing_payload(existing),
@@ -175,6 +184,62 @@ def _moon_for(system_id: Any, moon_id: Any) -> tuple[dict[str, Any] | None, str]
     return moon, ""
 
 
+def _can_edit(user: Any, structure: Any) -> bool:
+    return (
+        user.has_perm("hostile.manage_intel")
+        or getattr(structure, "created_by_id", None) == user.id
+    )
+
+
+def _moon_from_name(system_id: Any, name: str | None) -> dict[str, Any] | None:
+    """The SDE moon matching the planet-moon in a drill name, if it exists in the system."""
+    # Third Party
+    from eve_sde.models import Moon as SdeMoon
+
+    location = drill_location(name)
+    if not location or not system_id:
+        return None
+    try:
+        system_id = int(system_id)
+    except (TypeError, ValueError):
+        return None
+    return (
+        SdeMoon.objects.filter(
+            solar_system_id=system_id,
+            celestial_index=location[0],
+            orbit_index=location[1],
+        )
+        .values("id", "solar_system_id", "celestial_index", "orbit_index")
+        .first()
+    )
+
+
+def _find_existing(
+    system_id: Any, name: str | None, metenox: Any, location: str
+) -> Any:
+    """The registry drill this row would update, using the same matching as the save."""
+    # Third Party
+    from eve_sde.models import SolarSystem
+
+    # AA Hostile Intel
+    from hostile.models import HostileStructure
+
+    if not name or not system_id:
+        return None
+    try:
+        system = SolarSystem.objects.filter(pk=int(system_id)).first()
+    except (TypeError, ValueError):
+        return None
+    if system is None:
+        return None
+    return HostileStructure.objects.find_matching(
+        solar_system=system,
+        name=name,
+        structure_type=metenox,
+        location_details=location,
+    )
+
+
 def save_drill(row: dict[str, Any], user: Any) -> dict[str, Any]:
     """Create or update one Metenox from a quick-add row; never raises for bad input."""
     # AA Hostile Intel
@@ -193,11 +258,26 @@ def save_drill(row: dict[str, Any], user: Any) -> dict[str, Any]:
     if moon_error:
         return {"ok": False, "errors": [moon_error]}
 
-    if moon:
-        location = _location_text(moon["celestial_index"], moon["orbit_index"])
-    else:
-        parsed = drill_location(row.get("name"))
-        location = _location_text(*parsed) if parsed else ""
+    if moon is None:
+        # No moon picked: use the name's planet-moon, but only if it is a real moon here.
+        moon = _moon_from_name(system_id, row.get("name"))
+    location = (
+        _location_text(moon["celestial_index"], moon["orbit_index"]) if moon else ""
+    )
+
+    # Someone else's drill already linked to a different moon keeps its moon (and we must
+    # not let get_or_create back-fill this moon's location onto it either).
+    warnings = []
+    existing = _find_existing(system_id, row.get("name"), metenox, location)
+    if (
+        moon is not None
+        and existing is not None
+        and existing.moonmining_moon_id
+        and existing.moonmining_moon_id != moon["id"]
+        and not _can_edit(user, existing)
+    ):
+        warnings.append("Already linked to another moon; not changed.")
+        moon, location = None, ""
 
     data = {field: row.get(field) or "" for field in ROW_FIELDS}
     data.update(
@@ -222,21 +302,25 @@ def save_drill(row: dict[str, Any], user: Any) -> dict[str, Any]:
         form, user, source="Moon Data quick add"
     )
     # Same rule as inline edits: only fill blanks on other people's structures.
-    can_edit = (
-        created
-        or user.has_perm("hostile.manage_intel")
-        or struct.created_by_id == user.id
-    )
-    warnings = []
+    can_edit = created or _can_edit(user, struct)
     update_fields = []
-    if moon and struct.moonmining_moon_id != moon["id"]:
-        if can_edit or not struct.moonmining_moon_id:
+    # Moon id and location always move together so the drill can't point at two moons.
+    moon_applies = moon is not None and (
+        can_edit
+        or not struct.moonmining_moon_id
+        or struct.moonmining_moon_id == moon["id"]
+    )
+    if moon is not None and not moon_applies:
+        warnings.append("Already linked to another moon; not changed.")
+    if moon_applies:
+        if struct.moonmining_moon_id != moon["id"]:
             struct.moonmining_moon_id = moon["id"]
             update_fields.append("moonmining_moon_id")
-        else:
-            warnings.append("Already linked to another moon; not changed.")
-    if location and struct.location_details != location:
-        if can_edit or not struct.location_details:
+        if struct.location_details != location and (
+            can_edit
+            or not struct.location_details
+            or "moonmining_moon_id" in update_fields
+        ):
             struct.location_details = location
             update_fields.append("location_details")
     if update_fields:
