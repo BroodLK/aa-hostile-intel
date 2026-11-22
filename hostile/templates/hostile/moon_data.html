@@ -1,0 +1,814 @@
+{% extends 'hostile/base.html' %}
+{% load i18n static %}
+
+{% block extra_css %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'hostile/css/hostile_structures.css' %}">
+<link rel="stylesheet" href="{% static 'hostile/css/hostile_moon_data.css' %}">
+{% endblock %}
+
+{% block details %}
+<div class="structure-registry moon-data">
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h4 class="mb-0 fw-bold"><i class="fas fa-moon text-info me-2"></i>{% translate "Moon Data" %}</h4>
+        <p class="sr-muted small mb-0" id="moonSummary">{% translate "Surveyed moons, what they produce and what they are worth, with the structures anchored on them and who owns them." %}</p>
+    </div>
+    <div class="d-flex gap-2">
+        {% if moonmining_list_url %}
+        <a href="{{ moonmining_list_url }}" class="btn btn-outline-secondary btn-sm fw-bold shadow-sm" title="{% translate 'Open the aa-moonmining moon list' %}">
+            <i class="fas fa-external-link-alt me-1"></i>{% translate "Open in Moonmining" %}
+        </a>
+        {% endif %}
+        <button type="button" class="btn btn-primary btn-sm fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#moonUploadModal">
+            <i class="fas fa-upload me-1"></i>{% translate "Upload Moons" %}
+        </button>
+    </div>
+</div>
+
+{% if not moonmining_installed %}
+<div class="sr-empty" id="moonNotInstalled">
+    <i class="fas fa-moon fa-3x mb-3 d-block"></i>
+    <p class="mb-1">{% translate "aa-moonmining is not installed." %}</p>
+    <p class="small mb-0">{% translate "Moon Data reads surveys, ore prices and moon values from aa-moonmining. Install it to use this tab." %}</p>
+</div>
+{% else %}
+
+<!-- KPI strip: reflects the moons matching the current filters -->
+<div class="row g-2 mb-3 md-kpis" id="moonKpis">
+    <div class="col-6 col-md-4 col-xl-2">
+        <div class="hostile-stat-card h-100">
+            <div class="hostile-stat-icon text-info"><i class="fas fa-moon"></i></div>
+            <div><div class="hostile-stat-value text-info" data-kpi="moons">—</div><div class="hostile-stat-label">{% translate "Surveyed moons" %}</div></div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+        <div class="hostile-stat-card h-100">
+            <div class="hostile-stat-icon text-danger"><i class="fas fa-gem"></i></div>
+            <div><div class="hostile-stat-value text-danger" data-kpi="r64">—</div><div class="hostile-stat-label">{% translate "R64 moons" %}</div></div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+        <div class="hostile-stat-card h-100">
+            <div class="hostile-stat-icon text-warning"><i class="fas fa-gem"></i></div>
+            <div><div class="hostile-stat-value text-warning" data-kpi="r32">—</div><div class="hostile-stat-label">{% translate "R32 moons" %}</div></div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+        <div class="hostile-stat-card h-100">
+            <div class="hostile-stat-icon text-info"><i class="fas fa-coins"></i></div>
+            <div><div class="hostile-stat-value text-info" data-kpi="value">—</div><div class="hostile-stat-label">{% translate "Total value / month" %}</div></div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+        <div class="hostile-stat-card h-100">
+            <div class="hostile-stat-icon text-danger"><i class="fas fa-skull-crossbones"></i></div>
+            <div><div class="hostile-stat-value text-danger" data-kpi="hostile">—</div><div class="hostile-stat-label">{% translate "Hostile-held / month" %}</div></div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+        <div class="hostile-stat-card h-100">
+            <div class="hostile-stat-icon text-success"><i class="fas fa-flag"></i></div>
+            <div><div class="hostile-stat-value text-success" data-kpi="unclaimed">—</div><div class="hostile-stat-label">{% translate "Unclaimed R32+ moons" %}</div></div>
+        </div>
+    </div>
+</div>
+
+<!-- Search, rarity / ownership chips, filters, grouping and depth -->
+<div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+    <div class="input-group input-group-sm" style="max-width: 340px;">
+        <span class="input-group-text bg-transparent sr-muted"><i class="fas fa-search"></i></span>
+        <input type="text" id="moonSearchInput" class="form-control form-control-sm" placeholder="{% translate 'Search moon, system, region, owner, ore...' %}" autofocus>
+        <button class="btn btn-outline-secondary btn-sm d-none" type="button" id="clearMoonSearchBtn" title="{% translate 'Clear search' %}">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+    <div class="d-flex gap-1 flex-wrap" id="moonRarityChips">
+        <span class="sr-chip active" data-rarity="">{% translate "All" %}</span>
+        <span class="sr-chip" data-rarity="64"><span class="dot rarity r-64"></span>R64</span>
+        <span class="sr-chip" data-rarity="32"><span class="dot rarity r-32"></span>R32</span>
+        <span class="sr-chip" data-rarity="16"><span class="dot rarity r-16"></span>R16</span>
+        <span class="sr-chip" data-rarity="8"><span class="dot rarity r-8"></span>R8</span>
+        <span class="sr-chip" data-rarity="4"><span class="dot rarity r-4"></span>R4</span>
+    </div>
+    <div class="d-flex gap-1 flex-wrap" id="moonStatusChips">
+        <span class="sr-chip active" data-status="">{% translate "Any owner" %}</span>
+        <span class="sr-chip" data-status="hostile"><span class="md-owner hostile"><span class="md-owner-dot"></span></span>{% translate "Hostile" %}</span>
+        <span class="sr-chip" data-status="friendly"><span class="md-owner friendly"><span class="md-owner-dot"></span></span>{% translate "Friendly" %}</span>
+        <span class="sr-chip" data-status="unclaimed">{% translate "Unclaimed" %}</span>
+        <span class="sr-chip" data-status="structure"><i class="fas fa-monument me-1"></i>{% translate "Has structure" %}</span>
+    </div>
+</div>
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <select id="moonStructureFilter" class="form-select form-select-sm w-auto no-searchable" title="{% translate 'Filter by structure on the moon' %}">
+        <option value="">{% translate "Any structure" %}</option>
+        <option value="drill">{% translate "Metenox drill" %}</option>
+        <option value="refinery">{% translate "Refinery" %}</option>
+        <option value="none">{% translate "No structure" %}</option>
+    </select>
+    <select id="moonRegionFilter" class="form-select form-select-sm w-auto no-searchable" title="{% translate 'Filter by region' %}">
+        <option value="">{% translate "Any region" %}</option>
+    </select>
+    <div style="min-width: 220px;">
+        <select id="moonOreFilter" class="form-select form-select-sm" title="{% translate 'Moons producing this ore' %}"><option value="">{% translate "Any ore" %}</option></select>
+    </div>
+    <div class="input-group input-group-sm" style="max-width: 170px;">
+        <span class="input-group-text bg-transparent sr-muted">≥</span>
+        <input type="text" id="moonMinValue" class="form-control form-control-sm" placeholder="{% translate 'e.g. 500m, 1.2b' %}" title="{% translate 'Minimum estimated monthly value' %}">
+    </div>
+    <button type="button" class="btn btn-outline-secondary btn-sm" id="resetMoonFiltersBtn" title="{% translate 'Reset all search & filters' %}">
+        <i class="fas fa-undo me-1"></i>{% translate "Reset" %}
+    </button>
+    <span class="ms-auto sr-muted small">{% translate "Group by" %}</span>
+    <div class="sr-depth" id="moonGroupMode">
+        <button type="button" data-mode="geo" class="on">{% translate "Location" %}</button>
+        <button type="button" data-mode="owner">{% translate "Owner" %}</button>
+    </div>
+    <span class="sr-muted small">{% translate "Expand to" %}</span>
+    <div class="sr-depth" id="moonDepth">
+        <button type="button" data-depth="0" class="on" data-geo="{% translate 'Regions' %}" data-owner="{% translate 'Owners' %}">{% translate "Regions" %}</button>
+        <button type="button" data-depth="1" data-geo="{% translate 'Constellations' %}" data-owner="{% translate 'Regions' %}">{% translate "Constellations" %}</button>
+        <button type="button" data-depth="2" data-geo="{% translate 'Systems' %}" data-owner="{% translate 'Systems' %}">{% translate "Systems" %}</button>
+        <button type="button" data-depth="3" data-geo="{% translate 'All' %}" data-owner="{% translate 'All' %}">{% translate "All" %}</button>
+    </div>
+</div>
+
+<div class="sr-scroll">
+<div class="sr-scroll-inner">
+<!-- Sticky column header: sorts moons within every system group -->
+<div class="sr-sort-head">
+    <table class="sr-table">
+        <colgroup id="moonColgroup">
+            <col style="width: 17%;"><col style="width: 6%;"><col style="width: 25%;"><col style="width: 12%;">
+            <col style="width: 15%;"><col style="width: 9%;"><col style="width: 7%;"><col style="width: 9%;">
+        </colgroup>
+        <thead>
+            <tr>
+                <th class="sr-col-name sortable-th" data-sort="name">{% translate "Moon" %} <i class="fas fa-sort sort-icon ms-1"></i></th>
+                <th class="sortable-th" data-sort="rarity">{% translate "Rarity" %} <i class="fas fa-sort sort-icon ms-1"></i></th>
+                <th>{% translate "Composition" %}</th>
+                <th class="sortable-th active-sort" data-sort="value">{% translate "Est. Value / Drill" %} <i class="fas fa-sort-down sort-icon ms-1"></i></th>
+                <th class="sortable-th" data-sort="structure">{% translate "Structure" %} <i class="fas fa-sort sort-icon ms-1"></i></th>
+                <th class="sortable-th" data-sort="owner">{% translate "Owner" %} <i class="fas fa-sort sort-icon ms-1"></i></th>
+                <th class="sortable-th" data-sort="updated">{% translate "Surveyed" %} <i class="fas fa-sort sort-icon ms-1"></i></th>
+                <th class="text-end">{% translate "Actions" %}</th>
+            </tr>
+        </thead>
+    </table>
+</div>
+
+<div id="moonGroups">
+    <div class="sr-empty" id="moonLoading">
+        <i class="fas fa-circle-notch fa-spin fa-2x mb-3 d-block"></i>
+        <p class="mb-0">{% translate "Loading moon data..." %}</p>
+    </div>
+</div>
+</div>
+</div>
+<div id="noMoonMatchRow" class="sr-empty d-none">
+    <i class="fas fa-search fa-2x mb-2 d-block"></i>
+    <span>{% translate "No moons match the current search & filter criteria." %}</span>
+</div>
+{% endif %}
+</div>
+{% csrf_token %}
+{% endblock %}
+
+{% block modals %}
+{{ block.super }}
+<div class="modal fade" id="moonDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content bg-dark text-white border-secondary md-modal" id="moonDetailContent">
+            <div class="modal-body text-center py-5 text-muted"><i class="fas fa-circle-notch fa-spin fa-2x"></i></div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="moonUploadModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content bg-dark text-white border-secondary">
+            <form action="{% url 'hostile:moon_scan_upload' %}" method="post" data-hostile-loading="{% translate 'Submitting moon survey' %}">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="moon_data">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title"><i class="fas fa-upload text-primary me-2"></i>{% translate "Upload Moon Survey" %}</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-muted">{% translate "Paste one or more moon probe scans copied from the in-game Moon Survey window. aa-moonmining processes them in the background; refresh this page after a minute to see new moons." %}</p>
+                    <textarea name="scan" class="form-control font-monospace bg-black text-light border-secondary" rows="12" required></textarea>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">{% translate "Cancel" %}</button>
+                    <button type="submit" class="btn btn-primary btn-sm fw-bold"><i class="fas fa-upload me-1"></i>{% translate "Submit Scan" %}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_javascript %}
+{{ block.super }}
+{% if moonmining_installed %}
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const URLS = {
+        data: "{% url 'hostile:moon_data_json' %}",
+        detail: "{% url 'hostile:moon_data_detail' 0 %}",
+        structures: "{% url 'hostile:structures' %}",
+        calculator: "{% url 'hostile:calculator' %}",
+        inlineUpdate: "{% url 'hostile:structure_inline_update' 0 %}",
+    };
+    const I18N = {
+        moon: "{{ _('moon')|escapejs }}",
+        moons: "{{ _('moons')|escapejs }}",
+        system: "{{ _('system')|escapejs }}",
+        systems: "{{ _('systems')|escapejs }}",
+        region: "{{ _('region')|escapejs }}",
+        regions: "{{ _('regions')|escapejs }}",
+        owner: "{{ _('owner')|escapejs }}",
+        owners: "{{ _('owners')|escapejs }}",
+        of: "{{ _('of')|escapejs }}",
+        withStructure: "{{ _('with structure')|escapejs }}",
+        iskPerMonth: "{{ _('ISK/mo')|escapejs }}",
+        perHour: "{{ _('/h')|escapejs }}",
+        drill: "{{ _('Drill')|escapejs }}",
+        drillPotential: "{{ _('Metenox drill yield (40% of the moon value)')|escapejs }}",
+        unclaimed: "{{ _('Unclaimed')|escapejs }}",
+        unknownRegion: "{{ _('Unknown Region')|escapejs }}",
+        noSurvey: "{{ _('No survey')|escapejs }}",
+        noMoons: "{{ _('No moons surveyed yet. Upload a moon survey to get started.')|escapejs }}",
+        loadFailed: "{{ _('Moon data could not be loaded.')|escapejs }}",
+        moonmining: "{{ _('moonmining refinery (ESI)')|escapejs }}",
+        details: "{{ _('Moon details')|escapejs }}",
+        showStructure: "{{ _('Show structure in registry')|escapejs }}",
+        calculator: "{{ _('Reinforcement calculator')|escapejs }}",
+        addHere: "{{ _('Add a structure on this moon')|escapejs }}",
+        openOwner: "{{ _('Open owner intel')|escapejs }}",
+        friendly: "{{ _('Friendly')|escapejs }}",
+        hostile: "{{ _('Hostile')|escapejs }}",
+        linkFailed: "{{ _('Could not link the structure.')|escapejs }}",
+    };
+    const ACCENTS = ["#58a6ff", "#d2a8ff", "#f778ba", "#3fb950", "#56d4dd", "#ff7b72"];
+    const LEVELS = ["alliance", "region", "system"];
+    const RARITIES = [64, 32, 16, 8, 4];
+
+    const groupsEl = document.getElementById("moonGroups");
+    const summaryEl = document.getElementById("moonSummary");
+    const noMatchRow = document.getElementById("noMoonMatchRow");
+    const searchInput = document.getElementById("moonSearchInput");
+    const clearSearchBtn = document.getElementById("clearMoonSearchBtn");
+    const rarityChips = document.getElementById("moonRarityChips");
+    const statusChips = document.getElementById("moonStatusChips");
+    const structureFilter = document.getElementById("moonStructureFilter");
+    const regionFilter = document.getElementById("moonRegionFilter");
+    const oreFilter = document.getElementById("moonOreFilter");
+    const minValueInput = document.getElementById("moonMinValue");
+    const resetBtn = document.getElementById("resetMoonFiltersBtn");
+    const modeEl = document.getElementById("moonGroupMode");
+    const depthEl = document.getElementById("moonDepth");
+    const colgroupTemplate = document.getElementById("moonColgroup");
+    const detailModalEl = document.getElementById("moonDetailModal");
+    const detailContent = document.getElementById("moonDetailContent");
+
+    let ORES = {};
+    let ROWS = [];
+    let ROW_BY_ID = new Map();
+    let OWNER_INFO = {};
+    let GROUPS = new Map();   // group key -> {level, rows}
+    let mode = "geo";
+    let depth = 0;            // groups at level >= depth start collapsed
+    let overrides = {};
+    let activeRarity = "";
+    let activeStatus = "";
+    let ownerFilter = "";     // ?owner=<key> deep link
+    let sortColumn = "value";
+    let sortDir = "desc";
+    let detailModal = null;
+
+    // ---------- helpers ----------
+    function escapeHtml(str) {
+        if (str === null || str === undefined) return "";
+        return String(str)
+            .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    }
+
+    function getCsrfToken() {
+        const input = document.querySelector("[name=csrfmiddlewaretoken]");
+        if (input && input.value) return input.value;
+        const cookie = document.cookie.split(";").find(c => c.trim().startsWith("csrftoken="));
+        return cookie ? cookie.split("=")[1].trim() : "";
+    }
+
+    // Mirrors format_isk() in hostile/services/moonmining_integration.py
+    function formatIsk(value) {
+        if (value === null || value === undefined || isNaN(value)) return "—";
+        const trim = s => s.replace(/\.0$/, "");
+        const abs = Math.abs(value);
+        if (abs >= 1e9) return trim((value / 1e9).toFixed(1)) + "b";
+        if (abs >= 1e6) return trim((value / 1e6).toFixed(1)) + "m";
+        if (abs >= 1e3) return trim((value / 1e3).toFixed(1)) + "k";
+        return value.toFixed(0);
+    }
+
+    // "500m", "1.2b", "750k" or a plain number -> ISK
+    function parseIsk(text) {
+        const m = String(text || "").trim().toLowerCase().replace(/,/g, "").match(/^(\d+(?:\.\d+)?)\s*([kmbt]?)/);
+        if (!m) return 0;
+        const mult = {"": 1, k: 1e3, m: 1e6, b: 1e9, t: 1e12}[m[2]];
+        return parseFloat(m[1]) * mult;
+    }
+
+    function plural(n, one, many) {
+        return `${n} ${n === 1 ? one : many}`;
+    }
+
+    function relativeAge(iso) {
+        if (!iso) return "";
+        const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+        if (days < 1) return "{{ _('today')|escapejs }}";
+        if (days < 60) return `${days}d`;
+        if (days < 730) return `${Math.floor(days / 30)}mo`;
+        return `${Math.floor(days / 365)}y`;
+    }
+
+    function secClass(sec) {
+        if (sec === null || sec === undefined) return "";
+        if (sec >= 0.45) return "text-success";
+        if (sec > 0) return "text-warning";
+        return "text-danger";
+    }
+
+    function groupBy(items, keyFn) {
+        const map = new Map();
+        items.forEach(item => {
+            const k = keyFn(item);
+            if (!map.has(k)) map.set(k, []);
+            map.get(k).push(item);
+        });
+        return Array.from(map.entries());
+    }
+
+    function total(rows) {
+        return rows.reduce((sum, r) => sum + (r.value || 0), 0);
+    }
+
+    // ---------- data ----------
+    function prepare(payload) {
+        ORES = payload.ores || {};
+        ROWS = (payload.rows || []).map((r, i) => {
+            const oreNames = r.products.map(p => (ORES[p[0]] || {}).name || "").join(" ");
+            const structureText = r.structures.map(s => `${s.name} ${s.type} ${s.owner_name} ${s.owner_ticker}`).join(" ");
+            const refineryText = r.refinery ? `${r.refinery.name} ${r.refinery.corporation} ${r.refinery.alliance} ${r.refinery.ticker}` : "";
+            r._order = i;
+            r._region = r.region || I18N.unknownRegion;
+            r._search = `${r.name} ${r.location} ${r.system} ${r.constellation} ${r.region} R${r.rarity} ${r.owner_name} ${r.owner_ticker} ${r.status} ${oreNames} ${structureText} ${refineryText} ${r.label ? r.label.name : ""}`.toLowerCase();
+            r._oreIds = new Set(r.products.map(p => String(p[0])));
+            r._structureKind = r.structures.length ? (r.structures.some(s => s.is_drill) ? "drill" : "refinery") : "none";
+            return r;
+        });
+        ROW_BY_ID = new Map(ROWS.map(r => [r.id, r]));
+
+        OWNER_INFO = {};
+        groupBy(ROWS, r => r.owner_key)
+            .sort((a, b) => total(b[1]) - total(a[1]))
+            .forEach(([key, list], i) => {
+                const first = list[0];
+                OWNER_INFO[key] = {
+                    accent: key === "unclaimed" ? "#8b949e" : ACCENTS[i % ACCENTS.length],
+                    name: first.owner_name,
+                    ticker: first.owner_ticker,
+                    url: first.owner_url,
+                    status: first.status,
+                };
+            });
+
+        const regions = Array.from(new Set(ROWS.map(r => r._region))).sort();
+        regionFilter.innerHTML = `<option value="">{{ _('Any region')|escapejs }}</option>` +
+            regions.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join("");
+
+        const ores = Object.entries(ORES).sort((a, b) => b[1].rarity - a[1].rarity || a[1].name.localeCompare(b[1].name));
+        oreFilter.innerHTML = `<option value="">{{ _('Any ore')|escapejs }}</option>` + ores.map(([id, ore]) => `<option value="${id}">R${ore.rarity} · ${escapeHtml(ore.name)}</option>`).join("");
+        if (typeof oreFilter.syncSearchableSelect === "function") oreFilter.syncSearchableSelect();
+    }
+
+    // ---------- filtering & sorting ----------
+    function rowMatches(r, terms, minValue, ore) {
+        if (!terms.every(t => r._search.includes(t))) return false;
+        if (activeRarity && String(r.rarity) !== activeRarity) return false;
+        if (activeStatus === "structure" && !r.structures.length) return false;
+        if (activeStatus && activeStatus !== "structure" && r.status !== activeStatus) return false;
+        if (ownerFilter && r.owner_key !== ownerFilter) return false;
+        if (structureFilter.value && r._structureKind !== structureFilter.value) return false;
+        if (regionFilter.value && r._region !== regionFilter.value) return false;
+        if (minValue && (r.value || 0) < minValue) return false;
+        if (ore && !r._oreIds.has(ore)) return false;
+        return true;
+    }
+
+    function compareRows(a, b) {
+        const dir = sortDir === "asc" ? 1 : -1;
+        const text = (x, y) => (x || "").localeCompare(y || "") * dir;
+        switch (sortColumn) {
+            case "name": return text(a.name, b.name);
+            case "rarity": return (a.rarity - b.rarity) * dir || ((a.value || 0) - (b.value || 0)) * dir;
+            case "structure": return text(a.structures[0] ? a.structures[0].type : "", b.structures[0] ? b.structures[0].type : "");
+            case "owner": return text(a.owner_name, b.owner_name);
+            case "updated": return ((a.updated_at ? Date.parse(a.updated_at) : 0) - (b.updated_at ? Date.parse(b.updated_at) : 0)) * dir;
+            case "value": return ((a.value || 0) - (b.value || 0)) * dir;
+            default: return a._order - b._order;
+        }
+    }
+
+    // ---------- rendering ----------
+    function levelKeys(r) {
+        return mode === "owner"
+            ? [r.owner_key, r._region, r.system]
+            : [r._region, r.constellation || "—", r.system];
+    }
+
+    function isCollapsed(key, level) {
+        return key in overrides ? overrides[key] : level >= depth;
+    }
+
+    function rarityMix(rows) {
+        const counts = {};
+        rows.forEach(r => { if (r.rarity) counts[r.rarity] = (counts[r.rarity] || 0) + 1; });
+        const parts = RARITIES.filter(k => counts[k]).map(k => `<span class="r-${k}" title="R${k}">R${k}×${counts[k]}</span>`);
+        return parts.length ? `<span class="md-mix">${parts.join("")}</span>` : "";
+    }
+
+    function ownerMix(rows) {
+        if (mode === "owner") return "";
+        const owned = groupBy(rows.filter(r => r.status !== "unclaimed"), r => r.owner_key)
+            .sort((a, b) => b[1].length - a[1].length).slice(0, 4);
+        if (!owned.length) return "";
+        return `<span class="shared">${owned.map(([key, list]) => {
+            const info = OWNER_INFO[key];
+            const label = info.ticker ? `[${escapeHtml(info.ticker)}]` : escapeHtml(info.name);
+            return `<span class="owner-chip" style="--c:${info.accent}" title="${escapeHtml(info.name)}">${label}<span class="n">${list.length}</span></span>`;
+        }).join('<span class="sep">·</span>')}</span>`;
+    }
+
+    function metaHtml(rows, extra) {
+        const withStructure = rows.filter(r => r.structures.length).length;
+        return `<span class="meta">
+            <span><b>${rows.length}</b> ${rows.length === 1 ? I18N.moon : I18N.moons}</span>
+            ${extra || ""}
+            <span><i class="fas fa-coins me-1"></i><b class="sr-isk">${formatIsk(total(rows))}</b> ${I18N.iskPerMonth}</span>
+            ${withStructure ? `<span><i class="fas fa-monument me-1"></i>${withStructure} ${I18N.withStructure}</span>` : ""}
+            ${rarityMix(rows)}
+        </span>`;
+    }
+
+    function groupHead(level, key, rows, path) {
+        if (level === 0 && mode === "owner") {
+            const info = OWNER_INFO[key];
+            const showTicker = info.ticker && info.ticker !== info.name;
+            return `<div>
+                <span class="a-swatch"></span><span class="a-name md-owner ${info.status}">${escapeHtml(info.name)}</span>${showTicker ? `<span class="a-ticker">[${escapeHtml(info.ticker)}]</span>` : ""}
+                ${info.url ? `<a href="${escapeHtml(info.url)}" class="a-link" title="${I18N.openOwner}"><i class="fas fa-external-link-alt"></i></a>` : ""}
+                <div class="mt-1">${metaHtml(rows, `<span>${plural(new Set(rows.map(r => r.system)).size, I18N.system, I18N.systems)}</span>`)}</div>
+            </div>`;
+        }
+        if (level === 0) {
+            return `<div>
+                <span class="a-name"><i class="fas fa-map me-2 sr-muted"></i>${escapeHtml(key)}</span>
+                <div class="mt-1">${metaHtml(rows, `<span>${plural(new Set(rows.map(r => r.system)).size, I18N.system, I18N.systems)}</span>`)}</div>
+            </div>${ownerMix(rows)}`;
+        }
+        if (level === 1) {
+            const label = path[1];
+            return `<span class="r-name"><i class="fas ${mode === "owner" ? "fa-map" : "fa-project-diagram"} me-2"></i>${escapeHtml(label)}</span>
+                ${metaHtml(rows, "")}${ownerMix(rows)}`;
+        }
+        const first = rows[0];
+        const sec = first.security;
+        return `<span class="sys-name">${escapeHtml(path[2])}</span>
+            ${sec !== null && sec !== undefined ? `<span class="sec ${secClass(sec)}">${sec.toFixed(1)}</span>` : ""}
+            ${metaHtml(rows, "")}${ownerMix(rows)}`;
+    }
+
+    function buildChildren(level, key, rows) {
+        if (level === 2) {
+            const sorted = rows.slice().sort(compareRows);
+            return `<table class="sr-table">${colgroupTemplate.outerHTML.replace(/ id="[^"]*"/, "")}<tbody>${sorted.map(rowHtml).join("")}</tbody></table>`;
+        }
+        const groups = groupBy(rows, r => levelKeys(r)[level + 1]);
+        groups.sort((a, b) => level + 1 === 2 && sortColumn === "value"
+            ? total(b[1]) - total(a[1])
+            : String(a[0]).localeCompare(String(b[0])));
+        return groups.map(([childKey, childRows]) => buildGroup(level + 1, `${key}|${childKey}`, childRows)).join("");
+    }
+
+    function buildGroup(level, key, rows) {
+        const path = key.split("|");
+        GROUPS.set(key, {level, rows});
+        const collapsed = isCollapsed(key, level);
+        const html = `<div class="grp lvl-${LEVELS[level]}${collapsed ? " collapsed" : ""}" data-key="${escapeHtml(key)}" data-filled="${collapsed ? "0" : "1"}">
+            <div class="grp-head"><i class="fas fa-chevron-down caret"></i>${groupHead(level, path[level], rows, path)}</div>
+            <div class="grp-body">${collapsed ? "" : buildChildren(level, key, rows)}</div>
+        </div>`;
+        if (level === 0) {
+            const accent = mode === "owner" ? OWNER_INFO[key].accent : "#58a6ff";
+            return `<div style="--accent:${accent}">${html}</div>`;
+        }
+        return html;
+    }
+
+    function compositionHtml(r) {
+        if (!r.products.length) return `<span class="sr-muted small">${I18N.noSurvey}</span>`;
+        return `<div class="md-comp">${r.products.slice(0, 4).map(([oreId, amount, isk]) => {
+            const ore = ORES[oreId] || {name: "?", rarity: 0, icon: ""};
+            return `<span class="md-ore r-${ore.rarity}" title="${escapeHtml(ore.name)}: ${(amount * 100).toFixed(1)}% · ${formatIsk(isk)} ${I18N.iskPerMonth}">
+                <img src="${escapeHtml(ore.icon)}" alt="" loading="lazy">${escapeHtml(ore.name)} <span class="pct">${Math.round(amount * 100)}%</span></span>`;
+        }).join("")}${r.products.length > 4 ? `<span class="sr-muted small">+${r.products.length - 4}</span>` : ""}</div>`;
+    }
+
+    function structureHtml(r) {
+        if (r.structures.length) {
+            const s = r.structures[0];
+            const more = r.structures.length > 1 ? ` <span class="sr-muted">+${r.structures.length - 1}</span>` : "";
+            return `<div class="d-flex align-items-center gap-2" style="min-width:0">
+                <span class="sr-state" title="${escapeHtml(s.state)}"><span class="dot s-${escapeHtml(s.state)}"></span></span>
+                <div style="min-width:0"><div class="text-truncate" title="${escapeHtml(s.name)}">${escapeHtml(s.type || s.name)}${more}</div>
+                <div class="sr-sub" title="${escapeHtml(s.name)}">${escapeHtml(s.name)}</div></div>
+            </div>`;
+        }
+        if (r.refinery) {
+            return `<div style="min-width:0"><div class="text-truncate">${escapeHtml(r.refinery.type || "Refinery")}</div>
+                <div class="sr-sub" title="${I18N.moonmining}"><i class="fas fa-satellite-dish me-1"></i>${escapeHtml(r.refinery.name)}</div></div>`;
+        }
+        return `<span class="sr-muted">—</span>`;
+    }
+
+    function ownerHtml(r) {
+        if (r.status === "unclaimed") return `<span class="md-owner unclaimed">${I18N.unclaimed}</span>`;
+        const label = r.owner_ticker ? `[${escapeHtml(r.owner_ticker)}]` : escapeHtml(r.owner_name);
+        const title = `${escapeHtml(r.owner_name)} · ${r.status === "friendly" ? I18N.friendly : I18N.hostile}`;
+        const inner = `<span class="md-owner ${r.status}" title="${title}"><span class="md-owner-dot"></span>${label}</span>`;
+        return r.owner_url ? `<a href="${escapeHtml(r.owner_url)}" class="text-decoration-none">${inner}</a>` : inner;
+    }
+
+    function valueHtml(r) {
+        if (r.value === null || r.value === undefined) return `<span class="sr-muted">—</span>`;
+        const hourly = r.drill_value !== null ? r.drill_value / 720 : null;
+        return `<span class="sr-isk">${formatIsk(r.value)}</span>
+            <div class="sr-sub" title="${I18N.drillPotential}">${I18N.drill} ${formatIsk(r.drill_value)}${hourly !== null ? ` (${formatIsk(hourly)}${I18N.perHour})` : ""}</div>`;
+    }
+
+    function addHereUrl(r) {
+        const params = new URLSearchParams({add: "1", location_details: r.location || r.name});
+        if (r.system_id) params.set("solar_system", r.system_id);
+        return `${URLS.structures}?${params.toString()}`;
+    }
+
+    function rowHtml(r) {
+        const s = r.structures[0];
+        const label = r.label ? ` <span class="badge bg-${escapeHtml(r.label.style || "secondary")} md-label">${escapeHtml(r.label.name)}</span>` : "";
+        const actions = [
+            `<button type="button" class="sr-act" data-action="details" title="${I18N.details}"><i class="fas fa-info-circle"></i></button>`,
+            s ? `<a class="sr-act" href="${URLS.structures}?structure=${s.id}" title="${I18N.showStructure}"><i class="fas fa-monument"></i></a>` : "",
+            s ? `<a class="sr-act warn" href="${URLS.calculator}?structure_id=${s.id}" title="${I18N.calculator}" data-hostile-loading="{{ _('Loading Timer Calculator')|escapejs }}"><i class="fas fa-calculator"></i></a>` : "",
+            !s ? `<a class="sr-act ok" href="${escapeHtml(addHereUrl(r))}" title="${I18N.addHere}"><i class="fas fa-plus"></i></a>` : "",
+        ].join("");
+        return `<tr class="structure-row moon-row" data-moon-id="${r.id}">
+            <td class="sr-col-name"><div class="structure-name-text text-truncate" title="${escapeHtml(r.name)}">${escapeHtml(r.name)}${label}</div>
+                <div class="sr-sub">${escapeHtml(r.location)}${r.location ? " · " : ""}${escapeHtml(r.constellation)}</div></td>
+            <td>${r.rarity ? `<span class="md-rarity r-${r.rarity}">R${r.rarity}</span>` : `<span class="sr-muted">—</span>`}</td>
+            <td>${compositionHtml(r)}</td>
+            <td class="small">${valueHtml(r)}</td>
+            <td class="small">${structureHtml(r)}</td>
+            <td class="small">${ownerHtml(r)}</td>
+            <td class="sr-updated" title="${escapeHtml(r.updated_at || "")}">${relativeAge(r.updated_at)}</td>
+            <td class="sr-actions">${actions}</td>
+        </tr>`;
+    }
+
+    function updateKpis(rows) {
+        const set = (k, v) => { const el = document.querySelector(`[data-kpi="${k}"]`); if (el) el.textContent = v; };
+        set("moons", rows.length.toLocaleString());
+        set("r64", rows.filter(r => r.rarity === 64).length.toLocaleString());
+        set("r32", rows.filter(r => r.rarity === 32).length.toLocaleString());
+        set("value", formatIsk(total(rows)));
+        set("hostile", formatIsk(total(rows.filter(r => r.status === "hostile"))));
+        set("unclaimed", rows.filter(r => r.status === "unclaimed" && r.rarity >= 32).length.toLocaleString());
+    }
+
+    let visibleRows = [];
+
+    function render() {
+        const query = searchInput.value.toLowerCase().trim();
+        clearSearchBtn.classList.toggle("d-none", query.length === 0);
+        const terms = query ? query.split(/\s+/).filter(Boolean) : [];
+        const minValue = parseIsk(minValueInput.value);
+        const ore = oreFilter.value;
+        visibleRows = ROWS.filter(r => rowMatches(r, terms, minValue, ore));
+
+        GROUPS = new Map();
+        const top = groupBy(visibleRows, r => levelKeys(r)[0]);
+        if (mode === "owner") {
+            top.sort((a, b) => total(b[1]) - total(a[1]));
+        } else {
+            top.sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+        }
+        if (!ROWS.length) {
+            groupsEl.innerHTML = `<div class="sr-empty"><i class="fas fa-moon fa-3x mb-3 d-block"></i><p class="mb-0">${I18N.noMoons}</p></div>`;
+        } else {
+            groupsEl.innerHTML = top.map(([key, rows]) => buildGroup(0, key, rows)).join("");
+        }
+        noMatchRow.classList.toggle("d-none", visibleRows.length > 0 || ROWS.length === 0);
+        updateKpis(visibleRows);
+
+        if (ROWS.length) {
+            const systems = new Set(visibleRows.map(r => r.system)).size;
+            const regions = new Set(visibleRows.map(r => r._region)).size;
+            const owned = new Set(visibleRows.filter(r => r.status !== "unclaimed").map(r => r.owner_key)).size;
+            summaryEl.innerHTML = `<span id="moonVisibleCount">${visibleRows.length}</span> ${I18N.of} ${plural(ROWS.length, I18N.moon, I18N.moons)}
+                · ${plural(regions, I18N.region, I18N.regions)} · ${plural(systems, I18N.system, I18N.systems)} · ${plural(owned, I18N.owner, I18N.owners)}`;
+        }
+    }
+
+    function expandGroup(grp, collapsed) {
+        grp.classList.toggle("collapsed", collapsed);
+        overrides[grp.dataset.key] = collapsed;
+        if (!collapsed && grp.dataset.filled === "0") {
+            const info = GROUPS.get(grp.dataset.key);
+            if (info) grp.querySelector(":scope > .grp-body").innerHTML = buildChildren(info.level, grp.dataset.key, info.rows);
+            grp.dataset.filled = "1";
+        }
+    }
+
+    // Expands the path to a moon (clearing filters if they hide it), scrolls to it and flashes it.
+    function jumpToMoon(moonId) {
+        const r = ROW_BY_ID.get(moonId);
+        if (!r) return;
+        if (!visibleRows.includes(r)) resetFilters(false);
+        const keys = levelKeys(r);
+        for (let i = 1; i <= keys.length; i++) overrides[keys.slice(0, i).join("|")] = false;
+        render();
+        const tr = groupsEl.querySelector(`tr.moon-row[data-moon-id="${moonId}"]`);
+        if (!tr) return;
+        tr.scrollIntoView({behavior: "smooth", block: "center"});
+        tr.classList.remove("flash");
+        void tr.offsetWidth;
+        tr.classList.add("flash");
+    }
+
+    function resetFilters(rerender = true) {
+        searchInput.value = "";
+        structureFilter.value = "";
+        regionFilter.value = "";
+        minValueInput.value = "";
+        oreFilter.value = "";
+        if (typeof oreFilter.syncSearchableSelect === "function") oreFilter.syncSearchableSelect();
+        activeRarity = "";
+        activeStatus = "";
+        ownerFilter = "";
+        rarityChips.querySelectorAll(".sr-chip").forEach(c => c.classList.toggle("active", c.dataset.rarity === ""));
+        statusChips.querySelectorAll(".sr-chip").forEach(c => c.classList.toggle("active", c.dataset.status === ""));
+        if (rerender) render();
+    }
+
+    function setMode(newMode) {
+        mode = newMode;
+        overrides = {};
+        modeEl.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.mode === mode));
+        depthEl.querySelectorAll("button").forEach(b => { b.textContent = b.dataset[mode]; });
+    }
+
+    // ---------- details modal & linking ----------
+    function openDetails(moonId) {
+        if (!detailModal) detailModal = new bootstrap.Modal(detailModalEl);
+        detailContent.innerHTML = `<div class="modal-body text-center py-5 text-muted"><i class="fas fa-circle-notch fa-spin fa-2x"></i></div>`;
+        detailModal.show();
+        fetch(URLS.detail.replace("/0/", `/${moonId}/`), {headers: {"X-Requested-With": "XMLHttpRequest"}})
+            .then(r => { if (!r.ok) throw new Error(r.status); return r.text(); })
+            .then(html => { detailContent.innerHTML = html; })
+            .catch(() => { detailContent.innerHTML = `<div class="modal-body text-danger">${I18N.loadFailed}</div>`; });
+    }
+
+    detailContent.addEventListener("click", function(e) {
+        const btn = e.target.closest("[data-link-moon]");
+        if (!btn) return;
+        const select = detailContent.querySelector("#moonLinkStructure");
+        if (!select || !select.value) return;
+        const moonId = parseInt(btn.dataset.linkMoon, 10);
+        btn.disabled = true;
+        fetch(URLS.inlineUpdate.replace("/0/", `/${select.value}/`), {
+            method: "POST",
+            headers: {"Content-Type": "application/json", "X-CSRFToken": getCsrfToken(), "X-Requested-With": "XMLHttpRequest"},
+            body: JSON.stringify({field: "moonmining_moon", value: String(moonId)}),
+        })
+            .then(r => r.json().then(d => ({ok: r.ok, d})))
+            .then(({ok, d}) => {
+                if (!ok || d.success === false) throw new Error(d.error || I18N.linkFailed);
+                return load().then(() => openDetails(moonId));
+            })
+            .catch(err => { btn.disabled = false; alert(err.message || I18N.linkFailed); });
+    });
+
+    // ---------- events ----------
+    groupsEl.addEventListener("click", function(e) {
+        if (e.target.closest("a")) return;
+        const action = e.target.closest("[data-action='details']");
+        const tr = e.target.closest("tr.moon-row");
+        if (action || (tr && !e.target.closest(".sr-actions"))) {
+            openDetails(parseInt(tr.dataset.moonId, 10));
+            return;
+        }
+        const head = e.target.closest(".grp-head");
+        if (!head) return;
+        const grp = head.parentElement;
+        expandGroup(grp, !grp.classList.contains("collapsed"));
+    });
+    rarityChips.addEventListener("click", function(e) {
+        const chip = e.target.closest(".sr-chip");
+        if (!chip) return;
+        activeRarity = chip.dataset.rarity;
+        rarityChips.querySelectorAll(".sr-chip").forEach(c => c.classList.toggle("active", c === chip));
+        render();
+    });
+    statusChips.addEventListener("click", function(e) {
+        const chip = e.target.closest(".sr-chip");
+        if (!chip) return;
+        activeStatus = chip.dataset.status;
+        statusChips.querySelectorAll(".sr-chip").forEach(c => c.classList.toggle("active", c === chip));
+        render();
+    });
+    modeEl.addEventListener("click", function(e) {
+        const btn = e.target.closest("button");
+        if (!btn || btn.dataset.mode === mode) return;
+        setMode(btn.dataset.mode);
+        render();
+    });
+    depthEl.addEventListener("click", function(e) {
+        const btn = e.target.closest("button");
+        if (!btn) return;
+        depth = parseInt(btn.dataset.depth, 10);
+        overrides = {};
+        depthEl.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === btn));
+        render();
+    });
+    let searchTimer = null;
+    searchInput.addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(render, 150); });
+    clearSearchBtn.addEventListener("click", () => { searchInput.value = ""; searchInput.focus(); render(); });
+    minValueInput.addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(render, 250); });
+    [structureFilter, regionFilter, oreFilter].forEach(el => el.addEventListener("change", () => render()));
+    resetBtn.addEventListener("click", () => resetFilters());
+
+    const sortHeaders = document.querySelectorAll(".moon-data .sortable-th");
+    sortHeaders.forEach(th => {
+        th.addEventListener("click", function() {
+            const key = this.dataset.sort;
+            if (sortColumn === key) {
+                sortDir = sortDir === "asc" ? "desc" : "asc";
+            } else {
+                sortColumn = key;
+                sortDir = ["value", "rarity", "updated"].includes(key) ? "desc" : "asc";
+            }
+            sortHeaders.forEach(h => {
+                h.classList.remove("active-sort");
+                const icon = h.querySelector(".sort-icon");
+                if (icon) icon.className = "fas fa-sort sort-icon ms-1";
+            });
+            this.classList.add("active-sort");
+            const icon = this.querySelector(".sort-icon");
+            if (icon) icon.className = `fas fa-sort-${sortDir === "asc" ? "up" : "down"} sort-icon ms-1`;
+            render();
+        });
+    });
+
+    function load() {
+        return fetch(URLS.data, {headers: {"X-Requested-With": "XMLHttpRequest"}})
+            .then(r => r.json())
+            .then(payload => {
+                if (payload.error) throw new Error(payload.error);
+                prepare(payload);
+                render();
+            });
+    }
+
+    load()
+        .then(() => {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get("q")) { searchInput.value = params.get("q"); }
+            if (params.get("system")) { searchInput.value = params.get("system"); depth = 3; }
+            if (params.get("owner")) {
+                ownerFilter = params.get("owner");
+                setMode("owner");
+                depth = 1;
+            }
+            if (params.get("q") || params.get("system") || params.get("owner")) render();
+            const moonId = parseInt(params.get("moon"), 10);
+            if (moonId) jumpToMoon(moonId);
+        })
+        .catch(() => {
+            groupsEl.innerHTML = `<div class="sr-empty text-danger"><i class="fas fa-exclamation-triangle fa-2x mb-3 d-block"></i><p class="mb-0">${I18N.loadFailed}</p></div>`;
+        });
+});
+</script>
+{% endif %}
+{% endblock %}

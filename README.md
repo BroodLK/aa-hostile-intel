@@ -51,6 +51,14 @@ ______________________________________________________________________
 
     Saving updates the structure's state in the registry (Armor / Hull / Reinforced). Pasting a timer that already exists doesn't add it twice.
 
+- **🌙 Moon Data** (needs [aa-moonmining](https://gitlab.com/ErikKalkoken/aa-moonmining)):
+
+  - Lists every surveyed moon: what it produces (ore shares and ISK per month for each ore), rarity, and aa-moonmining's monthly value with the Metenox drill share (40%).
+  - Shows the drill or refinery (Athanor / Tatara) on each moon and who owns it, taken from the structure registry. For your own corporations it can also come from aa-moonmining's refinery data. Moons with nothing on them are marked *Unclaimed*.
+  - Uses the Structures tab's layout. You can group by Region › Constellation › System or by owner, filter by rarity, owner status, structure type, region, ore or minimum value, and a KPI strip shows totals for the moons currently shown.
+  - The details window shows the full product table and lets you link a registry structure to the moon. *Add structure on this moon* opens the Add Structure form with the system and moon filled in. Moon surveys can be uploaded from the tab.
+  - A structure's moon value on the Structures tab links to its moon here, and each moon links back to its structure and the reinforcement calculator.
+
 - **🧮 Reinforcement Calculator**:
 
   - Works out when a structure comes out of reinforce. It uses the same toolbar style as the Structures tab: structure size, low power / abandoned, space (Null/Low, High, WH, War HQ), armor or hull timer, the RF time (with Now / -30m / -1h) and the vulnerability hour.

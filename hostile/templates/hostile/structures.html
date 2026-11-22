@@ -218,10 +218,10 @@
             </td>
             <td class="small">
                 {% if struct.moonmining_match %}
-                    <span class="sr-isk">{{ struct.moonmining_match.display_value }}</span>
-                    <span class="sr-muted">/ {% translate "Drill" %} {{ struct.moonmining_match.display_drill_value }}{% if struct.moonmining_match.drill_hourly_value is not None %} ({{ struct.moonmining_match.display_drill_hourly_value }}/h){% endif %}</span>
+                    <a href="{% url 'hostile:moon_data' %}?moon={{ struct.moonmining_match.moon.eve_moon_id }}" class="text-decoration-none" title="{% translate 'Open this moon in Moon Data' %}"><span class="sr-isk">{{ struct.moonmining_match.display_value }}</span></a>
+                    {% if struct.moonmining_match.drill_value is not None %}<span class="sr-muted">/ {% translate "Drill" %} {{ struct.moonmining_match.display_drill_value }}{% if struct.moonmining_match.drill_hourly_value is not None %} ({{ struct.moonmining_match.display_drill_hourly_value }}/h){% endif %}</span>{% endif %}
                 {% elif struct.moon_scan_options %}
-                    <select class="form-select form-select-sm moon-correlation-select no-searchable" data-structure-id="{{ struct.id }}" title="{% translate 'Correlate this drill with a moon scan' %}">
+                    <select class="form-select form-select-sm moon-correlation-select no-searchable" data-structure-id="{{ struct.id }}" title="{% translate 'Correlate this structure with a moon scan' %}">
                         <option value="">{% translate "Correlate moon scan…" %}</option>
                         {% for moon in struct.moon_scan_options %}
                         <option value="{{ moon.eve_moon_id }}">{{ moon.eve_moon.name }}</option>
@@ -1670,6 +1670,31 @@ document.addEventListener("DOMContentLoaded", function() {
             });
         });
     });
+
+    // ?structure=<id> (from Moon Data): expand its owner › region › system group and flash the row.
+    const jumpStructureId = new URLSearchParams(window.location.search).get("structure");
+    if (jumpStructureId) {
+        const jumpRow = document.querySelector(`tr.structure-row[data-id="${CSS.escape(jumpStructureId)}"]`);
+        if (jumpRow) {
+            jumpTo(`${jumpRow.dataset.groupKey}|${jumpRow.dataset.region}|${jumpRow.dataset.systemName}`);
+            jumpRow.scrollIntoView({behavior: "smooth", block: "center"});
+            jumpRow.classList.add("rule-row-on");
+            setTimeout(() => jumpRow.classList.remove("rule-row-on"), 2500);
+        }
+    }
+
+    {% if open_add_modal %}
+    // "Add structure here" from Moon Data: open the pre-filled Add Structure modal.
+    const addModalEl = document.getElementById('addStructureModal');
+    if (addModalEl) {
+        const systemSelect = document.getElementById('id_solar_system');
+        const systemInput = document.getElementById('structSystemSearchInput');
+        if (systemSelect && systemInput && systemSelect.selectedIndex > 0) {
+            systemInput.value = systemSelect.options[systemSelect.selectedIndex].text;
+        }
+        new bootstrap.Modal(addModalEl).show();
+    }
+    {% endif %}
 
     {% if open_suspected_modal %}
     const suspectedModalEl = document.getElementById('suspectedDuplicatesModal');

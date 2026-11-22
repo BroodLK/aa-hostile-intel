@@ -15,6 +15,13 @@ urlpatterns = [
     path("smart-paste/", views.smart_paste, name="smart_paste"),
     path("structures/", views.structures_list, name="structures"),
     path("structures/add/", views.structure_add, name="structure_add"),
+    path("moon-data/", views.moon_data, name="moon_data"),
+    path("moon-data/data/", views.moon_data_json, name="moon_data_json"),
+    path(
+        "moon-data/<int:moon_id>/",
+        views.moon_data_detail,
+        name="moon_data_detail",
+    ),
     path(
         "structures/auto-deduplicate/",
         views.structure_auto_deduplicate,

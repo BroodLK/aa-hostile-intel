@@ -1,0 +1,134 @@
+{% load i18n humanize %}
+<div class="modal-header border-secondary">
+    <h5 class="modal-title">
+        <i class="fas fa-moon text-info me-2"></i>{{ row.name }}
+        {% if row.rarity %}<span class="md-rarity r-{{ row.rarity }} ms-2">R{{ row.rarity }}</span>{% endif %}
+        {% if row.label %}<span class="badge bg-{{ row.label.style|default:'secondary' }} ms-1 small">{{ row.label.name }}</span>{% endif %}
+    </h5>
+    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+</div>
+<div class="modal-body">
+    <div class="row g-3 mb-3">
+        <div class="col-md-4">
+            <div class="text-muted small fw-bold text-uppercase">{% translate "Location" %}</div>
+            <div>
+                <span class="fw-bold text-info">{{ row.system }}</span>
+                {% if row.security is not None %}<span class="small {% if row.security >= 0.45 %}text-success{% elif row.security > 0 %}text-warning{% else %}text-danger{% endif %}">{{ row.security|floatformat:1 }}</span>{% endif %}
+                {% if row.location %}<span class="text-muted">· {{ row.location }}</span>{% endif %}
+            </div>
+            <div class="small text-muted">{{ row.constellation }} / <em>{{ row.region }}</em></div>
+        </div>
+        <div class="col-md-4">
+            <div class="text-muted small fw-bold text-uppercase">{% translate "Estimated value / month" %}</div>
+            <div class="md-isk fs-5">{{ display_value }}</div>
+            <div class="small text-muted" title="{% translate 'A Metenox drill yields 40% of the moon value' %}">
+                {% translate "Drill" %} <span class="md-isk">{{ display_drill_value }}</span> ({{ display_drill_hourly }}/h)
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="text-muted small fw-bold text-uppercase">{% translate "Owner" %}</div>
+            {% if row.status == "unclaimed" %}
+                <div class="text-muted fst-italic">{% translate "Unclaimed" %}</div>
+            {% else %}
+                <div class="{% if row.status == 'friendly' %}text-success{% else %}text-danger{% endif %} fw-bold">
+                    {% if row.owner_url %}<a href="{{ row.owner_url }}" class="text-reset">{{ row.owner_name }}</a>{% else %}{{ row.owner_name }}{% endif %}
+                    {% if row.owner_ticker and row.owner_ticker != row.owner_name %}<span class="small">[{{ row.owner_ticker }}]</span>{% endif %}
+                </div>
+                <div class="small text-muted">{% if row.status == "friendly" %}{% translate "Friendly" %}{% else %}{% translate "Hostile" %}{% endif %}</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <h6 class="text-muted small fw-bold text-uppercase">{% translate "Composition" %}</h6>
+    {% if products %}
+    <div class="table-responsive mb-3">
+        <table class="table table-dark table-sm align-middle mb-0">
+            <thead>
+                <tr class="small text-muted">
+                    <th>{% translate "Ore" %}</th>
+                    <th>{% translate "Rarity" %}</th>
+                    <th class="text-end">{% translate "ISK / unit" %}</th>
+                    <th style="width: 30%;">{% translate "Share" %}</th>
+                    <th class="text-end">{% translate "ISK / month" %}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in products %}
+                <tr class="r-{{ p.ore.rarity }}">
+                    <td><img src="{{ p.ore.icon }}" alt="" width="24" height="24" class="me-2 rounded">{{ p.ore.name }}</td>
+                    <td>{% if p.ore.rarity %}<span class="md-rarity">R{{ p.ore.rarity }}</span>{% endif %}</td>
+                    <td class="text-end md-isk">{{ p.display_price }}</td>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="md-bar flex-grow-1"><span style="width: {{ p.percent|floatformat:1 }}%;"></span></div>
+                            <span class="small font-monospace">{{ p.percent|floatformat:1 }}%</span>
+                        </div>
+                    </td>
+                    <td class="text-end md-isk">{{ p.display_value }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-muted small">{% translate "There is no survey for this moon yet." %}</p>
+    {% endif %}
+    <p class="small text-muted mb-3">
+        {% if updated_at %}{% blocktranslate with when=updated_at|naturaltime %}Survey updated {{ when }}.{% endblocktranslate %}{% else %}{% translate "Survey not yet updated." %}{% endif %}
+        {% translate "Values are aa-moonmining's monthly estimates." %}
+    </p>
+
+    <h6 class="text-muted small fw-bold text-uppercase">{% translate "Structures on this moon" %}</h6>
+    {% if row.structures %}
+    <div class="list-group mb-3">
+        {% for s in row.structures %}
+        <div class="list-group-item bg-dark text-light border-secondary d-flex align-items-center gap-3">
+            <div class="flex-grow-1">
+                <div class="fw-bold">{{ s.name }}</div>
+                <div class="small text-muted">{{ s.type }} · {{ s.state }}{% if s.vuln_hour is not None %} · {% translate "Vuln" %} {{ s.vuln_hour|stringformat:"02d" }}:00{% endif %}</div>
+            </div>
+            <div class="small {% if s.is_friendly %}text-success{% else %}text-danger{% endif %}">
+                {% if s.owner_ticker %}[{{ s.owner_ticker }}]{% else %}{{ s.owner_name }}{% endif %}
+            </div>
+            <a href="{% url 'hostile:structures' %}?structure={{ s.id }}" class="btn btn-sm btn-outline-info" title="{% translate 'Show structure in registry' %}"><i class="fas fa-monument"></i></a>
+            <a href="{% url 'hostile:calculator' %}?structure_id={{ s.id }}" class="btn btn-sm btn-outline-warning" title="{% translate 'Reinforcement calculator' %}"><i class="fas fa-calculator"></i></a>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-muted small">{% translate "No registry structure is known on this moon." %}</p>
+    {% endif %}
+
+    {% if row.refinery %}
+    <div class="small mb-3">
+        <i class="fas fa-satellite-dish text-success me-1"></i>
+        {% translate "aa-moonmining refinery:" %} <span class="fw-bold">{{ row.refinery.name }}</span>
+        {% if row.refinery.type %}({{ row.refinery.type }}){% endif %}
+        · {{ row.refinery.corporation }}{% if row.refinery.ticker %} [{{ row.refinery.ticker }}]{% endif %}
+    </div>
+    {% endif %}
+
+    {% if link_candidates %}
+    <div class="border border-secondary rounded p-2">
+        <label class="form-label text-muted small fw-bold text-uppercase mb-1" for="moonLinkStructure">{% translate "Link a registry structure to this moon" %}</label>
+        <div class="input-group input-group-sm">
+            <select id="moonLinkStructure" class="form-select form-select-sm bg-black text-light border-secondary no-searchable">
+                <option value="">{% translate "Choose a drill or refinery in" %} {{ row.system }}…</option>
+                {% for s in link_candidates %}
+                <option value="{{ s.id }}">{{ s.name }} ({{ s.structure_type.name|default:"?" }}){% if s.location_details %} · {{ s.location_details }}{% endif %}</option>
+                {% endfor %}
+            </select>
+            <button type="button" class="btn btn-outline-info" data-link-moon="{{ row.id }}"><i class="fas fa-link me-1"></i>{% translate "Link" %}</button>
+        </div>
+    </div>
+    {% endif %}
+</div>
+<div class="modal-footer border-secondary">
+    {% if not row.structures %}
+    <a href="{% url 'hostile:structures' %}?add=1&solar_system={{ row.system_id }}&location_details={{ row.location|default:row.name|urlencode }}" class="btn btn-sm btn-outline-success me-auto"><i class="fas fa-plus me-1"></i>{% translate "Add structure on this moon" %}</a>
+    {% endif %}
+    {% if moonmining_url %}
+    <a href="{{ moonmining_url }}?new_page=yes" class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener"><i class="fas fa-external-link-alt me-1"></i>{% translate "Open in Moonmining" %}</a>
+    {% endif %}
+    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">{% translate "Close" %}</button>
+</div>

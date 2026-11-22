@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **Moon Data Tab**: A new tab showing every moon surveyed in aa-moonmining. For each moon you see:
+  - its composition (ore shares and what each ore is worth per month), rarity, and the estimated monthly value and Metenox drill value, all taken from aa-moonmining;
+  - the Metenox drill or refinery on it and its owner. The owner comes from the structure registry, or from aa-moonmining's own refinery record for corporations that have ESI tokens in Auth.
+  - Groups by Region › Constellation › System or by owner, using the Structures tab's layout. Filters cover rarity, owner status (hostile / friendly / unclaimed / has structure), structure type, region, ore and a minimum value. A KPI strip shows totals for the moons currently shown.
+  - A details window shows the full product table and lets you link a registry structure to the moon. You can also upload moon surveys from this tab.
+  - Links between tabs: from the Structures tab's Moon Value to the moon (`?moon=`), from a moon to its structure (`?structure=`) or the reinforcement calculator, and "Add structure on this moon" opens the Add Structure form with the system and moon filled in.
+
+### Changed
+
+- **Refineries Matched to Moons**: Athanors and Tataras are now matched to aa-moonmining moons like Metenox drills. On the Structures tab they show the moon value (no drill value) and can be linked to a moon scan.
+
 ## [0.0.32] - 2026-11-17
 
 ### Added

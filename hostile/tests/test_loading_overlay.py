@@ -63,6 +63,7 @@ class TestLoadingOverlay(TestCase):
         for expected_title in [
             "Loading Dashboard",
             "Loading Structures",
+            "Loading Moon Data",
             "Loading Stagings & Doctrines",
             "Loading Timer Board",
             "Loading Timer Calculator",

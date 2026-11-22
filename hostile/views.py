@@ -510,27 +510,12 @@ def _registry_owner_group(structure: HostileStructure) -> tuple[str, str, str]:
     """Return (key, name, ticker) used to group a structure under its owner in the registry.
 
     The key format is mirrored by ``registryGroupKey`` in structures.html so inline owner
-    edits regroup rows client-side.
+    edits regroup rows client-side. Shared with the Moon Data tab.
     """
-    if structure.alliance_id:
-        return (
-            f"a{structure.alliance_id}",
-            structure.owner_name,
-            structure.alliance.ticker or structure.owner_ticker,
-        )
-    if structure.corporation_id:
-        return (
-            f"c{structure.corporation_id}",
-            structure.owner_name,
-            structure.corporation.ticker or structure.owner_ticker,
-        )
-    if structure.owner_ticker:
-        return (
-            f"t{structure.owner_ticker.lower()}",
-            structure.owner_ticker,
-            structure.owner_ticker,
-        )
-    return "unknown", "Unknown", ""
+    # AA Hostile Intel
+    from hostile.services.moonmining_integration import registry_owner_group
+
+    return registry_owner_group(structure)
 
 
 def _registry_region_name(structure: HostileStructure) -> str:
@@ -547,12 +532,12 @@ def _prepare_registry_structures(request: WSGIRequest, structures) -> tuple:
     """
     moon_data = {}
     moon_options = {}
-    is_drill = None
+    is_moon_structure = None
     reinforcement_isk_loss = None
     try:
         # AA Hostile Intel
         from hostile.services.moonmining_integration import (
-            is_drill,
+            is_moon_structure,
             moon_data_for_structures,
             moon_options_for_structures,
             reinforcement_isk_loss,
@@ -572,7 +557,9 @@ def _prepare_registry_structures(request: WSGIRequest, structures) -> tuple:
         structure.moonmining_match = match
         structure.moon_scan_options = (
             moon_options.get(structure.solar_system.name.lower(), [])
-            if structure.solar_system and is_drill and is_drill(structure)
+            if structure.solar_system
+            and is_moon_structure
+            and is_moon_structure(structure)
             else []
         )
         if match:
@@ -608,7 +595,15 @@ def _prepare_registry_structures(request: WSGIRequest, structures) -> tuple:
 def structures_list(request: WSGIRequest) -> HttpResponse:
     """Structure registry view with filtering, suspected duplicates review queue, and fitting preview"""
     paste_form = SmartPasteForm()
-    structure_form = HostileStructureForm()
+    open_add_modal = request.GET.get("add") == "1"
+    initial = {}
+    if open_add_modal:
+        # "Add structure here" from the Moon Data tab pre-fills system and moon.
+        for field in ("solar_system", "location_details", "structure_type", "name"):
+            value = (request.GET.get(field) or "").strip()
+            if value:
+                initial[field] = value
+    structure_form = HostileStructureForm(initial=initial)
 
     suspected_duplicates = []
     if request.user.has_perm("hostile.manage_intel"):
@@ -626,6 +621,7 @@ def structures_list(request: WSGIRequest) -> HttpResponse:
         "suspected_count": len(suspected_duplicates),
         "moon_data": moon_data,
         "moon_options": moon_options,
+        "open_add_modal": open_add_modal,
     }
     return render(request, "hostile/structures.html", context)
 
@@ -3772,6 +3768,119 @@ def threat_scan_list(request: WSGIRequest) -> HttpResponse:
 
 
 @login_required
+@permission_required("hostile.basic_access")
+def moon_data(request: WSGIRequest) -> HttpResponse:
+    """Moon Data: moonmining moon composition and value joined with registry structures."""
+    # AA Hostile Intel
+    from hostile.services.moonmining_integration import moonmining_available
+
+    installed = moonmining_available()
+    moonmining_list_url = ""
+    if installed and request.user.has_perm("moonmining.basic_access"):
+        try:
+            moonmining_list_url = reverse("moonmining:moons")
+        except Exception:
+            moonmining_list_url = ""
+    context = {
+        "moonmining_installed": installed,
+        "moonmining_list_url": moonmining_list_url,
+    }
+    return render(request, "hostile/moon_data.html", context)
+
+
+@login_required
+@permission_required("hostile.basic_access")
+def moon_data_json(request: WSGIRequest) -> JsonResponse:
+    """All surveyed moons with composition, value, structure and owner as JSON."""
+    # AA Hostile Intel
+    from hostile.services.moonmining_integration import load_moon_data_payload
+
+    try:
+        payload = load_moon_data_payload()
+    except Exception:
+        logger.exception("Unable to build Moon Data payload")
+        return JsonResponse(
+            {"available": True, "error": "Moon data is temporarily unavailable."},
+            status=500,
+        )
+    if payload is None:
+        return JsonResponse({"available": False, "ores": {}, "rows": []})
+    return JsonResponse(payload)
+
+
+def _moon_link_candidates(request: WSGIRequest, row: dict) -> list:
+    """Registry drills/refineries in the moon's system the user may (re)link to it."""
+    # AA Hostile Intel
+    from hostile.services.moonmining_integration import moon_structures_queryset
+
+    if not row.get("system_id"):
+        return []
+    linked = {s["id"] for s in row["structures"]}
+    return [
+        s
+        for s in moon_structures_queryset([row["system_id"]])
+        if s.id not in linked and user_can_edit_object(request.user, s)
+    ]
+
+
+@login_required
+@permission_required("hostile.basic_access")
+def moon_data_detail(request: WSGIRequest, moon_id: int) -> HttpResponse:
+    """Moon details modal: products, values, structures and linking."""
+    # AA Hostile Intel
+    from hostile.services.moonmining_integration import (
+        HOURS_PER_MONTH,
+        format_isk,
+        load_moon_data_payload,
+    )
+
+    payload = load_moon_data_payload(moon_ids=[moon_id])
+    if not payload or not payload["rows"]:
+        return HttpResponse(status=404)
+    row = payload["rows"][0]
+    ores = payload["ores"]
+    products = [
+        {
+            "ore_id": ore_id,
+            "ore": ores[ore_id],
+            "percent": amount * 100,
+            "value": value,
+            "display_value": format_isk(value),
+            "display_price": (
+                format_isk(ores[ore_id]["price"])
+                if ores[ore_id]["price"] is not None
+                else "—"
+            ),
+        }
+        for ore_id, amount, value in row["products"]
+    ]
+    drill_value = row["drill_value"]
+    has_drill = any(s["is_drill"] for s in row["structures"])
+    moonmining_url = ""
+    if request.user.has_perm("moonmining.basic_access"):
+        try:
+            moonmining_url = reverse("moonmining:moon_details", args=[moon_id])
+        except Exception:
+            moonmining_url = ""
+    context = {
+        "row": row,
+        "products": products,
+        "display_value": format_isk(row["value"]),
+        "display_drill_value": format_isk(drill_value),
+        "display_drill_hourly": (
+            format_isk(drill_value / HOURS_PER_MONTH)
+            if drill_value is not None
+            else "—"
+        ),
+        "has_drill": has_drill,
+        "link_candidates": _moon_link_candidates(request, row),
+        "moonmining_url": moonmining_url,
+        "updated_at": parse_datetime(row["updated_at"]) if row["updated_at"] else None,
+    }
+    return render(request, "hostile/moon_data_detail_modal.html", context)
+
+
+@login_required
 @threat_scan_permission_required
 def moon_scan_upload(request: WSGIRequest) -> HttpResponse:
     """Submit a moon survey through the installed moonmining app."""
@@ -3791,6 +3900,8 @@ def moon_scan_upload(request: WSGIRequest) -> HttpResponse:
             messages.error(request, "Moon scan submission failed.")
         else:
             messages.success(request, "Moon scan submitted successfully.")
+        if request.POST.get("next") == "moon_data":
+            return redirect("hostile:moon_data")
         return redirect("hostile:threat_scans")
 
     return render(request, "hostile/moon_scan_upload.html")

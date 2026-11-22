@@ -73,6 +73,12 @@ def format_isk(value: float | int | None) -> str:
 
 # Moon values are monthly; a month is treated as 30 days for per-hour denial math.
 HOURS_PER_MONTH = 720
+# A Metenox drill yields this share of the moon's full monthly value.
+DRILL_SHARE = 0.4
+REFINERY_GROUP_ID = 1406
+REFINERY_TYPE_NAMES = ("athanor", "tatara")
+# moonmining ore group id -> rarity class (R4..R64)
+ORE_GROUP_RARITY = {1884: 4, 1920: 8, 1921: 16, 1922: 32, 1923: 64}
 REINFORCE_TIMER_TYPES = ("ARMOR", "HULL")
 
 
@@ -147,86 +153,146 @@ def structure_display_name(structure: Any) -> str:
     )
 
 
-def moon_data_for_structures(structures: Any) -> dict[int, dict[str, Any]]:
-    """Match drills to aa-moonmining moons by system and planet/moon coordinates."""
+def is_refinery(structure: Any) -> bool:
+    """Athanor / Tatara (Upwell refinery group) — anchored on a moon like a drill."""
+    structure_type = getattr(structure, "structure_type", None)
+    if getattr(structure_type, "group_id", None) == REFINERY_GROUP_ID:
+        return True
+    type_name = getattr(structure_type, "name", "") or ""
+    return any(name in type_name.lower() for name in REFINERY_TYPE_NAMES)
+
+
+def is_moon_structure(structure: Any) -> bool:
+    """True for structures that sit on a moon: Metenox drills and refineries."""
+    return is_drill(structure) or is_refinery(structure)
+
+
+def moonmining_available() -> bool:
+    """True when aa-moonmining is installed and its models can be imported."""
     try:
         # Django
         from django.apps import apps
 
         if not apps.is_installed("moonmining"):
-            return {}
+            return False
         # Third Party
-        from moonmining.models import Moon
+        from moonmining.models import Moon  # noqa: F401
     except (ImportError, LookupError):
-        return {}
+        return False
+    return True
 
-    systems = {s.solar_system.name for s in structures if s.solar_system}
-    if not systems:
-        return {}
-    system_filter = Q()
-    for system in systems:
-        system_filter |= Q(eve_moon__eve_planet__eve_solar_system__name__iexact=system)
-    moons = Moon.objects.select_related(
-        "eve_moon__eve_planet__eve_solar_system"
-    ).filter(system_filter)
+
+def _moon_system(moon: Any) -> Any:
+    return getattr(getattr(moon.eve_moon, "eve_planet", None), "eve_solar_system", None)
+
+
+def _moon_system_name(moon: Any) -> str:
+    return getattr(_moon_system(moon), "name", "") or ""
+
+
+def _structure_system_name(structure: Any) -> str:
+    return getattr(getattr(structure, "solar_system", None), "name", "") or ""
+
+
+def match_structure_moons(moons: Any, structures: Any) -> dict[int, Any]:
+    """Map structure id -> moonmining Moon for every drill or refinery we can place.
+
+    A manual ``moonmining_moon_id`` wins unless it points at a moon in another system
+    (stale correlation); otherwise the planet/moon parsed from the location or name is used.
+    """
+    moons = list(moons)
     by_id = {m.eve_moon_id: m for m in moons}
-    by_key = {
-        (m.eve_moon.eve_planet.eve_solar_system.name.lower(), _moon_location(m)): m
-        for m in moons
-        if _moon_location(m)
-    }
+    by_key = {}
+    for moon in moons:
+        location = _moon_location(moon)
+        if location:
+            by_key[(_moon_system_name(moon).lower(), location)] = moon
     result = {}
     for structure in structures:
-        if not is_drill(structure):
+        if not is_moon_structure(structure):
             continue
-        location = structure_location(structure)
-        system = getattr(getattr(structure, "solar_system", None), "name", "")
-        moon = by_id.get(structure.moonmining_moon_id)
-        if moon and (
-            not system
-            or moon.eve_moon.eve_planet.eve_solar_system.name.lower() != system.lower()
-        ):
+        system = _structure_system_name(structure)
+        moon = by_id.get(getattr(structure, "moonmining_moon_id", None))
+        if moon and (not system or _moon_system_name(moon).lower() != system.lower()):
             # Do not display a stale/manual correlation from another system.
             moon = None
         if not moon:
+            location = structure_location(structure)
             moon = (
                 by_key.get((system.lower(), location)) if location and system else None
             )
         if moon:
-            value = moon.value
-            result[structure.id] = {
-                "moon": moon,
-                "name": structure_display_name(structure),
-                "value": value,
-                "drill_value": value * 0.4 if value is not None else None,
-                "display_value": format_isk(value),
-                "display_drill_value": (
-                    format_isk(value * 0.4) if value is not None else "—"
-                ),
-                "drill_hourly_value": drill_hourly_value(
-                    value * 0.4 if value is not None else None
-                ),
-                "display_drill_hourly_value": (
-                    format_isk(drill_hourly_value(value * 0.4))
-                    if value is not None
-                    else "—"
-                ),
-            }
+            result[structure.id] = moon
     return result
+
+
+def match_structures_to_moons(moons: Any, structures: Any) -> dict[int, list[Any]]:
+    """Map moon id -> structures placed on it (see ``match_structure_moons``)."""
+    by_structure_id = {s.id: s for s in structures}
+    result: dict[int, list[Any]] = {}
+    for structure_id, moon in match_structure_moons(moons, structures).items():
+        result.setdefault(moon.eve_moon_id, []).append(by_structure_id[structure_id])
+    return result
+
+
+def _moons_in_systems(structures: Any) -> list[Any]:
+    # Third Party
+    from moonmining.models import Moon
+
+    systems = {s.solar_system.name for s in structures if s.solar_system}
+    if not systems:
+        return []
+    system_filter = Q()
+    for system in systems:
+        system_filter |= Q(eve_moon__eve_planet__eve_solar_system__name__iexact=system)
+    return list(
+        Moon.objects.select_related("eve_moon__eve_planet__eve_solar_system").filter(
+            system_filter
+        )
+    )
+
+
+def moon_match_data(structure: Any, moon: Any) -> dict[str, Any]:
+    """Display data for a structure placed on a moon. Drill values only apply to drills."""
+    value = moon.value
+    drill_value = (
+        value * DRILL_SHARE if value is not None and is_drill(structure) else None
+    )
+    hourly = drill_hourly_value(drill_value)
+    return {
+        "moon": moon,
+        "name": structure_display_name(structure),
+        "value": value,
+        "drill_value": drill_value,
+        "display_value": format_isk(value),
+        "display_drill_value": format_isk(drill_value),
+        "drill_hourly_value": hourly,
+        "display_drill_hourly_value": format_isk(hourly),
+    }
+
+
+def moon_data_for_structures(structures: Any) -> dict[int, dict[str, Any]]:
+    """Match drills and refineries to aa-moonmining moons by system and planet/moon."""
+    if not moonmining_available():
+        return {}
+    structures = list(structures)
+    moons = _moons_in_systems(structures)
+    if not moons:
+        return {}
+    by_structure_id = {s.id: s for s in structures}
+    return {
+        structure_id: moon_match_data(by_structure_id[structure_id], moon)
+        for structure_id, moon in match_structure_moons(moons, structures).items()
+    }
 
 
 def moon_options_for_structures(structures: Any) -> dict[str, list[Any]]:
     """Return selectable scanned moons grouped by solar-system name."""
-    try:
-        # Django
-        from django.apps import apps
-
-        if not apps.is_installed("moonmining"):
-            return {}
-        # Third Party
-        from moonmining.models import Moon
-    except (ImportError, LookupError):
+    if not moonmining_available():
         return {}
+    # Third Party
+    from moonmining.models import Moon
+
     systems = {s.solar_system.name.lower() for s in structures if s.solar_system}
     if not systems:
         return {}
@@ -243,3 +309,280 @@ def moon_options_for_structures(structures: Any) -> dict[str, list[Any]]:
     for values in result.values():
         values.sort(key=lambda m: m.eve_moon.name)
     return result
+
+
+# ---------------------------------------------------------------------------
+# Moon Data tab
+# ---------------------------------------------------------------------------
+
+UNCLAIMED_OWNER_KEY = "unclaimed"
+
+
+def registry_owner_group(structure: Any) -> tuple[str, str, str]:
+    """Return (key, name, ticker) used to group a structure under its owner.
+
+    The key format is mirrored by ``registryGroupKey`` in structures.html so inline owner
+    edits regroup rows client-side, and by the Moon Data tab's owner grouping.
+    """
+    alliance = getattr(structure, "alliance", None)
+    corporation = getattr(structure, "corporation", None)
+    ticker = getattr(structure, "owner_ticker", "") or ""
+    if getattr(structure, "alliance_id", None) and alliance:
+        return (
+            f"a{structure.alliance_id}",
+            structure.owner_name,
+            alliance.ticker or ticker,
+        )
+    if getattr(structure, "corporation_id", None) and corporation:
+        return (
+            f"c{structure.corporation_id}",
+            structure.owner_name,
+            corporation.ticker or ticker,
+        )
+    if ticker:
+        return f"t{ticker.lower()}", ticker, ticker
+    return "unknown", "Unknown", ""
+
+
+def _owner_url(structure: Any) -> str:
+    # Django
+    from django.urls import NoReverseMatch, reverse
+
+    try:
+        if getattr(structure, "alliance_id", None):
+            return reverse("hostile:alliance_detail", args=[structure.alliance_id])
+        if getattr(structure, "corporation_id", None):
+            return reverse(
+                "hostile:corporation_detail", args=[structure.corporation_id]
+            )
+    except NoReverseMatch:
+        return ""
+    return ""
+
+
+def _is_friendly(structure: Any) -> bool:
+    alliance = getattr(structure, "alliance", None)
+    corporation = getattr(structure, "corporation", None)
+    return bool(
+        (alliance and getattr(alliance, "is_friendly", False))
+        or (corporation and getattr(corporation, "is_friendly", False))
+    )
+
+
+def _structure_payload(structure: Any) -> dict[str, Any]:
+    key, name, ticker = registry_owner_group(structure)
+    structure_type = getattr(structure, "structure_type", None)
+    return {
+        "id": structure.id,
+        "name": structure.name,
+        "type": getattr(structure_type, "name", "") or "",
+        "state": structure.state,
+        "is_drill": is_drill(structure),
+        "owner_key": key,
+        "owner_name": name,
+        "owner_ticker": ticker,
+        "owner_url": _owner_url(structure),
+        "is_friendly": _is_friendly(structure),
+        "vuln_hour": getattr(structure, "vulnerability_hour", None),
+    }
+
+
+def _refinery_payload(moon: Any) -> dict[str, Any] | None:
+    """moonmining's own refinery record; only exists for corps with ESI tokens in Auth."""
+    refinery = getattr(moon, "refinery", None)
+    if refinery is None:
+        return None
+    owner = getattr(refinery, "owner", None)
+    corporation = getattr(owner, "corporation", None)
+    alliance = getattr(corporation, "alliance", None)
+    return {
+        "name": getattr(refinery, "name", "") or "",
+        "type": getattr(getattr(refinery, "eve_type", None), "name", "") or "",
+        "corporation": getattr(corporation, "corporation_name", "") or "",
+        "corporation_id": getattr(corporation, "corporation_id", None),
+        "ticker": getattr(alliance, "alliance_ticker", "")
+        or getattr(corporation, "corporation_ticker", "")
+        or "",
+        "alliance": getattr(alliance, "alliance_name", "") or "",
+    }
+
+
+def _ore_payload(ore_type: Any) -> dict[str, Any]:
+    extras = getattr(ore_type, "extras", None)
+    return {
+        "name": ore_type.name,
+        "rarity": ORE_GROUP_RARITY.get(getattr(ore_type, "eve_group_id", None), 0),
+        "price": getattr(extras, "current_price", None),
+        "volume": getattr(ore_type, "volume", None),
+        "icon": f"https://images.evetech.net/types/{ore_type.id}/icon?size=32",
+    }
+
+
+def product_monthly_value(
+    price: float | None,
+    amount: float,
+    ore_volume: float | None,
+    volume_per_month: float,
+) -> float:
+    """Mirrors moonmining's Moon value: price * share * monthly volume / ore volume."""
+    if not ore_volume:
+        return 0.0
+    return (
+        float(price or 0.0)
+        * float(amount)
+        * float(volume_per_month)
+        / float(ore_volume)
+    )
+
+
+def _moon_owner(
+    structures: list[dict[str, Any]], refinery: dict[str, Any] | None
+) -> dict[str, Any]:
+    if structures:
+        primary = structures[0]
+        return {
+            "owner_key": primary["owner_key"],
+            "owner_name": primary["owner_name"],
+            "owner_ticker": primary["owner_ticker"],
+            "owner_url": primary["owner_url"],
+            "status": "friendly" if primary["is_friendly"] else "hostile",
+        }
+    if refinery:
+        return {
+            "owner_key": f"mm{refinery['corporation_id'] or refinery['corporation']}",
+            "owner_name": refinery["corporation"] or refinery["name"],
+            "owner_ticker": refinery["ticker"],
+            "owner_url": "",
+            "status": "friendly",
+        }
+    return {
+        "owner_key": UNCLAIMED_OWNER_KEY,
+        "owner_name": "Unclaimed",
+        "owner_ticker": "",
+        "owner_url": "",
+        "status": "unclaimed",
+    }
+
+
+def _moon_products(
+    moon: Any, ores: dict[int, dict[str, Any]], volume_per_month: float
+) -> list[list[Any]]:
+    """[[ore_type_id, share, isk_per_month], ...] by value; fills the shared ``ores`` index."""
+    products = []
+    manager = getattr(moon, "products", None)
+    for product in manager.all() if manager is not None else []:
+        ore_type = product.ore_type
+        if ore_type.id not in ores:
+            ores[ore_type.id] = _ore_payload(ore_type)
+        ore = ores[ore_type.id]
+        isk = product_monthly_value(
+            ore["price"], product.amount, ore["volume"], volume_per_month
+        )
+        products.append([ore_type.id, round(float(product.amount), 4), round(isk, 2)])
+    products.sort(key=lambda p: (-p[2], -p[1]))
+    return products
+
+
+def build_moon_data_payload(
+    moons: Any, structures: Any, volume_per_month: float
+) -> dict[str, Any]:
+    """Join moonmining moons with registry drills/refineries into the Moon Data payload.
+
+    Pure function (no queries of its own). ``moons`` need ``eve_moon`` -> planet -> system
+    -> constellation -> region, ``products`` (with ``ore_type`` / ``extras``), ``label``
+    and the optional ``refinery``; ``structures`` are HostileStructure-like objects.
+    """
+    moons = list(moons)
+    structures = [s for s in structures if getattr(s, "state", "") != "DESTROYED"]
+    by_moon = match_structures_to_moons(moons, structures)
+    ores: dict[int, dict[str, Any]] = {}
+    rows = []
+    for moon in moons:
+        system = _moon_system(moon)
+        constellation = getattr(system, "eve_constellation", None)
+        region = getattr(constellation, "eve_region", None)
+        placed = sorted(
+            by_moon.get(moon.eve_moon_id, []),
+            key=lambda s: (not is_drill(s), -(getattr(s, "id", 0) or 0)),
+        )
+        structure_rows = [_structure_payload(s) for s in placed]
+        refinery = _refinery_payload(moon)
+        label = getattr(moon, "label", None)
+        updated_at = getattr(moon, "products_updated_at", None)
+        location = _moon_location(moon)
+        value = moon.value
+        row = {
+            "id": moon.eve_moon_id,
+            "name": moon.eve_moon.name,
+            "location": f"P{location[0]}M{location[1]}" if location else "",
+            "system": getattr(system, "name", "") or "",
+            "system_id": getattr(system, "id", None),
+            "security": getattr(system, "security_status", None),
+            "constellation": getattr(constellation, "name", "") or "",
+            "region": getattr(region, "name", "") or "",
+            "rarity": getattr(moon, "rarity_class", 0) or 0,
+            "value": value,
+            "drill_value": value * DRILL_SHARE if value is not None else None,
+            "label": (
+                {
+                    "name": label.name,
+                    "style": getattr(label, "bootstrap_style", "")
+                    or getattr(label, "style", ""),
+                }
+                if label
+                else None
+            ),
+            "products": _moon_products(moon, ores, volume_per_month),
+            "updated_at": updated_at.isoformat() if updated_at else None,
+            "structures": structure_rows,
+            "refinery": refinery,
+        }
+        row.update(_moon_owner(structure_rows, refinery))
+        rows.append(row)
+    return {"available": True, "ores": ores, "rows": rows}
+
+
+def _moon_queryset():
+    # Third Party
+    from moonmining.models import Moon, MoonProduct
+
+    # Django
+    from django.db.models import Prefetch
+
+    return Moon.objects.selected_related_defaults().prefetch_related(
+        Prefetch(
+            "products",
+            queryset=MoonProduct.objects.select_related(
+                "ore_type", "ore_type__eve_group", "ore_type__extras"
+            ),
+        )
+    )
+
+
+def moon_structures_queryset(system_ids: Any) -> list[Any]:
+    """Live (not destroyed) drills and refineries in the given solar systems."""
+    # AA Hostile Intel
+    from hostile.models import HostileStructure
+
+    structures = (
+        HostileStructure.objects.exclude(state="DESTROYED")
+        .filter(solar_system_id__in=list(system_ids))
+        .select_related("structure_type", "solar_system", "alliance", "corporation")
+    )
+    return [s for s in structures if is_moon_structure(s)]
+
+
+def load_moon_data_payload(moon_ids: Any = None) -> dict[str, Any] | None:
+    """Build the Moon Data payload from the database; ``None`` without aa-moonmining."""
+    if not moonmining_available():
+        return None
+    # Third Party
+    from moonmining.app_settings import MOONMINING_VOLUME_PER_MONTH
+
+    moons = _moon_queryset()
+    if moon_ids is not None:
+        moons = moons.filter(pk__in=list(moon_ids))
+    moons = list(moons)
+    system_ids = {_moon_system(m).id for m in moons if _moon_system(m) is not None}
+    structures = moon_structures_queryset(system_ids) if system_ids else []
+    return build_moon_data_payload(moons, structures, MOONMINING_VOLUME_PER_MONTH)

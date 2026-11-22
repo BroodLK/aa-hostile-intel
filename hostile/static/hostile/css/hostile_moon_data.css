@@ -1,0 +1,161 @@
+/* Moon Data: moonmining moons grouped Region › Constellation › System (or by owner). */
+/* Builds on hostile_structures.css (.structure-registry scope). */
+
+.moon-data {
+    --md-r4: #58a6ff;
+    --md-r8: #56d4dd;
+    --md-r16: #3fb950;
+    --md-r32: #e3b341;
+    --md-r64: #f85149;
+    --md-hostile: #ff7b72;
+    --md-friendly: #3fb950;
+}
+
+/* Rarity badges, pills and dots */
+.moon-data .md-rarity {
+    display: inline-block;
+    min-width: 2.6rem;
+    text-align: center;
+    border-radius: 4px;
+    padding: 0.05rem 0.35rem;
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--c, var(--sr-muted));
+    border: 1px solid color-mix(in srgb, var(--c, #8b949e) 45%, transparent);
+    background: color-mix(in srgb, var(--c, #8b949e) 12%, transparent);
+}
+
+.moon-data .r-4 { --c: var(--md-r4); }
+.moon-data .r-8 { --c: var(--md-r8); }
+.moon-data .r-16 { --c: var(--md-r16); }
+.moon-data .r-32 { --c: var(--md-r32); }
+.moon-data .r-64 { --c: var(--md-r64); }
+
+.moon-data .sr-chip .dot.rarity {
+    background: var(--c);
+}
+
+/* Composition: top ores as compact pills */
+.moon-data .md-comp {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2rem;
+    overflow: hidden;
+    max-height: 2.9rem;
+}
+
+.moon-data .md-ore {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    border-radius: 999px;
+    padding: 0 0.45rem 0 0.15rem;
+    font-size: 0.72rem;
+    white-space: nowrap;
+    color: var(--bs-body-color, #c9d1d9);
+    border: 1px solid color-mix(in srgb, var(--c, #8b949e) 40%, transparent);
+    background: color-mix(in srgb, var(--c, #8b949e) 10%, transparent);
+}
+
+.moon-data .md-ore img {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+}
+
+.moon-data .md-ore .pct {
+    color: var(--c, var(--sr-muted));
+    font-family: ui-monospace, Consolas, monospace;
+    font-weight: 600;
+}
+
+/* Owner status */
+.moon-data .md-owner.hostile { color: var(--md-hostile); }
+.moon-data .md-owner.friendly { color: var(--md-friendly); }
+.moon-data .md-owner.unclaimed { color: var(--sr-muted); font-style: italic; }
+
+.moon-data .md-owner-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    margin-right: 0.3rem;
+    vertical-align: 1px;
+    background: currentcolor;
+}
+
+/* Row highlight after ?moon= jumps */
+.moon-data tr.moon-row.flash > td {
+    animation: sr-flash 1.6s ease-out;
+}
+
+.moon-data tr.moon-row {
+    cursor: pointer;
+}
+
+.moon-data .md-label {
+    font-size: 0.65rem;
+    vertical-align: 1px;
+}
+
+/* KPI strip */
+.moon-data .md-kpis .hostile-stat-card {
+    padding: 0.7rem 0.9rem;
+}
+
+.moon-data .md-kpis .hostile-stat-value {
+    font-size: 1.25rem;
+}
+
+/* Rarity mix bar in group headers */
+.moon-data .md-mix {
+    display: inline-flex;
+    gap: 0.4rem;
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 0.72rem;
+}
+
+.moon-data .md-mix span {
+    color: var(--c);
+}
+
+/* Details modal products table */
+.md-modal .md-bar {
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+    min-width: 80px;
+}
+
+.md-modal .md-bar > span {
+    display: block;
+    height: 100%;
+    background: var(--c, #58a6ff);
+}
+
+.md-modal .r-4 { --c: #58a6ff; }
+.md-modal .r-8 { --c: #56d4dd; }
+.md-modal .r-16 { --c: #3fb950; }
+.md-modal .r-32 { --c: #e3b341; }
+.md-modal .r-64 { --c: #f85149; }
+
+.md-modal .md-rarity {
+    display: inline-block;
+    min-width: 2.6rem;
+    text-align: center;
+    border-radius: 4px;
+    padding: 0.05rem 0.35rem;
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--c, #8b949e);
+    border: 1px solid color-mix(in srgb, var(--c, #8b949e) 45%, transparent);
+}
+
+.md-modal .md-isk {
+    font-family: ui-monospace, Consolas, monospace;
+    color: #79c0ff;
+    font-weight: 600;
+}

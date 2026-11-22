@@ -27,6 +27,11 @@
                     </a>
                 </li>
                 <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.url_name == 'moon_data' %}active{% endif %}" href="{% url 'hostile:moon_data' %}" data-hostile-loading="{% translate 'Loading Moon Data' %}" data-hostile-loading-detail="{% translate 'Joining moon surveys, ore values and moon structures...' %}">
+                        <i class="fas fa-moon me-1"></i> {% translate "Moon Data" %}
+                    </a>
+                </li>
+                <li class="nav-item">
                     <a class="nav-link {% if request.resolver_match.url_name == 'doctrines' %}active{% endif %}" href="{% url 'hostile:doctrines' %}" data-hostile-loading="{% translate 'Loading Stagings & Doctrines' %}" data-hostile-loading-detail="{% translate 'Loading forward operating bases and fleet doctrine fittings...' %}">
                         <i class="fas fa-fighter-jet me-1"></i> {% translate "Stagings & Doctrines" %}
                     </a>

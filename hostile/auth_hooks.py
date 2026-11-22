@@ -33,6 +33,8 @@ class HostileIntelMenuItem(MenuItemHook):
                 "hostile:structure_set_state",
                 "hostile:structure_fitting_modal",
                 "hostile:structure_fitting_save",
+                "hostile:moon_data",
+                "hostile:moon_data_detail",
                 "hostile:timers",
                 "hostile:sov_timers",
                 "hostile:timer_add",

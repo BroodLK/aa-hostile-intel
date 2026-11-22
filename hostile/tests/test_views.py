@@ -163,6 +163,7 @@ class TestHostileViews(TestCase):
         for view_name in [
             "index",
             "structures",
+            "moon_data",
             "timers",
             "calculator",
             "systems",
