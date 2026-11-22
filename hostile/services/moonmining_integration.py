@@ -259,11 +259,26 @@ def _moons_in_systems(structures: Any) -> list[Any]:
     )
 
 
-def moon_match_data(structure: Any, moon: Any) -> dict[str, Any]:
-    """Display data for a structure placed on a moon. Drill values only apply to drills."""
+def moon_match_data(
+    structure: Any,
+    moon: Any,
+    metenox_value: float | None = None,
+    running_cost: float | None = None,
+) -> dict[str, Any]:
+    """Display data for a structure placed on a moon. Drill values only apply to drills.
+
+    Uses the same drill value as the Moon Data tab (aa-metenox's value when known,
+    otherwise ``DRILL_SHARE`` of the moon value); ``drill_net`` subtracts the monthly
+    running cost when it is known.
+    """
     value = moon.value
-    drill_value = (
-        value * DRILL_SHARE if value is not None and is_drill(structure) else None
+    drill_value, drill_source = (
+        _drill_value(value, metenox_value) if is_drill(structure) else (None, None)
+    )
+    drill_net = (
+        drill_value - running_cost
+        if drill_value is not None and running_cost is not None
+        else None
     )
     hourly = drill_hourly_value(drill_value)
     return {
@@ -271,8 +286,12 @@ def moon_match_data(structure: Any, moon: Any) -> dict[str, Any]:
         "name": structure_display_name(structure),
         "value": value,
         "drill_value": drill_value,
+        "drill_source": drill_source,
+        "drill_net": drill_net,
+        "drill_net_negative": drill_net is not None and drill_net < 0,
         "display_value": format_isk(value),
         "display_drill_value": format_isk(drill_value),
+        "display_drill_net": format_isk(drill_net),
         "drill_hourly_value": hourly,
         "display_drill_hourly_value": format_isk(hourly),
     }
@@ -286,10 +305,23 @@ def moon_data_for_structures(structures: Any) -> dict[int, dict[str, Any]]:
     moons = _moons_in_systems(structures)
     if not moons:
         return {}
+    # AA Hostile Intel
+    from hostile.services.metenox_integration import load_drill_inputs
+
+    matches = match_structure_moons(moons, structures)
+    metenox_values, drill_costs = load_drill_inputs(
+        {moon.eve_moon_id for moon in matches.values()}
+    )
+    running_cost = drill_costs["total"] if drill_costs else None
     by_structure_id = {s.id: s for s in structures}
     return {
-        structure_id: moon_match_data(by_structure_id[structure_id], moon)
-        for structure_id, moon in match_structure_moons(moons, structures).items()
+        structure_id: moon_match_data(
+            by_structure_id[structure_id],
+            moon,
+            metenox_values.get(moon.eve_moon_id),
+            running_cost,
+        )
+        for structure_id, moon in matches.items()
     }
 
 

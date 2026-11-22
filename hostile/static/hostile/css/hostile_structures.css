@@ -381,6 +381,11 @@
     font-weight: 600;
 }
 
+/* Drill net below zero: running costs exceed the drill value */
+.structure-registry .sr-isk.sr-negative {
+    color: #f85149;
+}
+
 .structure-registry .sr-updated {
     font-size: 0.78rem;
     color: var(--sr-muted);

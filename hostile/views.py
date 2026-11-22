@@ -574,6 +574,9 @@ def _prepare_registry_structures(request: WSGIRequest, structures) -> tuple:
             if match and match.get("drill_value") is not None
             else ""
         )
+        structure.registry_moon_drill_net = (
+            match["drill_net"] if match and match.get("drill_net") is not None else ""
+        )
         loss = (
             reinforcement_isk_loss(structure, match.get("drill_value"))
             if match and reinforcement_isk_loss

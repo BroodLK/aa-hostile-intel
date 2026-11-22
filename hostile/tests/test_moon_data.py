@@ -21,6 +21,7 @@ from hostile.services.moonmining_integration import (
     is_refinery,
     match_structure_moons,
     match_structures_to_moons,
+    moon_data_for_structures,
     moon_match_data,
     product_monthly_value,
     sde_moons_in_regions,
@@ -141,6 +142,54 @@ class MoonStructureMatchingTests(SimpleTestCase):
         self.assertIsNone(refinery["drill_hourly_value"])
         self.assertEqual(refinery["display_drill_value"], "—")
         self.assertEqual(refinery["value"], 2_000_000_000.0)
+        self.assertIsNone(drill["drill_net"])
+        self.assertEqual(drill["display_drill_net"], "—")
+
+    def test_drill_net_uses_metenox_value_and_running_cost(self):
+        moon = _moon(40001, value=2_000_000_000.0)
+        drill = moon_match_data(
+            _structure(1, location_details="P6M2"), moon, 900_000_000.0, 150_000_000.0
+        )
+        self.assertEqual(drill["drill_value"], 900_000_000.0)
+        self.assertEqual(drill["drill_source"], "metenox")
+        self.assertEqual(drill["drill_net"], 750_000_000.0)
+        self.assertEqual(drill["display_drill_net"], "750.0m")
+        self.assertFalse(drill["drill_net_negative"])
+
+        estimate = moon_match_data(
+            _structure(1, location_details="P6M2"),
+            _moon(40001, value=100_000_000.0),
+            None,
+            150_000_000.0,
+        )
+        self.assertEqual(estimate["drill_source"], "estimate")
+        self.assertAlmostEqual(
+            estimate["drill_net"], 100_000_000.0 * DRILL_SHARE - 150_000_000.0
+        )
+        self.assertTrue(estimate["drill_net_negative"])
+
+        refinery = moon_match_data(
+            _structure(2, "Athanor", 1406), moon, 900_000_000.0, 150_000_000.0
+        )
+        self.assertIsNone(refinery["drill_value"])
+        self.assertIsNone(refinery["drill_net"])
+
+    @patch(
+        "hostile.services.metenox_integration.load_drill_inputs",
+        return_value=({40001: 900_000_000.0}, {"total": 150_000_000.0}),
+    )
+    @patch("hostile.services.moonmining_integration._moons_in_systems")
+    @patch(
+        "hostile.services.moonmining_integration.moonmining_available",
+        return_value=True,
+    )
+    def test_structures_get_metenox_drill_net(self, _available, moons, inputs):
+        moons.return_value = [_moon(40001, value=2_000_000_000.0)]
+        drill = _structure(1, location_details="P6M2")
+        data = moon_data_for_structures([drill])
+        inputs.assert_called_once_with({40001})
+        self.assertEqual(data[1]["drill_value"], 900_000_000.0)
+        self.assertEqual(data[1]["drill_net"], 750_000_000.0)
 
 
 class MoonDataPayloadTests(SimpleTestCase):

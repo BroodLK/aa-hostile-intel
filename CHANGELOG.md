@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **Net for Moons with Structures (Moon Data)**: Each group's structure count now shows the net value of those moons, e.g. `3 with structure (Net: 1.2b)`.
+- **Drill Net on Structures**: The Structures tab shows the drill **Net** (drill value after fuel blocks and magmatic gas) next to the drill value, on each drill and in every group total. Values below zero are shown in red.
+
+### Changed
+
+- **Same Drill Value on Both Tabs**: The Structures tab now uses the same drill value as Moon Data: aa-metenox's value where it has the moon, otherwise 40% of the moon value. This also feeds the reinforcement "ISK lost" figure.
+
 ## [0.0.35] - 2026-11-22
 
 ### Added

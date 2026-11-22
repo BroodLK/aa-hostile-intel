@@ -581,12 +581,14 @@ document.addEventListener("DOMContentLoaded", function() {
     }
 
     function metaHtml(rows, extra) {
-        const withStructure = rows.filter(r => r.structures.length).length;
+        const structRows = rows.filter(r => r.structures.length);
+        const withStructure = structRows.length;
+        const structNet = DRILL_COSTS ? ` (${I18N.net}: ${netHtml(netTotal(structRows), "b")})` : "";
         return `<span class="meta">
             <span><b>${rows.length}</b> ${rows.length === 1 ? I18N.moon : I18N.moons}</span>
             ${extra || ""}
             <span title="${I18N.drillPotential}"><i class="fas fa-coins me-1"></i><b class="sr-isk">${formatIsk(total(rows))}</b> / ${I18N.drill} <b class="sr-isk">${formatIsk(drillTotal(rows))}</b>${DRILL_COSTS ? ` / ${I18N.net} ${netHtml(netTotal(rows), "b")}` : ""} ${I18N.iskPerMonth}</span>
-            ${withStructure ? `<span><i class="fas fa-monument me-1"></i>${withStructure} ${I18N.withStructure}</span>` : ""}
+            ${withStructure ? `<span><i class="fas fa-monument me-1"></i>${withStructure} ${I18N.withStructure}${structNet}</span>` : ""}
             ${rarityMix(rows)}
         </span>`;
     }
