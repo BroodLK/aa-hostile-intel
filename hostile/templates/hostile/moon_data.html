@@ -20,6 +20,11 @@
             <i class="fas fa-external-link-alt me-1"></i>{% translate "Open in Moonmining" %}
         </a>
         {% endif %}
+        {% if moonmining_installed %}
+        <button type="button" class="btn btn-outline-warning btn-sm fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#drillQuickAddModal" title="{% translate 'Paste overview or D-Scan lines to register Metenox drills' %}">
+            <i class="fas fa-bolt me-1"></i>{% translate "Quick Add Drills" %}
+        </button>
+        {% endif %}
         <button type="button" class="btn btn-primary btn-sm fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#moonUploadModal">
             <i class="fas fa-upload me-1"></i>{% translate "Upload Moons" %}
         </button>
@@ -193,6 +198,44 @@
     </div>
 </div>
 
+<div class="modal fade" id="drillQuickAddModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content bg-dark text-white border-secondary md-modal">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="fas fa-bolt text-warning me-2"></i>{% translate "Quick Add Metenox Drills" %}</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label text-muted small fw-bold text-uppercase" for="drillPasteInput">{% translate "Paste drills" %}</label>
+                <textarea id="drillPasteInput" class="form-control font-monospace bg-black text-light border-secondary" rows="4"
+                    placeholder="F9-FUV - Bucket 10-10&#10;29.9 AU&#10;&#10;81826&#9;F9-FUV - Bucket 10-10&#9;Metenox Moon Drill&#9;120 m"></textarea>
+                <div class="form-text text-muted">{% translate "Overview / probe lines (name, then distance) or D-Scan lines. A trailing planet-moon number such as '10-10' picks the moon." %}</div>
+                <div id="drillPasteStatus" class="small mt-2"></div>
+
+                <div id="drillOwnerBar" class="border border-secondary rounded p-2 mt-3 d-none">
+                    <div class="text-muted small fw-bold text-uppercase mb-1">{% translate "Owner for all drills" %}</div>
+                    <div class="row g-2 align-items-end">
+                        <div class="col-md-2"><input type="text" class="form-control form-control-sm bg-black text-light border-secondary" id="drillOwnerTicker" placeholder="{% translate 'Ticker' %}"></div>
+                        <div class="col-md-4"><input type="text" class="form-control form-control-sm bg-black text-light border-secondary" id="drillOwnerAlliance" list="drillAllianceList" placeholder="{% translate 'Alliance name or ticker' %}" autocomplete="off"></div>
+                        <div class="col-md-4"><input type="text" class="form-control form-control-sm bg-black text-light border-secondary" id="drillOwnerCorp" list="drillCorpList" placeholder="{% translate 'Corporation name or ticker' %}" autocomplete="off"></div>
+                        <div class="col-md-2"><button type="button" class="btn btn-sm btn-outline-info w-100" id="drillApplyOwnerBtn"><i class="fas fa-angle-double-down me-1"></i>{% translate "Apply to all" %}</button></div>
+                    </div>
+                </div>
+
+                <div id="drillRows" class="mt-3"></div>
+                <datalist id="drillAllianceList"></datalist>
+                <datalist id="drillCorpList"></datalist>
+                <datalist id="drillSystemList"></datalist>
+            </div>
+            <div class="modal-footer border-secondary">
+                <span class="me-auto small text-muted" id="drillSaveSummary"></span>
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">{% translate "Close" %}</button>
+                <button type="button" class="btn btn-warning btn-sm fw-bold" id="drillSaveBtn" disabled><i class="fas fa-save me-1"></i>{% translate "Save drills" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="moonUploadModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content bg-dark text-white border-secondary">
@@ -228,6 +271,13 @@ document.addEventListener("DOMContentLoaded", function() {
         structures: "{% url 'hostile:structures' %}",
         calculator: "{% url 'hostile:calculator' %}",
         inlineUpdate: "{% url 'hostile:structure_inline_update' 0 %}",
+        drillParse: "{% url 'hostile:api_drill_paste_parse' %}",
+        drillSave: "{% url 'hostile:api_drill_paste_save' %}",
+        drillMoons: "{% url 'hostile:api_drill_paste_moons' %}",
+        solarSystems: "{% url 'hostile:api_solar_systems_search' %}",
+        alliances: "{% url 'hostile:api_alliance_search' %}",
+        corporations: "{% url 'hostile:api_corporation_search' %}",
+        structureBase: "{% url 'hostile:structures' %}",
     };
     const I18N = {
         moon: "{{ _('moon')|escapejs }}",
@@ -906,6 +956,278 @@ document.addEventListener("DOMContentLoaded", function() {
                 render();
             });
     }
+
+    // ---------- quick add drills ----------
+    const QA_STATES = [{% for value, label in structure_states %}["{{ value|escapejs }}", "{{ label|escapejs }}"]{% if not forloop.last %}, {% endif %}{% endfor %}];
+    const QA_CORES = [{% for value, label in core_choices %}["{{ value|escapejs }}", "{{ label|escapejs }}"]{% if not forloop.last %}, {% endif %}{% endfor %}];
+    const QA_I18N = {
+        found: "{{ _('drills found')|escapejs }}",
+        foundOne: "{{ _('drill found')|escapejs }}",
+        parsing: "{{ _('Reading paste...')|escapejs }}",
+        noSystem: "{{ _('System not recognised: pick it below.')|escapejs }}",
+        searchSystem: "{{ _('Search solar system...')|escapejs }}",
+        unknownMoon: "{{ _('Unknown moon')|escapejs }}",
+        notScanned: "{{ _('not scanned')|escapejs }}",
+        existing: "{{ _('Already in registry: will update')|escapejs }}",
+        name: "{{ _('Name')|escapejs }}",
+        system: "{{ _('System')|escapejs }}",
+        moon: "{{ _('Moon')|escapejs }}",
+        ticker: "{{ _('Ticker')|escapejs }}",
+        alliance: "{{ _('Alliance name or ticker')|escapejs }}",
+        corporation: "{{ _('Corporation name or ticker')|escapejs }}",
+        state: "{{ _('State')|escapejs }}",
+        more: "{{ _('More details')|escapejs }}",
+        core: "{{ _('Quantum core')|escapejs }}",
+        vulnHour: "{{ _('Vulnerability hour (UTC)')|escapejs }}",
+        notes: "{{ _('Notes')|escapejs }}",
+        remove: "{{ _('Remove')|escapejs }}",
+        saved: "{{ _('saved')|escapejs }}",
+        created: "{{ _('Added')|escapejs }}",
+        updated: "{{ _('Updated')|escapejs }}",
+        failed: "{{ _('Could not save the drills.')|escapejs }}",
+        needSystem: "{{ _('Pick a solar system first.')|escapejs }}",
+    };
+    const qaModalEl = document.getElementById("drillQuickAddModal");
+    const qaInput = document.getElementById("drillPasteInput");
+    const qaStatus = document.getElementById("drillPasteStatus");
+    const qaRows = document.getElementById("drillRows");
+    const qaOwnerBar = document.getElementById("drillOwnerBar");
+    const qaSaveBtn = document.getElementById("drillSaveBtn");
+    const qaSummary = document.getElementById("drillSaveSummary");
+    let qaDrills = [];
+    let qaTimer = null;
+    let qaRequest = 0;
+
+    function qaOptions(pairs, selected) {
+        return pairs.map(([v, l]) => `<option value="${escapeHtml(v)}"${v === selected ? " selected" : ""}>${escapeHtml(l)}</option>`).join("");
+    }
+
+    function qaMoonOptions(d) {
+        const opts = [`<option value="">${QA_I18N.unknownMoon}</option>`];
+        (d.moons || []).forEach(m => {
+            const label = `${m.name}${m.location ? ` (${m.location})` : ""}${m.scanned ? "" : ` · ${QA_I18N.notScanned}`}`;
+            opts.push(`<option value="${m.id}"${m.id === d.moon_id ? " selected" : ""}>${escapeHtml(label)}</option>`);
+        });
+        return opts.join("");
+    }
+
+    function qaRowHtml(d, i) {
+        const ex = d.existing;
+        const owner = d.owner || {};
+        const systemField = d.system
+            ? `<div class="form-control form-control-sm bg-black text-info border-secondary">${escapeHtml(d.system.name)}</div>
+                <input type="hidden" data-field="solar_system" value="${d.system.id}">`
+            : `<input type="text" class="form-control form-control-sm bg-black text-light border-warning" data-system-search list="drillSystemList" placeholder="${QA_I18N.searchSystem}" autocomplete="off">
+                <input type="hidden" data-field="solar_system" value="">`;
+        return `<div class="md-drill-card" data-index="${i}">
+            <div class="d-flex align-items-center gap-2 mb-2">
+                <i class="fas fa-industry text-warning"></i>
+                <span class="fw-bold text-truncate">${escapeHtml(d.name)}</span>
+                ${d.distance ? `<span class="small text-muted">${escapeHtml(d.distance)}</span>` : ""}
+                ${ex ? `<a class="badge bg-info text-dark text-decoration-none" href="${URLS.structureBase}?structure=${ex.id}" target="_blank" rel="noopener" title="${escapeHtml(ex.name)}"><i class="fas fa-link me-1"></i>${QA_I18N.existing}</a>` : ""}
+                ${!d.system ? `<span class="small md-unscanned">${QA_I18N.noSystem}</span>` : ""}
+                <span class="ms-auto small" data-row-status></span>
+                <button type="button" class="btn btn-sm btn-link text-muted p-0" data-remove title="${QA_I18N.remove}"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="row g-2">
+                <div class="col-md-4"><label class="md-qa-label">${QA_I18N.name}</label>
+                    <input type="text" class="form-control form-control-sm bg-black text-light border-secondary" data-field="name" value="${escapeHtml(d.name)}"></div>
+                <div class="col-md-2"><label class="md-qa-label">${QA_I18N.system}</label>${systemField}</div>
+                <div class="col-md-4"><label class="md-qa-label">${QA_I18N.moon}</label>
+                    <select class="form-select form-select-sm bg-black text-light border-secondary no-searchable" data-field="moon_id">${qaMoonOptions(d)}</select></div>
+                <div class="col-md-2"><label class="md-qa-label">${QA_I18N.state}</label>
+                    <select class="form-select form-select-sm bg-black text-light border-secondary no-searchable" data-field="state">${qaOptions(QA_STATES, (ex && ex.state) || "ONLINE")}</select></div>
+                <div class="col-md-2"><label class="md-qa-label">${QA_I18N.ticker}</label>
+                    <input type="text" class="form-control form-control-sm bg-black text-light border-secondary" data-field="owner_ticker" value="${escapeHtml(owner.ticker || (ex ? ex.owner_ticker : ""))}"></div>
+                <div class="col-md-5"><label class="md-qa-label">${QA_I18N.alliance}</label>
+                    <input type="text" class="form-control form-control-sm bg-black text-light border-secondary" data-field="untracked_alliance" list="drillAllianceList" autocomplete="off" value="${escapeHtml(owner.alliance || "")}"></div>
+                <div class="col-md-5"><label class="md-qa-label">${QA_I18N.corporation}</label>
+                    <input type="text" class="form-control form-control-sm bg-black text-light border-secondary" data-field="untracked_corporation" list="drillCorpList" autocomplete="off" value="${escapeHtml(owner.corp || "")}"></div>
+            </div>
+            <details class="mt-2">
+                <summary class="small text-muted">${QA_I18N.more}</summary>
+                <div class="row g-2 mt-1">
+                    <div class="col-md-3"><label class="md-qa-label">${QA_I18N.core}</label>
+                        <select class="form-select form-select-sm bg-black text-light border-secondary no-searchable" data-field="core_status">${qaOptions(QA_CORES, "UNKNOWN")}</select></div>
+                    <div class="col-md-3"><label class="md-qa-label">${QA_I18N.vulnHour}</label>
+                        <input type="number" min="0" max="23" class="form-control form-control-sm bg-black text-light border-secondary" data-field="vulnerability_hour"></div>
+                    <div class="col-md-6"><label class="md-qa-label">${QA_I18N.notes}</label>
+                        <input type="text" class="form-control form-control-sm bg-black text-light border-secondary" data-field="notes"></div>
+                </div>
+            </details>
+        </div>`;
+    }
+
+    function qaRender() {
+        qaRows.innerHTML = qaDrills.map(qaRowHtml).join("");
+        qaOwnerBar.classList.toggle("d-none", qaDrills.length === 0);
+        qaSaveBtn.disabled = qaDrills.length === 0;
+        qaSummary.textContent = "";
+    }
+
+    function qaStatusText(text, cls) {
+        qaStatus.className = `small mt-2 ${cls || "text-muted"}`;
+        qaStatus.textContent = text;
+    }
+
+    function qaParse() {
+        const text = qaInput.value.trim();
+        if (!text) { qaDrills = []; qaRender(); qaStatusText(""); return; }
+        const requestId = ++qaRequest;
+        qaStatusText(QA_I18N.parsing);
+        fetch(URLS.drillParse, {
+            method: "POST",
+            headers: {"X-CSRFToken": getCsrfToken(), "X-Requested-With": "XMLHttpRequest"},
+            body: new URLSearchParams({text}),
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (requestId !== qaRequest) return;
+                if (!data.success) { qaDrills = []; qaRender(); qaStatusText(data.error || I18N.loadFailed, "text-danger"); return; }
+                qaDrills = data.drills;
+                qaRender();
+                const n = qaDrills.length;
+                qaStatusText(`${n} ${n === 1 ? QA_I18N.foundOne : QA_I18N.found}`, "text-success");
+            })
+            .catch(() => qaStatusText(I18N.loadFailed, "text-danger"));
+    }
+
+    function qaCollect(card) {
+        const row = {};
+        card.querySelectorAll("[data-field]").forEach(el => { row[el.dataset.field] = el.value.trim(); });
+        return row;
+    }
+
+    // Owner autocomplete (shared datalists) and system search for unrecognised systems.
+    function qaFillDatalist(listId, items) {
+        const list = document.getElementById(listId);
+        list.innerHTML = items.map(v => `<option value="${escapeHtml(v)}">`).join("");
+    }
+
+    function qaLookup(url, query, map, listId) {
+        if (query.length < 2) return;
+        fetch(`${url}?q=${encodeURIComponent(query)}`, {headers: {"X-Requested-With": "XMLHttpRequest"}})
+            .then(r => r.json())
+            .then(d => qaFillDatalist(listId, (d.results || []).map(map)))
+            .catch(() => {});
+    }
+
+    let qaSystemResults = [];
+    qaModalEl.addEventListener("input", function(e) {
+        const el = e.target;
+        if (el === qaInput) { clearTimeout(qaTimer); qaTimer = setTimeout(qaParse, 300); return; }
+        if (el.id === "drillOwnerAlliance" || el.dataset.field === "untracked_alliance") {
+            qaLookup(URLS.alliances, el.value.trim(), a => a.alliance_name, "drillAllianceList");
+        } else if (el.id === "drillOwnerCorp" || el.dataset.field === "untracked_corporation") {
+            qaLookup(URLS.corporations, el.value.trim(), c => c.corporation_name, "drillCorpList");
+        } else if (el.hasAttribute("data-system-search")) {
+            const q = el.value.trim();
+            const card = el.closest(".md-drill-card");
+            const hit = qaSystemResults.find(s => s.name.toLowerCase() === q.toLowerCase());
+            if (hit) {
+                card.querySelector('[data-field="solar_system"]').value = hit.id;
+                const d = qaDrills[parseInt(card.dataset.index, 10)];
+                fetch(`${URLS.drillMoons}?system_id=${hit.id}`, {headers: {"X-Requested-With": "XMLHttpRequest"}})
+                    .then(r => r.json())
+                    .then(data => {
+                        d.moons = data.moons || [];
+                        card.querySelector('[data-field="moon_id"]').innerHTML = qaMoonOptions(d);
+                    });
+                return;
+            }
+            if (q.length >= 2) {
+                fetch(`${URLS.solarSystems}?q=${encodeURIComponent(q)}&limit=15`, {headers: {"X-Requested-With": "XMLHttpRequest"}})
+                    .then(r => r.json())
+                    .then(data => { qaSystemResults = data.results || []; qaFillDatalist("drillSystemList", qaSystemResults.map(s => s.name)); })
+                    .catch(() => {});
+            }
+        }
+    });
+    qaInput.addEventListener("paste", () => { clearTimeout(qaTimer); qaTimer = setTimeout(qaParse, 50); });
+    qaModalEl.addEventListener("shown.bs.modal", () => qaInput.focus());
+
+    qaRows.addEventListener("click", function(e) {
+        const remove = e.target.closest("[data-remove]");
+        if (!remove) return;
+        const card = remove.closest(".md-drill-card");
+        // Keep edits in the other rows before re-rendering.
+        qaRows.querySelectorAll(".md-drill-card").forEach(c => {
+            const d = qaDrills[parseInt(c.dataset.index, 10)];
+            const row = qaCollect(c);
+            d.name = row.name || d.name;
+            d.moon_id = row.moon_id ? parseInt(row.moon_id, 10) : null;
+            d.owner = {ticker: row.owner_ticker, alliance: row.untracked_alliance, corp: row.untracked_corporation};
+        });
+        qaDrills.splice(parseInt(card.dataset.index, 10), 1);
+        qaRender();
+    });
+
+    document.getElementById("drillApplyOwnerBtn").addEventListener("click", function() {
+        const ticker = document.getElementById("drillOwnerTicker").value.trim();
+        const alliance = document.getElementById("drillOwnerAlliance").value.trim();
+        const corp = document.getElementById("drillOwnerCorp").value.trim();
+        qaRows.querySelectorAll(".md-drill-card").forEach(card => {
+            card.querySelector('[data-field="owner_ticker"]').value = ticker;
+            card.querySelector('[data-field="untracked_alliance"]').value = alliance;
+            card.querySelector('[data-field="untracked_corporation"]').value = corp;
+        });
+    });
+
+    qaSaveBtn.addEventListener("click", function() {
+        const cards = Array.from(qaRows.querySelectorAll(".md-drill-card"));
+        const drills = cards.map(qaCollect);
+        const missing = cards.filter((c, i) => !drills[i].solar_system);
+        missing.forEach(c => {
+            const status = c.querySelector("[data-row-status]");
+            status.className = "ms-auto small text-danger";
+            status.textContent = QA_I18N.needSystem;
+        });
+        if (missing.length) return;
+        qaSaveBtn.disabled = true;
+        fetch(URLS.drillSave, {
+            method: "POST",
+            headers: {"Content-Type": "application/json", "X-CSRFToken": getCsrfToken(), "X-Requested-With": "XMLHttpRequest"},
+            body: JSON.stringify({drills}),
+        })
+            .then(r => r.json())
+            .then(data => {
+                qaSaveBtn.disabled = false;
+                if (!data.results) throw new Error(data.error || QA_I18N.failed);
+                let okCount = 0;
+                let firstMoon = null;
+                data.results.forEach(res => {
+                    const card = cards[res.index];
+                    if (!card) return;
+                    const status = card.querySelector("[data-row-status]");
+                    if (res.ok) {
+                        okCount += 1;
+                        if (firstMoon === null && res.moon_id) firstMoon = res.moon_id;
+                        status.className = "ms-auto small text-success";
+                        status.textContent = `✓ ${res.created ? QA_I18N.created : QA_I18N.updated}${res.warnings && res.warnings.length ? ` · ${res.warnings.join(" ")}` : ""}`;
+                        card.classList.add("saved");
+                    } else {
+                        status.className = "ms-auto small text-danger";
+                        status.textContent = (res.errors || [QA_I18N.failed]).join(" ");
+                    }
+                });
+                qaSummary.textContent = `${okCount} / ${data.results.length} ${QA_I18N.saved}`;
+                if (!okCount) return;
+                return load().then(() => {
+                    if (okCount === data.results.length) {
+                        bootstrap.Modal.getOrCreateInstance(qaModalEl).hide();
+                        qaInput.value = "";
+                        qaDrills = [];
+                        qaRender();
+                        qaStatusText("");
+                    }
+                    if (firstMoon) jumpToMoon(firstMoon);
+                });
+            })
+            .catch(err => {
+                qaSaveBtn.disabled = false;
+                qaSummary.textContent = err.message || QA_I18N.failed;
+            });
+    });
 
     load()
         .then(() => {

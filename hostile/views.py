@@ -780,41 +780,7 @@ def structure_add(request: WSGIRequest) -> HttpResponse:
     if request.method == "POST":
         form = HostileStructureForm(request.POST)
         if form.is_valid():
-            struct = form.save(commit=False)
-            struct.created_by = request.user
-            if request.user.has_perm("hostile.manage_intel"):
-                struct.is_verified = True
-
-            struct, created = IntelManager.get_or_create_structure(
-                name=struct.name,
-                solar_system=struct.solar_system,
-                structure_type=struct.structure_type,
-                structure_id=struct.structure_id,
-                defaults={
-                    "corporation": struct.corporation,
-                    "alliance": struct.alliance,
-                    "owner_ticker": struct.owner_ticker,
-                    "core_status": struct.core_status,
-                    "state": struct.state,
-                    "vulnerability_window": struct.vulnerability_window,
-                    "vulnerability_hour": struct.vulnerability_hour,
-                    "location_details": struct.location_details,
-                    "notes": struct.notes,
-                    "is_verified": struct.is_verified,
-                },
-                user=request.user,
-            )
-
-            if struct.alliance:
-                SovAnalysisEngine.aggregate_alliance_vulnerability_windows(
-                    struct.alliance
-                )
-            IntelManager.record_audit(
-                request.user,
-                "CREATE" if created else "UPDATE",
-                struct,
-                f"Structure '{struct.name}' {'created' if created else 'updated via submission'}.",
-            )
+            struct, created = IntelManager.save_structure_form(form, request.user)
 
             # Check if a timer should be created (Anchoring, Armor, Hull, Reinforced)
             timer_datetime = form.cleaned_data.get("timer_datetime")
@@ -3784,6 +3750,11 @@ def moon_data(request: WSGIRequest) -> HttpResponse:
     context = {
         "moonmining_installed": installed,
         "moonmining_list_url": moonmining_list_url,
+        # Quick Add Drills selects
+        "structure_states": [
+            c for c in HostileStructure.STATE_CHOICES if c[0] != "DESTROYED"
+        ],
+        "core_choices": HostileStructure.CORE_CHOICES,
     }
     return render(request, "hostile/moon_data.html", context)
 
@@ -4533,6 +4504,67 @@ def api_solar_systems_search(request: WSGIRequest) -> JsonResponse:
         qs = qs.filter(name__icontains=q)
     results = [{"id": s.id, "name": s.name} for s in qs[:limit]]
     return JsonResponse({"results": results})
+
+
+@login_required
+@permission_required("hostile.basic_access")
+def api_drill_paste_parse(request: WSGIRequest) -> JsonResponse:
+    """Moon Data quick add: parse a drill paste and suggest system, moon and matches."""
+    # AA Hostile Intel
+    from hostile.services.drill_quick_add import preview_drills
+
+    if request.method != "POST":
+        return JsonResponse({"success": False, "error": "POST required."}, status=405)
+    result = preview_drills(request.POST.get("text", ""))
+    return JsonResponse(result, status=200 if result.get("success") else 400)
+
+
+@login_required
+@permission_required("hostile.basic_access")
+def api_drill_paste_moons(request: WSGIRequest) -> JsonResponse:
+    """Moon Data quick add: the SDE moons of a solar system, for the moon picker."""
+    # AA Hostile Intel
+    from hostile.services.drill_quick_add import system_moons
+
+    try:
+        system_id = int(request.GET.get("system_id", ""))
+    except ValueError:
+        return JsonResponse({"success": False, "error": "Invalid system."}, status=400)
+    return JsonResponse({"success": True, "moons": system_moons(system_id)})
+
+
+@login_required
+@permission_required("hostile.basic_access")
+def api_drill_paste_save(request: WSGIRequest) -> JsonResponse:
+    """Moon Data quick add: create/update the reviewed drills, one result per row."""
+    # AA Hostile Intel
+    from hostile.services.drill_quick_add import save_drill
+
+    if request.method != "POST":
+        return JsonResponse({"success": False, "error": "POST required."}, status=405)
+    try:
+        body = json.loads(request.body.decode("utf-8") or "{}")
+    except (ValueError, UnicodeDecodeError):
+        return JsonResponse({"success": False, "error": "Invalid JSON."}, status=400)
+    rows = body.get("drills") if isinstance(body, dict) else None
+    if not isinstance(rows, list) or not rows:
+        return JsonResponse(
+            {"success": False, "error": "No drills to save."}, status=400
+        )
+    results = []
+    for index, row in enumerate(rows[:50]):
+        if not isinstance(row, dict):
+            results.append({"index": index, "ok": False, "errors": ["Invalid row."]})
+            continue
+        try:
+            result = save_drill(row, request.user)
+        except Exception:
+            logger.exception("Moon Data quick add failed for row %s", index)
+            result = {"ok": False, "errors": ["Could not save this drill."]}
+        results.append({"index": index, **result})
+    return JsonResponse(
+        {"success": any(r.get("ok") for r in results), "results": results}
+    )
 
 
 @login_required

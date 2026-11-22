@@ -434,6 +434,52 @@ class IntelManager:
         return struct, True
 
     @classmethod
+    def save_structure_form(
+        cls, form, user: User, source: str | None = None
+    ) -> tuple[HostileStructure, bool]:
+        """Create or update a structure from a valid ``HostileStructureForm``.
+
+        Shared by Add Structure and the Moon Data drill quick-add: de-duplicates via
+        ``get_or_create_structure``, refreshes the alliance vulnerability windows and
+        writes the audit entry.
+        """
+        # AA Hostile Intel
+        from hostile.services.sov_engine import SovAnalysisEngine
+
+        struct = form.save(commit=False)
+        struct.created_by = user
+        if user.has_perm("hostile.manage_intel"):
+            struct.is_verified = True
+
+        struct, created = cls.get_or_create_structure(
+            name=struct.name,
+            solar_system=struct.solar_system,
+            structure_type=struct.structure_type,
+            structure_id=struct.structure_id,
+            defaults={
+                "corporation": struct.corporation,
+                "alliance": struct.alliance,
+                "owner_ticker": struct.owner_ticker,
+                "core_status": struct.core_status,
+                "state": struct.state,
+                "vulnerability_window": struct.vulnerability_window,
+                "vulnerability_hour": struct.vulnerability_hour,
+                "location_details": struct.location_details,
+                "notes": struct.notes,
+                "is_verified": struct.is_verified,
+            },
+            user=user,
+        )
+        if struct.alliance:
+            SovAnalysisEngine.aggregate_alliance_vulnerability_windows(struct.alliance)
+        if source:
+            note = f"Structure '{struct.name}' {'created' if created else 'updated'} via {source}."
+        else:
+            note = f"Structure '{struct.name}' {'created' if created else 'updated via submission'}."
+        cls.record_audit(user, "CREATE" if created else "UPDATE", struct, note)
+        return struct, created
+
+    @classmethod
     @transaction.atomic
     def merge_structures(
         cls,

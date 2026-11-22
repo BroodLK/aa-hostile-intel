@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Added
 
+- **Quick Add Drills**: A new Moon Data button lets you paste Metenox drills from the overview / probe scanner (`F9-FUV - Bucket 10-10` plus its distance line) or from D-Scan. Several drills can go in one paste.
+
+  - The system comes from the name, and a trailing planet-moon number such as `10-10` preselects the moon. Unscanned (SDE) moons can be picked too.
+  - Each drill can be edited before saving (name, system, moon, owner, state, plus core, vulnerability hour and notes under *More details*), and one owner can be applied to every row.
+  - Drills already in the registry are updated instead of duplicated. A drill that someone else linked to a different moon keeps its moon unless you can edit it.
+  - New drills appear on their moon straight away, and the list jumps to the first one.
+
 - **Drill Value After Costs**: Moon Data now shows three values for every moon, group total and KPI card: **Full**, **Drill** and **Net**. Net is the drill value after a Metenox's monthly fuel blocks and magmatic gas, using aa-metenox's prices. Net values below zero are shown in red, and the Value column can be sorted by any of the three. The moon details window shows the running cost breakdown.
 
 ### Changed

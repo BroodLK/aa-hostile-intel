@@ -106,6 +106,21 @@ urlpatterns = [
         views.api_parse_reinforcement,
         name="api_parse_reinforcement",
     ),
+    path(
+        "api/drill-paste/parse/",
+        views.api_drill_paste_parse,
+        name="api_drill_paste_parse",
+    ),
+    path(
+        "api/drill-paste/moons/",
+        views.api_drill_paste_moons,
+        name="api_drill_paste_moons",
+    ),
+    path(
+        "api/drill-paste/save/",
+        views.api_drill_paste_save,
+        name="api_drill_paste_save",
+    ),
     path("api/characters/", views.api_character_search, name="api_character_search"),
     path(
         "api/character-resolve/",
