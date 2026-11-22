@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **Drill Value After Costs**: Moon Data now shows three values for every moon, group total and KPI card: **Full**, **Drill** and **Net**. Net is the drill value after a Metenox's monthly fuel blocks and magmatic gas, using aa-metenox's prices. Net values below zero are shown in red, and the Value column can be sorted by any of the three. The moon details window shows the running cost breakdown.
+
+### Changed
+
+- **Drill Value from aa-metenox (Moon Data)**: When aa-metenox is installed, the Moon Data drill value is aa-metenox's own calculation (30,000 m³/h reprocessed at 40%, moon goo at Jita buy) for every moon it has. Other moons keep the 40%-of-moon-value estimate, marked as an estimate. The Structures tab is unchanged.
+
 ## [0.0.34] - 2026-11-22
 
 ### Added

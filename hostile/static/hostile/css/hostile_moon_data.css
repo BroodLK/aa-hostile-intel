@@ -143,6 +143,27 @@
     margin-left: 0.75rem;
 }
 
+/* Drill value after running costs */
+.moon-data .md-net,
+.md-modal .md-net {
+    color: #56d4dd;
+}
+
+.moon-data .md-negative,
+.md-modal .md-negative {
+    color: #f85149;
+}
+
+.moon-data .md-src {
+    color: #3fb950;
+    font-size: 0.65rem;
+    vertical-align: 1px;
+}
+
+.moon-data #moonValueHead .sortable-th {
+    cursor: pointer;
+}
+
 .moon-data .md-kpi-drill {
     color: var(--sr-isk);
     font-weight: 600;

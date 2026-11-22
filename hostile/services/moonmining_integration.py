@@ -501,14 +501,22 @@ def build_moon_data_payload(
     structures: Any,
     volume_per_month: float,
     only_moon_ids: Any = None,
+    metenox_values: dict[int, float] | None = None,
+    drill_costs: dict[str, float] | None = None,
 ) -> dict[str, Any]:
     """Join moonmining moons with registry drills/refineries into the Moon Data payload.
 
     Pure function (no queries of its own). ``moons`` need ``eve_moon`` -> planet -> system
     -> constellation -> region, ``products`` (with ``ore_type`` / ``extras``), ``label``
     and the optional ``refinery``; ``structures`` are HostileStructure-like objects.
+
+    Drill value: aa-metenox's own monthly value (``metenox_values``) when it has the moon,
+    otherwise ``DRILL_SHARE`` of the moonmining value. ``drill_net`` subtracts the monthly
+    running cost (``drill_costs["total"]``) when known.
     """
     moons = list(moons)
+    metenox_values = metenox_values or {}
+    running_cost = drill_costs["total"] if drill_costs else None
     structures = [s for s in structures if getattr(s, "state", "") != "DESTROYED"]
     # Match against every moon given, even ones not returned as rows (only_moon_ids).
     by_moon = match_structures_to_moons(moons, structures)
@@ -532,6 +540,9 @@ def build_moon_data_payload(
         location = _moon_location(moon)
         value = moon.value
         products = _moon_products(moon, ores, volume_per_month)
+        drill_value, drill_source = _drill_value(
+            value, metenox_values.get(moon.eve_moon_id)
+        )
         row = {
             "id": moon.eve_moon_id,
             "name": moon.eve_moon.name,
@@ -543,7 +554,13 @@ def build_moon_data_payload(
             "region": getattr(region, "name", "") or "",
             "rarity": getattr(moon, "rarity_class", 0) or 0,
             "value": value,
-            "drill_value": value * DRILL_SHARE if value is not None else None,
+            "drill_value": drill_value,
+            "drill_source": drill_source,
+            "drill_net": (
+                drill_value - running_cost
+                if drill_value is not None and running_cost is not None
+                else None
+            ),
             "label": (
                 {"name": label.name, "style": _label_bootstrap_style(label)}
                 if label
@@ -557,7 +574,18 @@ def build_moon_data_payload(
         }
         row.update(_moon_owner(structure_rows, refinery))
         rows.append(row)
-    return {"available": True, "ores": ores, "rows": rows}
+    return {"available": True, "ores": ores, "rows": rows, "drill_costs": drill_costs}
+
+
+def _drill_value(
+    moon_value: float | None, metenox_value: float | None
+) -> tuple[float | None, str | None]:
+    """(monthly drill value, source): aa-metenox's value wins over the 40% estimate."""
+    if metenox_value:
+        return float(metenox_value), "metenox"
+    if moon_value is not None:
+        return moon_value * DRILL_SHARE, "estimate"
+    return None, None
 
 
 def _moon_queryset():
@@ -613,6 +641,9 @@ def load_moon_data_payload(moon_ids: Any = None) -> dict[str, Any] | None:
     from moonmining.app_settings import MOONMINING_VOLUME_PER_MONTH
     from moonmining.models import Moon
 
+    # AA Hostile Intel
+    from hostile.services.metenox_integration import load_drill_inputs
+
     moons = _moon_queryset()
     if moon_ids is None:
         moons = list(moons)
@@ -628,8 +659,13 @@ def load_moon_data_payload(moon_ids: Any = None) -> dict[str, Any] | None:
         unscanned = sde_moons_in_regions(
             region_ids, exclude_ids={m.eve_moon_id for m in moons}
         )
+        metenox_values, drill_costs = load_drill_inputs()
         return build_moon_data_payload(
-            moons + unscanned, structures, MOONMINING_VOLUME_PER_MONTH
+            moons + unscanned,
+            structures,
+            MOONMINING_VOLUME_PER_MONTH,
+            metenox_values=metenox_values,
+            drill_costs=drill_costs,
         )
 
     # Details: the moon may be scanned (moonmining) or only known from the SDE.
@@ -646,11 +682,14 @@ def load_moon_data_payload(moon_ids: Any = None) -> dict[str, Any] | None:
     unscanned = sde_moons_in_systems(
         system_ids, exclude_ids={m.eve_moon_id for m in moons}
     )
+    metenox_values, drill_costs = load_drill_inputs(moon_ids)
     return build_moon_data_payload(
         moons + unscanned,
         moon_structures_queryset(system_ids),
         MOONMINING_VOLUME_PER_MONTH,
         only_moon_ids=moon_ids,
+        metenox_values=metenox_values,
+        drill_costs=drill_costs,
     )
 
 

@@ -309,6 +309,65 @@ class MoonDataPayloadTests(SimpleTestCase):
         )
 
 
+class DrillAfterCostsTests(SimpleTestCase):
+    COSTS = {"fuel": 3_600_000.0, "gas": 14_400_000.0, "total": 18_000_000.0}
+
+    def _rows(self, moons, metenox_values=None, drill_costs=None):
+        return build_moon_data_payload(
+            moons,
+            [],
+            VOLUME_PER_MONTH,
+            metenox_values=metenox_values,
+            drill_costs=drill_costs,
+        )
+
+    def test_metenox_value_overrides_estimate(self):
+        payload = self._rows(
+            [_moon(40001, value=1_000_000_000.0), _moon(40002, number=3, value=1e9)],
+            metenox_values={40001: 250_000_000.0},
+            drill_costs=self.COSTS,
+        )
+        by_id = {r["id"]: r for r in payload["rows"]}
+        self.assertEqual(by_id[40001]["drill_value"], 250_000_000.0)
+        self.assertEqual(by_id[40001]["drill_source"], "metenox")
+        self.assertAlmostEqual(by_id[40001]["drill_net"], 232_000_000.0)
+        self.assertAlmostEqual(by_id[40002]["drill_value"], 400_000_000.0)
+        self.assertEqual(by_id[40002]["drill_source"], "estimate")
+        self.assertAlmostEqual(by_id[40002]["drill_net"], 382_000_000.0)
+        self.assertEqual(payload["drill_costs"], self.COSTS)
+
+    def test_net_can_be_negative(self):
+        row = self._rows([_moon(40001, value=10_000_000.0)], drill_costs=self.COSTS)[
+            "rows"
+        ][0]
+        self.assertAlmostEqual(row["drill_net"], 4_000_000.0 - 18_000_000.0)
+
+    def test_without_costs_net_is_none(self):
+        payload = self._rows([_moon(40001)])
+        self.assertIsNone(payload["rows"][0]["drill_net"])
+        self.assertIsNone(payload["drill_costs"])
+        self.assertEqual(payload["rows"][0]["drill_source"], "estimate")
+
+    def test_unscanned_moon_with_metenox_value(self):
+        row = self._rows(
+            [_sde_moon_adapter(_sde_moon(40009))],
+            metenox_values={40009: 100_000_000.0},
+            drill_costs=self.COSTS,
+        )["rows"][0]
+        self.assertFalse(row["scanned"])
+        self.assertIsNone(row["value"])
+        self.assertEqual(row["drill_value"], 100_000_000.0)
+        self.assertAlmostEqual(row["drill_net"], 82_000_000.0)
+
+    def test_no_value_anywhere(self):
+        row = self._rows([_sde_moon_adapter(_sde_moon(40009))], drill_costs=self.COSTS)[
+            "rows"
+        ][0]
+        self.assertIsNone(row["drill_value"])
+        self.assertIsNone(row["drill_source"])
+        self.assertIsNone(row["drill_net"])
+
+
 def _sde_moon(moon_id, system="BNX-AS", planet="VI", number=2, system_id=30000001):
     region = SimpleNamespace(name="Fountain")
     constellation = SimpleNamespace(name="Y-ZXZ5", region=region, region_id=10000058)
@@ -552,6 +611,45 @@ class MoonDataViewTests(TestCase):
         self.assertContains(response, "Xenotime")
         self.assertContains(response, "5.0b")
         self.assertContains(response, "Add structure on this moon")
+
+    def test_detail_modal_shows_drill_after_costs(self):
+        self.client.force_login(self.user_basic)
+        payload = self._payload()
+        payload["rows"][0].update(
+            {
+                "drill_value": 250_000_000.0,
+                "drill_source": "metenox",
+                "drill_net": 232_000_000.0,
+            }
+        )
+        payload["drill_costs"] = {
+            "fuel": 3_600_000.0,
+            "gas": 14_400_000.0,
+            "total": 18_000_000.0,
+        }
+        with patch(
+            "hostile.services.moonmining_integration.load_moon_data_payload",
+            return_value=payload,
+        ):
+            response = self.client.get(
+                reverse("hostile:moon_data_detail", args=[40001])
+            )
+        self.assertContains(response, "Drill after costs")
+        self.assertContains(response, "232.0m")
+        self.assertContains(response, "aa-metenox")
+        self.assertContains(response, "3.6m")
+        self.assertContains(response, "18.0m")
+
+    def test_detail_modal_without_costs_shows_hint(self):
+        self.client.force_login(self.user_basic)
+        with patch(
+            "hostile.services.moonmining_integration.load_moon_data_payload",
+            return_value=self._payload(),
+        ):
+            response = self.client.get(
+                reverse("hostile:moon_data_detail", args=[40001])
+            )
+        self.assertContains(response, "Running costs need aa-metenox")
 
     def test_detail_modal_for_unscanned_moon(self):
         self.client.force_login(self.user_basic)

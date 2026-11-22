@@ -3855,6 +3855,8 @@ def moon_data_detail(request: WSGIRequest, moon_id: int) -> HttpResponse:
         for ore_id, amount, value in row["products"]
     ]
     drill_value = row["drill_value"]
+    drill_net = row.get("drill_net")
+    drill_costs = payload.get("drill_costs")
     moonmining_url = ""
     if request.user.has_perm("moonmining.basic_access"):
         try:
@@ -3870,6 +3872,14 @@ def moon_data_detail(request: WSGIRequest, moon_id: int) -> HttpResponse:
             format_isk(drill_value / HOURS_PER_MONTH)
             if drill_value is not None
             else "—"
+        ),
+        "drill_source": row.get("drill_source"),
+        "display_drill_net": format_isk(drill_net),
+        "drill_net_negative": drill_net is not None and drill_net < 0,
+        "drill_costs": (
+            {key: format_isk(value) for key, value in drill_costs.items()}
+            if drill_costs
+            else None
         ),
         "link_candidates": _moon_link_candidates(request, row),
         "moonmining_url": moonmining_url,

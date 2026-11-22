@@ -57,13 +57,13 @@
     <div class="col-6 col-md-4 col-xl-2">
         <div class="hostile-stat-card h-100">
             <div class="hostile-stat-icon text-info"><i class="fas fa-coins"></i></div>
-            <div><div class="hostile-stat-value text-info" data-kpi="value">—</div><div class="hostile-stat-label">{% translate "Total / month" %} · {% translate "Drill" %} <span class="md-kpi-drill" data-kpi="value-drill">—</span></div></div>
+            <div><div class="hostile-stat-value text-info" data-kpi="value">—</div><div class="hostile-stat-label">{% translate "Total / month" %} · {% translate "Drill" %} <span class="md-kpi-drill" data-kpi="value-drill">—</span> · {% translate "Net" %} <span class="md-kpi-drill md-net" data-kpi="value-net">—</span></div></div>
         </div>
     </div>
     <div class="col-6 col-md-4 col-xl-2">
         <div class="hostile-stat-card h-100">
             <div class="hostile-stat-icon text-danger"><i class="fas fa-skull-crossbones"></i></div>
-            <div><div class="hostile-stat-value text-danger" data-kpi="hostile">—</div><div class="hostile-stat-label">{% translate "Hostile-held / month" %} · {% translate "Drill" %} <span class="md-kpi-drill" data-kpi="hostile-drill">—</span></div></div>
+            <div><div class="hostile-stat-value text-danger" data-kpi="hostile">—</div><div class="hostile-stat-label">{% translate "Hostile-held / month" %} · {% translate "Drill" %} <span class="md-kpi-drill" data-kpi="hostile-drill">—</span> · {% translate "Net" %} <span class="md-kpi-drill md-net" data-kpi="hostile-net">—</span></div></div>
         </div>
     </div>
     <div class="col-6 col-md-4 col-xl-2">
@@ -152,7 +152,11 @@
                 <th class="sr-col-name sortable-th" data-sort="name">{% translate "Moon" %} <i class="fas fa-sort sort-icon ms-1"></i></th>
                 <th class="sortable-th" data-sort="rarity">{% translate "Rarity" %} <i class="fas fa-sort sort-icon ms-1"></i></th>
                 <th>{% translate "Composition" %}</th>
-                <th class="sortable-th active-sort" data-sort="value">{% translate "Est. Value / Drill" %} <i class="fas fa-sort-down sort-icon ms-1"></i></th>
+                <th id="moonValueHead">
+                    <span class="sortable-th active-sort" data-sort="value" title="{% translate 'Full moon value (aa-moonmining)' %}">{% translate "Full" %}<i class="fas fa-sort-down sort-icon ms-1"></i></span>
+                    / <span class="sortable-th" data-sort="drill" title="{% translate 'Metenox drill value' %}">{% translate "Drill" %}<i class="fas fa-sort sort-icon ms-1"></i></span>
+                    / <span class="sortable-th" data-sort="net" title="{% translate 'Drill value after fuel and magmatic gas' %}">{% translate "Net" %}<i class="fas fa-sort sort-icon ms-1"></i></span>
+                </th>
                 <th class="sortable-th" data-sort="structure">{% translate "Structure" %} <i class="fas fa-sort sort-icon ms-1"></i></th>
                 <th class="sortable-th" data-sort="owner">{% translate "Owner" %} <i class="fas fa-sort sort-icon ms-1"></i></th>
                 <th class="sortable-th" data-sort="updated">{% translate "Surveyed" %} <i class="fas fa-sort sort-icon ms-1"></i></th>
@@ -240,6 +244,12 @@ document.addEventListener("DOMContentLoaded", function() {
         perHour: "{{ _('/h')|escapejs }}",
         drill: "{{ _('Drill')|escapejs }}",
         drillPotential: "{{ _('Metenox drill yield (40% of the moon value)')|escapejs }}",
+        drillMetenox: "{{ _('aa-metenox: 30,000 m³/h reprocessed at 40%, moon goo at Jita buy')|escapejs }}",
+        drillEstimate: "{{ _('Estimate: 40% of the moon value')|escapejs }}",
+        net: "{{ _('Net')|escapejs }}",
+        netHint: "{{ _('Drill value after fuel blocks and magmatic gas')|escapejs }}",
+        noCosts: "{{ _('Running costs need aa-metenox fuel block and magmatic gas prices')|escapejs }}",
+        runningCost: "{{ _('Metenox running cost / month')|escapejs }}",
         unclaimed: "{{ _('Unclaimed')|escapejs }}",
         unknownRegion: "{{ _('Unknown Region')|escapejs }}",
         noSurvey: "{{ _('No survey')|escapejs }}",
@@ -367,6 +377,12 @@ document.addEventListener("DOMContentLoaded", function() {
         return rows.reduce((sum, r) => sum + (r.value || 0), 0);
     }
 
+    let DRILL_COSTS = null;   // {fuel, gas, total} per month from aa-metenox, or null
+
+    function netTotal(rows) {
+        return rows.reduce((sum, r) => sum + (r.drill_net || 0), 0);
+    }
+
     function drillTotal(rows) {
         return rows.reduce((sum, r) => sum + (r.drill_value || 0), 0);
     }
@@ -458,6 +474,14 @@ document.addEventListener("DOMContentLoaded", function() {
         return true;
     }
 
+    // Moons without the value sort last whichever way the column is sorted.
+    function compareNullsLast(x, y, dir) {
+        const xn = x === null || x === undefined;
+        const yn = y === null || y === undefined;
+        if (xn || yn) return xn === yn ? 0 : (xn ? 1 : -1);
+        return (x - y) * dir;
+    }
+
     function compareRows(a, b) {
         const dir = sortDir === "asc" ? 1 : -1;
         const text = (x, y) => (x || "").localeCompare(y || "") * dir;
@@ -467,12 +491,9 @@ document.addEventListener("DOMContentLoaded", function() {
             case "structure": return text(a.structures[0] ? a.structures[0].type : "", b.structures[0] ? b.structures[0].type : "");
             case "owner": return text(a.owner_name, b.owner_name);
             case "updated": return ((a.updated_at ? Date.parse(a.updated_at) : 0) - (b.updated_at ? Date.parse(b.updated_at) : 0)) * dir;
-            case "value": {
-                const av = a.value === null || a.value === undefined;
-                const bv = b.value === null || b.value === undefined;
-                if (av || bv) return av === bv ? 0 : (av ? 1 : -1);
-                return (a.value - b.value) * dir;
-            }
+            case "value": return compareNullsLast(a.value, b.value, dir);
+            case "drill": return compareNullsLast(a.drill_value, b.drill_value, dir);
+            case "net": return compareNullsLast(a.drill_net, b.drill_net, dir);
             default: return a._order - b._order;
         }
     }
@@ -512,7 +533,7 @@ document.addEventListener("DOMContentLoaded", function() {
         return `<span class="meta">
             <span><b>${rows.length}</b> ${rows.length === 1 ? I18N.moon : I18N.moons}</span>
             ${extra || ""}
-            <span title="${I18N.drillPotential}"><i class="fas fa-coins me-1"></i><b class="sr-isk">${formatIsk(total(rows))}</b> / ${I18N.drill} <b class="sr-isk">${formatIsk(drillTotal(rows))}</b> ${I18N.iskPerMonth}</span>
+            <span title="${I18N.drillPotential}"><i class="fas fa-coins me-1"></i><b class="sr-isk">${formatIsk(total(rows))}</b> / ${I18N.drill} <b class="sr-isk">${formatIsk(drillTotal(rows))}</b>${DRILL_COSTS ? ` / ${I18N.net} ${netHtml(netTotal(rows), "b")}` : ""} ${I18N.iskPerMonth}</span>
             ${withStructure ? `<span><i class="fas fa-monument me-1"></i>${withStructure} ${I18N.withStructure}</span>` : ""}
             ${rarityMix(rows)}
         </span>`;
@@ -609,12 +630,21 @@ document.addEventListener("DOMContentLoaded", function() {
         return r.owner_url ? `<a href="${escapeHtml(r.owner_url)}" class="text-decoration-none">${inner}</a>` : inner;
     }
 
+    function netHtml(value, tag = "span") {
+        if (value === null || value === undefined) return `<${tag} class="sr-muted">—</${tag}>`;
+        return `<${tag} class="sr-isk md-net${value < 0 ? " md-negative" : ""}">${formatIsk(value)}</${tag}>`;
+    }
+
     function valueHtml(r) {
-        if (r.value === null || r.value === undefined) return `<span class="sr-muted">—</span>`;
-        const hourly = r.drill_value !== null ? r.drill_value / 720 : null;
+        const noValue = v => v === null || v === undefined;
+        if (noValue(r.value) && noValue(r.drill_value)) return `<span class="sr-muted">—</span>`;
+        const hourly = noValue(r.drill_value) ? null : r.drill_value / 720;
+        const source = r.drill_source === "metenox" ? I18N.drillMetenox : I18N.drillEstimate;
         const hourlyText = hourly !== null ? ` · ${formatIsk(hourly)}${I18N.perHour}` : "";
+        const netTitle = DRILL_COSTS ? `${I18N.netHint} (${I18N.runningCost}: ${formatIsk(DRILL_COSTS.total)})` : I18N.noCosts;
         return `<span class="sr-isk">${formatIsk(r.value)}</span>
-            <div class="sr-sub" title="${I18N.drillPotential}${hourlyText}">${I18N.drill} <span class="sr-isk">${formatIsk(r.drill_value)}</span></div>`;
+            <div class="sr-sub" title="${source}${hourlyText}">${I18N.drill} <span class="sr-isk">${formatIsk(r.drill_value)}</span>${r.drill_source === "metenox" ? ' <i class="fas fa-check-circle md-src"></i>' : ""}</div>
+            <div class="sr-sub" title="${netTitle}">${I18N.net} ${netHtml(r.drill_net)}</div>`;
     }
 
     function addHereUrl(r) {
@@ -658,6 +688,8 @@ document.addEventListener("DOMContentLoaded", function() {
         set("value-drill", formatIsk(drillTotal(rows)));
         set("hostile", formatIsk(total(hostileRows)));
         set("hostile-drill", formatIsk(drillTotal(hostileRows)));
+        set("value-net", DRILL_COSTS ? formatIsk(netTotal(rows)) : "—");
+        set("hostile-net", DRILL_COSTS ? formatIsk(netTotal(hostileRows)) : "—");
         set("unclaimed", rows.filter(r => r.status === "unclaimed" && r.rarity >= 32).length.toLocaleString());
     }
 
@@ -842,7 +874,7 @@ document.addEventListener("DOMContentLoaded", function() {
                 sortDir = sortDir === "asc" ? "desc" : "asc";
             } else {
                 sortColumn = key;
-                sortDir = ["value", "rarity", "updated"].includes(key) ? "desc" : "asc";
+                sortDir = ["value", "drill", "net", "rarity", "updated"].includes(key) ? "desc" : "asc";
             }
             sortHeaders.forEach(h => {
                 h.classList.remove("active-sort");
@@ -861,6 +893,13 @@ document.addEventListener("DOMContentLoaded", function() {
             .then(r => r.json())
             .then(payload => {
                 if (payload.error) throw new Error(payload.error);
+                DRILL_COSTS = payload.drill_costs || null;
+                const valueHead = document.getElementById("moonValueHead");
+                if (valueHead) {
+                    valueHead.title = DRILL_COSTS
+                        ? `${I18N.runningCost}: ${formatIsk(DRILL_COSTS.fuel)} + ${formatIsk(DRILL_COSTS.gas)} = ${formatIsk(DRILL_COSTS.total)}`
+                        : I18N.noCosts;
+                }
                 prepare(payload);
                 render();
             });

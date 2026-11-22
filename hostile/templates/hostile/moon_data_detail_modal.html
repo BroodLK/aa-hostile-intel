@@ -21,9 +21,21 @@
         </div>
         <div class="col-md-4">
             <div class="text-muted small fw-bold text-uppercase">{% translate "Estimated value / month" %}</div>
-            <div class="md-isk fs-5">{{ display_value }}</div>
-            <div class="small text-muted" title="{% translate 'A Metenox drill yields 40% of the moon value' %}">
+            <div class="small text-muted">{% translate "Full" %} <span class="md-isk fs-5">{{ display_value }}</span></div>
+            <div class="small text-muted" title="{% if drill_source == 'metenox' %}{% translate 'aa-metenox: 30,000 m³/h reprocessed at 40%, moon goo at Jita buy' %}{% else %}{% translate 'Estimate: 40% of the moon value' %}{% endif %}">
                 {% translate "Drill" %} <span class="md-isk">{{ display_drill_value }}</span> ({{ display_drill_hourly }}/h)
+                {% if drill_source == "metenox" %}<span class="badge bg-secondary ms-1">aa-metenox</span>{% elif drill_source == "estimate" %}<span class="badge bg-dark border border-secondary ms-1">{% translate "estimate" %}</span>{% endif %}
+            </div>
+            <div class="small text-muted">
+                {% translate "Drill after costs" %}
+                <span class="md-isk{% if drill_net_negative %} md-negative{% endif %}">{{ display_drill_net }}</span>
+            </div>
+            <div class="small text-muted mt-1">
+                {% if drill_costs %}
+                    {% blocktranslate with fuel=drill_costs.fuel gas=drill_costs.gas total=drill_costs.total %}Running cost / month: fuel {{ fuel }} + magmatic gas {{ gas }} = {{ total }} (aa-metenox, Jita sell){% endblocktranslate %}
+                {% else %}
+                    {% translate "Running costs need aa-metenox fuel block and magmatic gas prices." %}
+                {% endif %}
             </div>
         </div>
         <div class="col-md-4">
