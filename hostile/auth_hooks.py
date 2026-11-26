@@ -43,6 +43,7 @@ class HostileIntelMenuItem(MenuItemHook):
                 "hostile:timer_verify",
                 "hostile:timerboard_sync",
                 "hostile:calculator",
+                "hostile:sov_planner",
                 "hostile:systems",
                 "hostile:system_observation_add",
                 "hostile:system_observation_edit",

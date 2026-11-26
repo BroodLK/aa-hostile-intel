@@ -4000,6 +4000,20 @@ def audit_logs_list(request: WSGIRequest) -> HttpResponse:
     return render(request, "hostile/audit_logs.html", context)
 
 
+@login_required
+@permission_required("hostile.basic_access")
+def sov_planner(request: WSGIRequest) -> HttpResponse:
+    """Plan sovereignty upgrades using the locally imported SDE."""
+    # AA Hostile Intel
+    from hostile.services.sov_planner import get_sov_planner_catalog
+
+    return render(
+        request,
+        "hostile/sov_planner.html",
+        {"sov_planner_data": get_sov_planner_catalog()},
+    )
+
+
 # Cases shown in the calculator's "Timer rules" panel: (size, stage, power, label, examples)
 CALCULATOR_RULE_CASES = (
     (

@@ -77,6 +77,12 @@ ______________________________________________________________________
 
   - Copy the result as a broadcast ping, or use *Add Timer* to save it to the Timer Board with a solar system and notes.
 
+- **🌐 Sovereignty Upgrade Calculator**:
+
+  - Start with a constellation and add gate-linked systems, including systems in neighboring constellations. Choose upgrades from the installed SDE and compare power and workforce balances, including manually entered workforce transfers.
+  - SDE resources describe potential production, not installed skyhooks or live hub state. Correct the editable values to match the game; missing SDE values remain unknown. Transfer warnings are conservative and do not replace in-game validation. Plans remain in the browser until the page is reloaded.
+  - Requires imported `eve_sde` map, stargate, sovereignty upgrade and celestial resource data; incomplete imports can leave systems, links or values unavailable.
+
 - **🎯 Local Threat Scanner & Drop Risk Engine**:
 
   - **Asynchronous Pilot Intelligence Streaming**: Non-blocking local chat paste ingestion that eliminates HTTP gateway timeouts by streaming pilot corporation, alliance, top flown ships, and loss data in the background.

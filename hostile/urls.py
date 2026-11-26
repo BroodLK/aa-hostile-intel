@@ -93,6 +93,7 @@ urlpatterns = [
         name="timerboard_sync",
     ),
     path("calculator/", views.timer_calculator, name="calculator"),
+    path("sov-planner/", views.sov_planner, name="sov_planner"),
     path("api/calculate-timer/", views.api_timer_calculate, name="api_timer_calculate"),
     path("api/routes/", views.api_routes_batch, name="api_routes_batch"),
     path(

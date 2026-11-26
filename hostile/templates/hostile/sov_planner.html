@@ -1,0 +1,43 @@
+{% extends 'hostile/base.html' %}
+{% load i18n static %}
+
+{% block details %}
+<div id="sov-planner">
+    <div class="mb-3">
+        <h4 class="fw-bold"><i class="fas fa-globe-americas text-info me-2"></i>{% translate "Sovereignty Upgrade Planner" %}</h4>
+        <p class="text-secondary mb-0">{% translate "Build a connected plan and enter workforce transfers manually. This is an estimate, not game-rule validation." %}</p>
+    </div>
+    <div id="sov-error" class="alert alert-warning" role="alert" hidden></div>
+    <div id="sov-controls" hidden>
+        <div class="card hostile-card mb-3"><div class="card-body">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-4"><label for="sov-constellation" class="form-label">{% translate "Constellation" %}</label><select id="sov-constellation" class="form-select no-searchable"></select></div>
+                <div class="col-md-4"><label for="sov-system" class="form-label">{% translate "Add a linked system" %}</label><select id="sov-system" class="form-select no-searchable"></select></div>
+                <div class="col-md-auto"><button type="button" id="sov-add-system" class="btn btn-outline-info">{% translate "Add system" %}</button></div>
+            </div>
+            <p class="small text-secondary mt-2 mb-0">{% translate "Choose a starting constellation and system, then add linked systems from any constellation. Changing the starting constellation clears the plan." %}</p>
+            <p class="small text-secondary mb-0">{% translate "System resources are potential capacity, not confirmation of installed or active skyhooks. Enter actual available values for a live plan. Blank values are unknown; enter zero only when known. Upgrade production fields missing from the catalog are also unknown." %}</p>
+            <div id="sov-catalog-warning" class="text-warning small mt-2" role="status"></div>
+        </div></div>
+        <div id="sov-systems" class="row g-3 mb-3"></div>
+        <div class="card hostile-card mb-3"><div class="card-body">
+            <h5>{% translate "Workforce transfers" %}</h5>
+            <p class="small text-secondary">{% translate "Enter direct transfers between selected neighboring systems. Warnings flag possible transfer-mode conflicts; verify rules, capacities and live skyhooks in game." %}</p>
+            <div class="row g-2 align-items-end">
+                <div class="col-md-3"><label for="sov-from" class="form-label">{% translate "From" %}</label><select id="sov-from" class="form-select no-searchable"></select></div>
+                <div class="col-md-3"><label for="sov-to" class="form-label">{% translate "To" %}</label><select id="sov-to" class="form-select no-searchable"></select></div>
+                <div class="col-md-3"><label for="sov-amount" class="form-label">{% translate "Workforce" %}</label><input id="sov-amount" class="form-control" type="number" min="0" step="any"></div>
+                <div class="col-md-auto"><button type="button" id="sov-add-transfer" class="btn btn-outline-info">{% translate "Add transfer" %}</button></div>
+            </div>
+            <div id="sov-transfer-message" class="text-warning small mt-2" role="status"></div>
+            <div id="sov-transfers" class="mt-2"></div>
+        </div></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_javascript %}
+{{ block.super }}
+{{ sov_planner_data|json_script:"sov-planner-data" }}
+<script src="{% static 'hostile/js/sov_planner.js' %}"></script>
+{% endblock %}

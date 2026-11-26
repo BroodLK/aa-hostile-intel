@@ -52,6 +52,11 @@
                     </a>
                 </li>
                 <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.url_name == 'sov_planner' %}active{% endif %}" href="{% url 'hostile:sov_planner' %}">
+                        <i class="fas fa-network-wired me-1"></i> {% translate "Sov Upgrade Calculator" %}
+                    </a>
+                </li>
+                <li class="nav-item">
                     <a class="nav-link {% if request.resolver_match.url_name == 'systems' %}active{% endif %}" href="{% url 'hostile:systems' %}" data-hostile-loading="{% translate 'Loading System Intel' %}" data-hostile-loading-detail="{% translate 'Querying solar system activity, camp reports, and gate statistics...' %}">
                         <i class="fas fa-crosshairs me-1"></i> {% translate "System Intel & Camps" %}
                     </a>

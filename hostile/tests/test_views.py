@@ -146,6 +146,19 @@ class TestHostileViews(TestCase):
         self.user_officer.refresh_from_db()
         self.user_no_perms.refresh_from_db()
 
+    def test_sov_planner_access_and_catalog(self):
+        url = reverse("hostile:sov_planner")
+        self.assertEqual(self.client.get(url).status_code, 302)
+        self.client.force_login(self.user_no_perms)
+        self.assertEqual(self.client.get(url).status_code, 302)
+        self.client.force_login(self.user_basic)
+        catalog = {"constellations": [], "systems": [], "upgrades": []}
+        with patch("hostile.services.sov_planner.get_sov_planner_catalog", return_value=catalog):
+            response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["sov_planner_data"], catalog)
+        self.assertContains(response, "sov-planner-data")
+
     def test_unauthenticated_redirect(self):
         url = reverse("hostile:index")
         response = self.client.get(url)
