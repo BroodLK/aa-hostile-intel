@@ -24,6 +24,11 @@
             <p class="small text-secondary mb-0">{% translate "System resources are potential capacity, not confirmation of installed or active skyhooks. Enter actual available values for a live plan. Blank values are unknown; enter zero only when known. Upgrade production fields missing from the catalog are also unknown." %}</p>
             <div id="sov-catalog-warning" class="text-warning small mt-2" role="status"></div>
         </div></div>
+        <div class="card hostile-card mb-3"><div class="card-body">
+            <h5>{% translate "System map" %}</h5>
+            <p class="small text-secondary">{% translate "Schematic links show selected systems and their immediate neighbors. Choose a neighboring system to add it to the plan." %}</p>
+            <div id="sov-map" class="overflow-auto" aria-label="{% translate 'System map' %}"></div>
+        </div></div>
         <div id="sov-systems" class="row g-3 mb-3"></div>
         <div class="card hostile-card mb-3"><div class="card-body">
             <h5>{% translate "Workforce transfers" %}</h5>

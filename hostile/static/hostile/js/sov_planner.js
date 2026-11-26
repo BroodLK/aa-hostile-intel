@@ -90,14 +90,66 @@
         const result = Number(capacity) - costs.reduce((sum, cost) => sum + Number(cost), 0) + production.reduce((sum, value) => sum + Number(value), 0) + adjustment;
         return `${result}${result < 0 ? ' (deficit)' : ''}`;
     }
+    function addSystem(id) {
+        const system = systems.get(id);
+        if (!system || selected.has(id)) return;
+        selected.set(id, { power: number(system.power), workforce: number(system.workforce), upgrades: [] });
+        render();
+    }
+    function renderMap(available) {
+        const container = el('sov-map');
+        container.replaceChildren();
+        if (!selected.size) {
+            container.append(node('p', 'Select a starting system to view its neighbors.', 'text-secondary mb-0'));
+            return;
+        }
+        const visible = [...selected.keys(), ...available.map((system) => key(system.id))];
+        const positions = new Map(visible.map((id, index) => [id, { x: 120 + (index % 4) * 220, y: 45 + Math.floor(index / 4) * 90 }]));
+        const width = Math.min(visible.length, 4) * 220 + 20;
+        const height = Math.ceil(visible.length / 4) * 90;
+        const map = node('div', null, 'position-relative');
+        map.style.width = `${width}px`;
+        map.style.height = `${height}px`;
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('width', width);
+        svg.setAttribute('height', height);
+        svg.setAttribute('aria-hidden', 'true');
+        svg.style.position = 'absolute';
+        visible.forEach((id, index) => visible.slice(index + 1).forEach((other) => {
+            if (!linked(id, other)) return;
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            const a = positions.get(id), b = positions.get(other);
+            [['x1', a.x], ['y1', a.y], ['x2', b.x], ['y2', b.y], ['stroke', '#6c757d'], ['stroke-width', '2']].forEach(([name, value]) => line.setAttribute(name, value));
+            svg.append(line);
+        }));
+        map.append(svg);
+        visible.forEach((id) => {
+            const isSelected = selected.has(id);
+            const item = isSelected ? node('span', systems.get(id).name, 'badge bg-info text-dark') : button(`Add ${systems.get(id).name}`, () => addSystem(id));
+            const position = positions.get(id);
+            item.style.position = 'absolute';
+            item.style.left = `${position.x}px`;
+            item.style.top = `${position.y}px`;
+            item.style.transform = 'translate(-50%, -50%)';
+            map.append(item);
+        });
+        container.append(map);
+    }
     function render() {
         const available = data.systems.filter((system) => !selected.has(key(system.id)) && (selected.size === 0 ? constellation.value !== '' && key(system.constellation_id) === constellation.value : [...selected.keys()].some((id) => linked(id, key(system.id)))));
         options(systemSelect, available, 'Select a system');
         el('sov-add-system').disabled = !available.length;
         const chosen = [...selected.keys()].map((id) => systems.get(id));
+        renderMap(available);
         options(from, chosen, 'Select source');
         options(to, chosen, 'Select destination');
         const cards = el('sov-systems');
+        cards.querySelectorAll('.hostile-searchable-toggle').forEach((toggle) => {
+            if (window.bootstrap && window.bootstrap.Dropdown) {
+                const dropdown = window.bootstrap.Dropdown.getInstance(toggle);
+                if (dropdown) { dropdown.hide(); dropdown.dispose(); }
+            }
+        });
         cards.replaceChildren();
         selected.forEach((plan, id) => {
             const system = systems.get(id);
@@ -146,7 +198,7 @@
                 box.append(row);
                 body.append(box);
             });
-            const picker = node('select', null, 'form-select form-select-sm no-searchable mb-2');
+            const picker = node('select', null, 'form-select form-select-sm mb-2');
             const eligible = data.upgrades.filter((upgrade) => !plan.upgrades.some((chosenUpgrade) => key(chosenUpgrade.id) === key(upgrade.id) || (upgrade.mutually_exclusive_group != null && upgrade.mutually_exclusive_group !== '' && key(chosenUpgrade.mutually_exclusive_group) === key(upgrade.mutually_exclusive_group))));
             options(picker, eligible, 'Select an upgrade');
             body.append(picker, button('Add upgrade', () => {
@@ -158,6 +210,7 @@
             card.append(body);
             col.append(card);
             cards.append(col);
+            if (window.HostileSearchableSelect) window.HostileSearchableSelect.init(picker);
         });
         const list = el('sov-transfers');
         list.replaceChildren();
@@ -182,10 +235,7 @@
     options(constellation, data.constellations, 'Select a constellation');
     constellation.addEventListener('change', () => { selected.clear(); transfers = []; message.textContent = ''; render(); });
     el('sov-add-system').addEventListener('click', () => {
-        const system = systems.get(systemSelect.value);
-        if (!system || selected.has(key(system.id))) return;
-        selected.set(key(system.id), { power: number(system.power), workforce: number(system.workforce), upgrades: [] });
-        render();
+        addSystem(systemSelect.value);
     });
     el('sov-add-transfer').addEventListener('click', () => {
         const amount = number(el('sov-amount').value);

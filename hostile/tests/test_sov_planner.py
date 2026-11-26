@@ -90,6 +90,29 @@ class TestSovPlanner(TestCase):
             {"constellations": [], "systems": [], "upgrades": []},
         )
 
+    def test_catalog_keeps_long_cross_constellation_gate_chains(self):
+        first = Constellation.objects.create(id=1, name="First")
+        second = Constellation.objects.create(id=2, name="Second")
+        systems = [
+            SolarSystem.objects.create(
+                id=number, name=f"System {number}", constellation=constellation
+            )
+            for number, constellation in [
+                (10, first), (11, first), (12, second), (13, second)
+            ]
+        ]
+        for gate_id, (source, destination) in enumerate(
+            zip(systems, systems[1:]), start=20
+        ):
+            Stargate.objects.create(
+                id=gate_id, name=f"Gate {gate_id}", solar_system=source, destination=destination
+            )
+
+        neighbors = {
+            row["id"]: row["neighbors"] for row in get_sov_planner_catalog()["systems"]
+        }
+        self.assertEqual(neighbors, {10: [11], 11: [12], 12: [13], 13: []})
+
     def test_only_published_upgrades_are_available(self):
         Constellation.objects.create(id=1, name="Constellation")
         for item_id, name, published in [(1, "Active", True), (2, "Deprecated", False)]:
