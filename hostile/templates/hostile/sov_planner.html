@@ -21,17 +21,28 @@
                 <div class="col-md-auto"><button type="button" id="sov-add-system" class="btn btn-outline-info">{% translate "Add system" %}</button></div>
             </div>
             <p class="small text-secondary mt-2 mb-0">{% translate "Choose a starting constellation and system, then add linked systems from any constellation. Changing the starting constellation clears the plan." %}</p>
-            <p class="small text-secondary mb-0">{% translate "System resources are SDE potential, not live skyhook or hub state; incomplete imports may produce incomplete totals. Enter actual local resources before transfers and upgrades. Blank values are unknown; enter zero only when known. Balances assume all selected upgrades operate; priorities, eligibility, fuel, ownership and live state are not validated." %}</p>
+            <p class="small text-secondary mb-0">{% translate "System resources are SDE potential, not live skyhook or hub state; incomplete imports may produce incomplete totals. Missing values are unknown, not zero. Balances assume all selected upgrades operate; priorities, eligibility, fuel, ownership and live state are not validated." %}</p>
             <div id="sov-catalog-warning" class="text-warning small mt-2" role="status"></div>
         </div></div>
         <div class="card hostile-card mb-3"><div class="card-body">
             <h5>{% translate "System map" %}</h5>
-            <p class="small text-secondary">{% translate "Select a system on the map to manage its upgrades and see their SDE descriptions. Choose a neighboring system to add it to the plan." %}</p>
+            <p class="small text-secondary">{% translate "Select a system on the map to manage its upgrades and see their SDE descriptions. Choose a neighboring system to add it to the plan. Hidden neighbors can still be added using the system selector." %}</p>
             <p class="small text-secondary">{% translate "Positions use SDE 2D coordinates with the same scale on both axes. Systems without coordinates or sharing a position are arranged separately below." %}</p>
             <div id="sov-map" class="overflow-auto" aria-label="{% translate 'System map' %}"></div>
             <div id="sov-map-details" class="mt-3" aria-live="polite"></div>
         </div></div>
         <div id="sov-systems" class="row g-3 mb-3"></div>
+        <dialog id="sov-upgrade-dialog" aria-labelledby="sov-dialog-title" class="rounded p-3 bg-body text-body" style="max-width: 40rem; width: 90%; max-height: 85vh;">
+            <div class="d-flex justify-content-between align-items-start gap-2">
+                <h5 id="sov-dialog-title"></h5>
+                <button type="button" id="sov-dialog-close" class="btn btn-outline-secondary btn-sm">{% translate "Close" %}</button>
+            </div>
+            <div id="sov-dialog-selected"></div>
+            <label for="sov-upgrade-search" class="form-label">{% translate "Search available upgrades" %}</label>
+            <input id="sov-upgrade-search" type="search" class="form-control mb-2">
+            <div id="sov-dialog-available"></div>
+            <div id="sov-dialog-actions" class="mt-3"></div>
+        </dialog>
         <div class="card hostile-card mb-3"><div class="card-body">
             <h5>{% translate "Workforce transfers" %}</h5>
             <p class="small text-secondary">{% translate "Enter each direct transfer between neighboring systems, including transit hops. Workforce produced by Mecha-Tooling cannot be exported. Amounts are assumed to arrive even if an upstream transfer is impossible; warnings are incomplete. Verify routing, alliance ownership, available workforce and upgrade state in game." %}</p>
