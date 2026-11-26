@@ -92,6 +92,7 @@ def get_sov_planner_catalog():
         {
             "id": upgrade.item_type_id,
             "name": upgrade.item_type.name,
+            "description": upgrade.item_type.description,
             "published": upgrade.item_type.published,
             "power": upgrade.power_allocation,
             "workforce": upgrade.workforce_allocation,
@@ -174,6 +175,7 @@ def get_sov_planner_data(constellation_id):
             {
                 "type_id": upgrade.item_type_id,
                 "name": upgrade.item_type.name,
+                "description": upgrade.item_type.description,
                 "published": upgrade.item_type.published,
                 "power_allocation": upgrade.power_allocation,
                 "power_production": upgrade.power_production,

@@ -26,8 +26,9 @@
         </div></div>
         <div class="card hostile-card mb-3"><div class="card-body">
             <h5>{% translate "System map" %}</h5>
-            <p class="small text-secondary">{% translate "Schematic links show selected systems and their immediate neighbors. Choose a neighboring system to add it to the plan." %}</p>
+            <p class="small text-secondary">{% translate "Select a system on the map to manage its upgrades and see their SDE descriptions. Choose a neighboring system to add it to the plan." %}</p>
             <div id="sov-map" class="overflow-auto" aria-label="{% translate 'System map' %}"></div>
+            <div id="sov-map-details" class="mt-3" aria-live="polite"></div>
         </div></div>
         <div id="sov-systems" class="row g-3 mb-3"></div>
         <div class="card hostile-card mb-3"><div class="card-body">

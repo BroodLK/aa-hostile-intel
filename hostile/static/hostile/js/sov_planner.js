@@ -42,6 +42,7 @@
     const number = (value) => (typeof value !== 'number' && typeof value !== 'string') || (typeof value === 'string' && !value.trim()) || !Number.isFinite(Number(value)) || Number(value) < 0 ? null : Number(value);
     const systems = new Map(data.systems.map((system) => [key(system.id), system]));
     const selected = new Map();
+    let activeSystem = null;
     let transfers = [];
     const constellation = el('sov-constellation');
     const systemSelect = el('sov-system');
@@ -90,15 +91,22 @@
         const result = Number(capacity) - costs.reduce((sum, cost) => sum + Number(cost), 0) + production.reduce((sum, value) => sum + Number(value), 0) + adjustment;
         return `${result}${result < 0 ? ' (deficit)' : ''}`;
     }
+    function upgradeBlurb(upgrade) {
+        const description = upgrade.description ? new DOMParser().parseFromString(upgrade.description, 'text/html').body.textContent.trim() : '';
+        return `${upgrade.name}: ${description || 'No SDE description available.'}`;
+    }
     function addSystem(id) {
         const system = systems.get(id);
         if (!system || selected.has(id)) return;
         selected.set(id, { power: number(system.power), workforce: number(system.workforce), upgrades: [] });
+        activeSystem = id;
         render();
     }
     function renderMap(available) {
         const container = el('sov-map');
+        const details = el('sov-map-details');
         container.replaceChildren();
+        details.replaceChildren();
         if (!selected.size) {
             container.append(node('p', 'Select a starting system to view its neighbors.', 'text-secondary mb-0'));
             return;
@@ -125,7 +133,19 @@
         map.append(svg);
         visible.forEach((id) => {
             const isSelected = selected.has(id);
-            const item = isSelected ? node('span', systems.get(id).name, 'badge bg-info text-dark') : button(`Add ${systems.get(id).name}`, () => addSystem(id));
+            const item = isSelected ? button(systems.get(id).name, () => {
+                activeSystem = id;
+                render();
+                const card = document.getElementById(`sov-system-card-${id}`);
+                if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }) : button(`Add ${systems.get(id).name}`, () => addSystem(id));
+            if (isSelected) {
+                item.className = `btn btn-sm ${id === activeSystem ? 'btn-info' : 'btn-outline-info'}`;
+                item.setAttribute('aria-pressed', String(id === activeSystem));
+                const blurbs = selected.get(id).upgrades.map(upgradeBlurb);
+                item.title = blurbs.length ? blurbs.join('\n') : 'No upgrades selected';
+                item.setAttribute('aria-label', `${systems.get(id).name}: ${item.title}. Manage upgrades`);
+            }
             const position = positions.get(id);
             item.style.position = 'absolute';
             item.style.left = `${position.x}px`;
@@ -134,6 +154,14 @@
             map.append(item);
         });
         container.append(map);
+        if (selected.has(activeSystem)) {
+            const plan = selected.get(activeSystem);
+            details.append(node('strong', `${systems.get(activeSystem).name} upgrade benefits`));
+            if (!plan.upgrades.length) details.append(node('p', 'No upgrades selected.', 'small text-secondary mb-0'));
+            plan.upgrades.forEach((upgrade) => {
+                details.append(node('p', upgradeBlurb(upgrade), 'small text-secondary mb-1'));
+            });
+        }
     }
     function render() {
         const available = data.systems.filter((system) => !selected.has(key(system.id)) && (selected.size === 0 ? constellation.value !== '' && key(system.constellation_id) === constellation.value : [...selected.keys()].some((id) => linked(id, key(system.id)))));
@@ -155,11 +183,13 @@
             const system = systems.get(id);
             const col = node('div', null, 'col-lg-6');
             const card = node('div', null, 'card hostile-card h-100');
+            card.id = `sov-system-card-${id}`;
             const body = node('div', null, 'card-body');
             const header = node('div', null, 'd-flex justify-content-between align-items-start gap-2');
             header.append(node('h5', system.name));
             header.append(button('Remove system', () => {
                 selected.delete(id);
+                if (activeSystem === id) activeSystem = selected.keys().next().value || null;
                 transfers = transfers.filter((transfer) => transfer.from !== id && transfer.to !== id);
                 render();
             }));
@@ -199,12 +229,14 @@
                 body.append(box);
             });
             const picker = node('select', null, 'form-select form-select-sm mb-2');
+            picker.setAttribute('aria-label', `Available upgrades for ${system.name}`);
             const eligible = data.upgrades.filter((upgrade) => !plan.upgrades.some((chosenUpgrade) => key(chosenUpgrade.id) === key(upgrade.id) || (upgrade.mutually_exclusive_group != null && upgrade.mutually_exclusive_group !== '' && key(chosenUpgrade.mutually_exclusive_group) === key(upgrade.mutually_exclusive_group))));
             options(picker, eligible, 'Select an upgrade');
             body.append(picker, button('Add upgrade', () => {
                 const upgrade = eligible.find((item) => key(item.id) === picker.value);
                 if (!upgrade) return;
-                plan.upgrades.push({ id: upgrade.id, name: upgrade.name, mutually_exclusive_group: upgrade.mutually_exclusive_group, power: number(upgrade.power), workforce: number(upgrade.workforce), power_production: number(upgrade.power_production), workforce_production: number(upgrade.workforce_production) });
+                plan.upgrades.push({ id: upgrade.id, name: upgrade.name, description: upgrade.description, mutually_exclusive_group: upgrade.mutually_exclusive_group, power: number(upgrade.power), workforce: number(upgrade.workforce), power_production: number(upgrade.power_production), workforce_production: number(upgrade.workforce_production) });
+                activeSystem = id;
                 render();
             }));
             card.append(body);
@@ -233,7 +265,7 @@
     const emptyCatalogs = ['constellations', 'systems', 'upgrades'].filter((name) => !data[name].length);
     if (emptyCatalogs.length) el('sov-catalog-warning').textContent = `Empty catalogs: ${emptyCatalogs.join(', ')}. SDE data may need to be loaded.`;
     options(constellation, data.constellations, 'Select a constellation');
-    constellation.addEventListener('change', () => { selected.clear(); transfers = []; message.textContent = ''; render(); });
+    constellation.addEventListener('change', () => { selected.clear(); activeSystem = null; transfers = []; message.textContent = ''; render(); });
     el('sov-add-system').addEventListener('click', () => {
         addSystem(systemSelect.value);
     });

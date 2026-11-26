@@ -44,7 +44,9 @@ class TestSovPlanner(TestCase):
         StarResource.objects.create(star=star, power=30, workforce=0)
         planet = Planet.objects.create(id=9, name="Planet", solar_system=system)
         PlanetResource.objects.create(planet=planet, power=0, workforce=12)
-        item = ItemType.objects.create(id=10, name="Upgrade", published=True)
+        item = ItemType.objects.create(
+            id=10, name="Upgrade", published=True, description="<b>Benefit</b>"
+        )
         SovereigntyUpgrade.objects.create(
             item_type=item,
             power_allocation=10,
@@ -74,6 +76,8 @@ class TestSovPlanner(TestCase):
         self.assertIsNone(systems[4]["power"])
         upgrade = data["upgrades"][0]
         self.assertEqual(upgrade["id"], 10)
+        self.assertEqual(upgrade["description"], "<b>Benefit</b>")
+        self.assertEqual(get_sov_planner_data(1)["upgrades"][0]["description"], "<b>Benefit</b>")
         self.assertEqual(upgrade["power"], 10)
         self.assertIsNone(upgrade["workforce"])
         self.assertEqual(upgrade["workforce_production"], 50)
