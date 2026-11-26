@@ -5,17 +5,37 @@
     if (!root) return;
     const el = (id) => document.getElementById(id);
     const error = el('sov-error');
-    let data;
-    try {
-        data = JSON.parse(el('sov-planner-data').textContent);
-    } catch (e) {
-        data = null;
+    const loading = el('sov-loading');
+    const retry = el('sov-retry');
+    function showLoadError() {
+        error.textContent = 'Could not load planner data. Please try again or check your connection and sign-in.';
+        error.hidden = false;
+        retry.hidden = false;
     }
+    async function load() {
+        loading.hidden = false;
+        error.hidden = true;
+        retry.hidden = true;
+        root.setAttribute('aria-busy', 'true');
+        try {
+            const response = await fetch(root.dataset.catalogUrl, { credentials: 'same-origin' });
+            if (!response.ok || response.redirected) {
+                showLoadError();
+                return;
+            }
+            const data = await response.json();
+            initialize(data);
+        } catch (e) {
+            showLoadError();
+        } finally {
+            loading.hidden = true;
+            root.setAttribute('aria-busy', 'false');
+        }
+    }
+    function initialize(data) {
     if (!data || !Array.isArray(data.constellations) || !Array.isArray(data.systems) || !Array.isArray(data.upgrades) ||
         ![...data.constellations, ...data.systems, ...data.upgrades].every((item) => item && item.id != null && typeof item.name === 'string')) {
-        error.textContent = 'Planner data is unavailable or invalid. A constellation, system, and upgrade catalog is required.';
-        error.hidden = false;
-        return;
+        throw new Error('Invalid planner catalog');
     }
 
     const key = (value) => String(value);
@@ -179,4 +199,7 @@
     });
     el('sov-controls').hidden = false;
     render();
+    }
+    retry.addEventListener('click', load);
+    load();
 })();

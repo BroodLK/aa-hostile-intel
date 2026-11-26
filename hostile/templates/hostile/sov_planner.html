@@ -2,12 +2,17 @@
 {% load i18n static %}
 
 {% block details %}
-<div id="sov-planner">
+<div id="sov-planner" data-catalog-url="{% url 'hostile:api_sov_planner' %}">
     <div class="mb-3">
         <h4 class="fw-bold"><i class="fas fa-globe-americas text-info me-2"></i>{% translate "Sovereignty Upgrade Planner" %}</h4>
         <p class="text-secondary mb-0">{% translate "Build a connected plan and enter workforce transfers manually. This is an estimate, not game-rule validation." %}</p>
     </div>
+    <div id="sov-loading" class="card hostile-card mb-3" role="status" aria-live="polite">
+        <div class="card-body"><span class="spinner-border spinner-border-sm text-info me-2" aria-hidden="true"></span>{% translate "Loading sovereignty systems and upgrades from the SDE…" %}</div>
+    </div>
+    <noscript><style>#sov-loading { display: none; }</style><div class="alert alert-warning">{% translate "JavaScript is required to load the sovereignty planner." %}</div></noscript>
     <div id="sov-error" class="alert alert-warning" role="alert" hidden></div>
+    <button type="button" id="sov-retry" class="btn btn-outline-info mb-3" hidden>{% translate "Retry loading" %}</button>
     <div id="sov-controls" hidden>
         <div class="card hostile-card mb-3"><div class="card-body">
             <div class="row g-2 align-items-end">
@@ -38,6 +43,5 @@
 
 {% block extra_javascript %}
 {{ block.super }}
-{{ sov_planner_data|json_script:"sov-planner-data" }}
 <script src="{% static 'hostile/js/sov_planner.js' %}"></script>
 {% endblock %}

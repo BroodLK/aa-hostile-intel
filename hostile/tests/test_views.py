@@ -148,18 +148,26 @@ class TestHostileViews(TestCase):
 
     def test_sov_planner_access_and_catalog(self):
         url = reverse("hostile:sov_planner")
+        api_url = reverse("hostile:api_sov_planner")
         self.assertEqual(self.client.get(url).status_code, 302)
+        self.assertEqual(self.client.get(api_url).status_code, 302)
         self.client.force_login(self.user_no_perms)
         self.assertEqual(self.client.get(url).status_code, 302)
+        self.assertEqual(self.client.get(api_url).status_code, 302)
         self.client.force_login(self.user_basic)
         catalog = {"constellations": [], "systems": [], "upgrades": []}
         with patch(
             "hostile.services.sov_planner.get_sov_planner_catalog", return_value=catalog
-        ):
+        ) as get_catalog:
             response = self.client.get(url)
+            get_catalog.assert_not_called()
+            api_response = self.client.get(api_url)
+            get_catalog.assert_called_once()
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context["sov_planner_data"], catalog)
-        self.assertContains(response, "sov-planner-data")
+        self.assertContains(response, "sov-loading")
+        self.assertContains(response, api_url)
+        self.assertEqual(api_response.status_code, 200)
+        self.assertEqual(api_response.json(), catalog)
 
     def test_unauthenticated_redirect(self):
         url = reverse("hostile:index")
