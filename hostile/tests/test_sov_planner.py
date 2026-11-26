@@ -28,7 +28,8 @@ class TestSovPlanner(TestCase):
         constellation = Constellation.objects.create(id=1, name="A")
         other_constellation = Constellation.objects.create(id=2, name="B")
         system = SolarSystem.objects.create(
-            id=3, name="One", constellation=constellation, security_status=-0.5
+            id=3, name="One", constellation=constellation, security_status=-0.5,
+            x_2d=-123.5, y_2d=0,
         )
         other = SolarSystem.objects.create(
             id=4, name="Two", constellation=other_constellation
@@ -66,6 +67,8 @@ class TestSovPlanner(TestCase):
                 "id": 3,
                 "name": "One",
                 "constellation_id": 1,
+                "x_2d": -123.5,
+                "y_2d": 0,
                 "security": -0.5,
                 "power": 30,
                 "workforce": 12,
@@ -73,6 +76,8 @@ class TestSovPlanner(TestCase):
             },
         )
         self.assertEqual(systems[4]["neighbors"], [])
+        self.assertIsNone(systems[4]["x_2d"])
+        self.assertIsNone(systems[4]["y_2d"])
         self.assertIsNone(systems[4]["power"])
         upgrade = data["upgrades"][0]
         self.assertEqual(upgrade["id"], 10)

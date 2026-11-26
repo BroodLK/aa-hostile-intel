@@ -112,9 +112,41 @@
             return;
         }
         const visible = [...selected.keys(), ...available.map((system) => key(system.id))];
-        const positions = new Map(visible.map((id, index) => [id, { x: 120 + (index % 4) * 220, y: 45 + Math.floor(index / 4) * 90 }]));
-        const width = Math.min(visible.length, 4) * 220 + 20;
-        const height = Math.ceil(visible.length / 4) * 90;
+        const positioned = [], missing = [], seenPositions = new Set();
+        visible.forEach((id) => {
+            const system = systems.get(id);
+            const coordinate = `${system.x_2d},${system.y_2d}`;
+            if (Number.isFinite(system.x_2d) && Number.isFinite(system.y_2d) && !seenPositions.has(coordinate)) {
+                positioned.push(id);
+                seenPositions.add(coordinate);
+            } else {
+                missing.push(id);
+            }
+        });
+        const positions = new Map();
+        const marginX = 120, marginY = 45;
+        let width = 460, height = 180;
+        if (positioned.length) {
+            const xs = positioned.map((id) => systems.get(id).x_2d);
+            const ys = positioned.map((id) => systems.get(id).y_2d);
+            const minX = Math.min(...xs), maxX = Math.max(...xs);
+            const minY = Math.min(...ys), maxY = Math.max(...ys);
+            const spanX = maxX - minX, spanY = maxY - minY;
+            const span = Math.max(spanX, spanY);
+            const scale = span > 0 && Number.isFinite(span) ? 600 / span : 0;
+            width = Math.max(width, spanX * scale + marginX * 2);
+            height = Math.max(height, spanY * scale + marginY * 2);
+            positioned.forEach((id) => {
+                const system = systems.get(id);
+                positions.set(id, { x: marginX + (system.x_2d - minX) * scale, y: marginY + (system.y_2d - minY) * scale });
+            });
+        }
+        if (missing.length) {
+            const startY = positioned.length ? height + 45 : marginY;
+            missing.forEach((id, index) => positions.set(id, { x: marginX + (index % 4) * 220, y: startY + Math.floor(index / 4) * 90 }));
+            width = Math.max(width, Math.min(missing.length, 4) * 220 + 20);
+            height = startY + Math.ceil(missing.length / 4) * 90;
+        }
         const map = node('div', null, 'position-relative');
         map.style.width = `${width}px`;
         map.style.height = `${height}px`;

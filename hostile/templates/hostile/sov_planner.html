@@ -27,6 +27,7 @@
         <div class="card hostile-card mb-3"><div class="card-body">
             <h5>{% translate "System map" %}</h5>
             <p class="small text-secondary">{% translate "Select a system on the map to manage its upgrades and see their SDE descriptions. Choose a neighboring system to add it to the plan." %}</p>
+            <p class="small text-secondary">{% translate "Positions use SDE 2D coordinates with the same scale on both axes. Systems without coordinates or sharing a position are arranged separately below." %}</p>
             <div id="sov-map" class="overflow-auto" aria-label="{% translate 'System map' %}"></div>
             <div id="sov-map-details" class="mt-3" aria-live="polite"></div>
         </div></div>

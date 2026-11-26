@@ -45,7 +45,7 @@ def get_sov_planner_catalog():
     )
     systems = list(
         SolarSystem.objects.order_by("name", "id").values(
-            "id", "name", "constellation_id", "security_status"
+            "id", "name", "constellation_id", "security_status", "x_2d", "y_2d"
         )
     )
     bodies = {system["id"]: [] for system in systems}
