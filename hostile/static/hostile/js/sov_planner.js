@@ -236,15 +236,14 @@
             body.append(inputs);
             const incoming = transfers.filter((transfer) => transfer.to === id).reduce((sum, transfer) => sum + transfer.amount, 0);
             const outgoing = transfers.filter((transfer) => transfer.from === id).reduce((sum, transfer) => sum + transfer.amount, 0);
-            body.append(node('p', `Power remaining: ${balance(plan.power, plan.upgrades.map((upgrade) => upgrade.power), plan.upgrades.map((upgrade) => upgrade.power_production), 0)} | Workforce remaining: ${balance(plan.workforce, plan.upgrades.map((upgrade) => upgrade.workforce), plan.upgrades.map((upgrade) => upgrade.workforce_production), incoming - outgoing)}`, 'small fw-bold'));
+            body.append(node('p', `Estimated power remaining: ${balance(plan.power, plan.upgrades.map((upgrade) => upgrade.power), plan.upgrades.map((upgrade) => upgrade.power_production), 0)} | Estimated workforce remaining (assuming transfers succeed): ${balance(plan.workforce, plan.upgrades.map((upgrade) => upgrade.workforce), plan.upgrades.map((upgrade) => upgrade.workforce_production), incoming - outgoing)}`, 'small fw-bold'));
             body.append(node('p', `Workforce in: ${incoming} / out: ${outgoing}`, 'small text-secondary'));
             const sources = new Set(transfers.filter((transfer) => transfer.to === id).map((transfer) => transfer.from));
             const destinations = new Set(transfers.filter((transfer) => transfer.from === id).map((transfer) => transfer.to));
-            const warnings = [];
-            if (sources.size && destinations.size) warnings.push('simultaneous import and export');
+            const warnings = window.SovPlannerAccuracy.transferWarnings(plan.workforce, incoming, outgoing);
             if (sources.size > 3) warnings.push('more than 3 source neighbors');
             if (destinations.size > 1) warnings.push('more than one export neighbor');
-            if (warnings.length) body.append(node('p', `Possible transfer-mode conflict: ${warnings.join('; ')}. Verify in game.`, 'small text-warning'));
+            if (warnings.length) body.append(node('p', `Transfer warning: ${warnings.join('; ')}. Verify in game.`, 'small text-warning'));
             plan.upgrades.forEach((upgrade, index) => {
                 const box = node('div', null, 'border border-secondary rounded p-2 mb-2');
                 const title = node('div', null, 'd-flex justify-content-between gap-2');
