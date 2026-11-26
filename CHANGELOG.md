@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [0.0.38] - 2026-11-26
+
+### Changed
+
+- **Sovereignty Upgrade Calculator**: Load the SDE catalog asynchronously with progress and retry controls; search constellations, systems and upgrades.
+- **System Map**: Display selected systems and linked neighbors using SDE 2D coordinates. Select systems to manage upgrades and view their descriptions.
+- **Workforce Planning**: Warn when exports exceed local and incoming workforce, and clarify that balances and routing require in-game verification.
+
 ## [0.0.37] - 2026-11-26
 
 ### Added

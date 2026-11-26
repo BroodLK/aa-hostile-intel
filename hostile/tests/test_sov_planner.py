@@ -28,8 +28,12 @@ class TestSovPlanner(TestCase):
         constellation = Constellation.objects.create(id=1, name="A")
         other_constellation = Constellation.objects.create(id=2, name="B")
         system = SolarSystem.objects.create(
-            id=3, name="One", constellation=constellation, security_status=-0.5,
-            x_2d=-123.5, y_2d=0,
+            id=3,
+            name="One",
+            constellation=constellation,
+            security_status=-0.5,
+            x_2d=-123.5,
+            y_2d=0,
         )
         other = SolarSystem.objects.create(
             id=4, name="Two", constellation=other_constellation
@@ -82,7 +86,9 @@ class TestSovPlanner(TestCase):
         upgrade = data["upgrades"][0]
         self.assertEqual(upgrade["id"], 10)
         self.assertEqual(upgrade["description"], "<b>Benefit</b>")
-        self.assertEqual(get_sov_planner_data(1)["upgrades"][0]["description"], "<b>Benefit</b>")
+        self.assertEqual(
+            get_sov_planner_data(1)["upgrades"][0]["description"], "<b>Benefit</b>"
+        )
         self.assertEqual(upgrade["power"], 10)
         self.assertIsNone(upgrade["workforce"])
         self.assertEqual(upgrade["workforce_production"], 50)
@@ -107,14 +113,20 @@ class TestSovPlanner(TestCase):
                 id=number, name=f"System {number}", constellation=constellation
             )
             for number, constellation in [
-                (10, first), (11, first), (12, second), (13, second)
+                (10, first),
+                (11, first),
+                (12, second),
+                (13, second),
             ]
         ]
         for gate_id, (source, destination) in enumerate(
             zip(systems, systems[1:]), start=20
         ):
             Stargate.objects.create(
-                id=gate_id, name=f"Gate {gate_id}", solar_system=source, destination=destination
+                id=gate_id,
+                name=f"Gate {gate_id}",
+                solar_system=source,
+                destination=destination,
             )
 
         neighbors = {
