@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [0.0.37] - 2026-11-26
+
+### Added
+
+- **Sovereignty Upgrade Calculator**: Plan gate-linked systems across constellations with published SDE upgrades, power and workforce balances, and manual workforce transfers. SDE resource values represent potential rather than live hub state and can be edited; plans are not saved across page reloads.
+
 ## [0.0.36] - 2026-11-22
 
 ### Added

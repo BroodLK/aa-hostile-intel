@@ -5,7 +5,14 @@ Missing resource records and nullable SDE fields are returned as None, not zero.
 """
 
 # Third Party
-from eve_sde.models import Constellation, Planet, SolarSystem, SovereigntyUpgrade, Star, Stargate
+from eve_sde.models import (
+    Constellation,
+    Planet,
+    SolarSystem,
+    SovereigntyUpgrade,
+    Star,
+    Stargate,
+)
 
 
 def _resource(body):
@@ -33,10 +40,14 @@ def get_sov_planner_catalog():
     values for that dimension are present. An incomplete import cannot be
     detected, including missing gates or planets.
     """
-    constellations = list(Constellation.objects.order_by("name", "id").values("id", "name"))
-    systems = list(SolarSystem.objects.order_by("name", "id").values(
-        "id", "name", "constellation_id", "security_status"
-    ))
+    constellations = list(
+        Constellation.objects.order_by("name", "id").values("id", "name")
+    )
+    systems = list(
+        SolarSystem.objects.order_by("name", "id").values(
+            "id", "name", "constellation_id", "security_status"
+        )
+    )
     bodies = {system["id"]: [] for system in systems}
     stars = set()
     planets = set()
@@ -44,15 +55,19 @@ def get_sov_planner_catalog():
         if star.solar_system_id in bodies:
             stars.add(star.solar_system_id)
             bodies[star.solar_system_id].append(_resource(star))
-    for planet in Planet.objects.select_related("resource").exclude(solar_system_id=None):
+    for planet in Planet.objects.select_related("resource").exclude(
+        solar_system_id=None
+    ):
         if planet.solar_system_id in bodies:
             planets.add(planet.solar_system_id)
             bodies[planet.solar_system_id].append(_resource(planet))
 
     neighbors = {system["id"]: set() for system in systems}
-    for source, destination in Stargate.objects.exclude(
-        solar_system_id=None
-    ).exclude(destination_id=None).values_list("solar_system_id", "destination_id"):
+    for source, destination in (
+        Stargate.objects.exclude(solar_system_id=None)
+        .exclude(destination_id=None)
+        .values_list("solar_system_id", "destination_id")
+    ):
         if source in neighbors:
             neighbors[source].add(destination)
 
@@ -64,8 +79,12 @@ def get_sov_planner_catalog():
             resources = bodies[system_id]
             system[field] = (
                 sum(resource[field] for resource in resources)
-                if system_id in stars and system_id in planets
-                and all(resource is not None and resource[field] is not None for resource in resources)
+                if system_id in stars
+                and system_id in planets
+                and all(
+                    resource is not None and resource[field] is not None
+                    for resource in resources
+                )
                 else None
             )
 
@@ -83,9 +102,9 @@ def get_sov_planner_catalog():
             "hourly_upkeep": upgrade.hourly_upkeep,
             "startup_cost": upgrade.startup_cost,
         }
-        for upgrade in SovereigntyUpgrade.objects.filter(item_type__published=True).select_related("item_type").order_by(
-            "item_type__name", "item_type_id"
-        )
+        for upgrade in SovereigntyUpgrade.objects.filter(item_type__published=True)
+        .select_related("item_type")
+        .order_by("item_type__name", "item_type_id")
     ]
     return {"constellations": constellations, "systems": systems, "upgrades": upgrades}
 
@@ -100,29 +119,43 @@ def get_sov_planner_data(constellation_id):
     if constellation is None:
         return None
 
-    systems = list(SolarSystem.objects.filter(constellation=constellation).order_by("name", "id"))
+    systems = list(
+        SolarSystem.objects.filter(constellation=constellation).order_by("name", "id")
+    )
     system_ids = [system.id for system in systems]
     planets_by_system = {system_id: [] for system_id in system_ids}
-    for planet in Planet.objects.filter(solar_system_id__in=system_ids).select_related(
-        "resource", "item_type"
-    ).order_by("name", "id"):
-        planets_by_system[planet.solar_system_id].append({
-            "id": planet.id,
-            "name": planet.name,
-            "type_id": planet.item_type_id,
-            "type_name": planet.item_type.name if planet.item_type else None,
-            "resource": _resource(planet),
-        })
+    for planet in (
+        Planet.objects.filter(solar_system_id__in=system_ids)
+        .select_related("resource", "item_type")
+        .order_by("name", "id")
+    ):
+        planets_by_system[planet.solar_system_id].append(
+            {
+                "id": planet.id,
+                "name": planet.name,
+                "type_id": planet.item_type_id,
+                "type_name": planet.item_type.name if planet.item_type else None,
+                "resource": _resource(planet),
+            }
+        )
 
     stars = {
         star.solar_system_id: star
-        for star in Star.objects.filter(solar_system_id__in=system_ids).select_related("resource")
+        for star in Star.objects.filter(solar_system_id__in=system_ids).select_related(
+            "resource"
+        )
     }
-    upgrades = SovereigntyUpgrade.objects.filter(item_type__published=True).select_related("item_type").order_by(
-        "item_type__name", "item_type_id"
+    upgrades = (
+        SovereigntyUpgrade.objects.filter(item_type__published=True)
+        .select_related("item_type")
+        .order_by("item_type__name", "item_type_id")
     )
     return {
-        "constellation": {"id": constellation.id, "name": constellation.name, "region_id": constellation.region_id},
+        "constellation": {
+            "id": constellation.id,
+            "name": constellation.name,
+            "region_id": constellation.region_id,
+        },
         "systems": [
             {
                 "id": system.id,
@@ -131,7 +164,8 @@ def get_sov_planner_data(constellation_id):
                 "planets": planets_by_system[system.id],
                 "star": (
                     {"id": stars[system.id].id, "resource": _resource(stars[system.id])}
-                    if system.id in stars else None
+                    if system.id in stars
+                    else None
                 ),
             }
             for system in systems

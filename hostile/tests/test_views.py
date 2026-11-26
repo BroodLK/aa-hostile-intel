@@ -153,7 +153,9 @@ class TestHostileViews(TestCase):
         self.assertEqual(self.client.get(url).status_code, 302)
         self.client.force_login(self.user_basic)
         catalog = {"constellations": [], "systems": [], "upgrades": []}
-        with patch("hostile.services.sov_planner.get_sov_planner_catalog", return_value=catalog):
+        with patch(
+            "hostile.services.sov_planner.get_sov_planner_catalog", return_value=catalog
+        ):
             response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["sov_planner_data"], catalog)
