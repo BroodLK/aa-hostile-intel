@@ -60,6 +60,7 @@
         select.replaceChildren(new Option(placeholder, ''));
         items.forEach((item) => select.add(new Option(item.name, key(item.id))));
         if (items.some((item) => key(item.id) === previous)) select.value = previous;
+        if (select.syncSearchableSelect) select.syncSearchableSelect();
     }
     function linked(a, b) {
         const first = systems.get(a);
