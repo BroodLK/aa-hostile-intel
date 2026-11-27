@@ -458,7 +458,10 @@
             currentConstellation = constellation.value;
             selected.clear();
             hiddenNeighbors.clear();
-            activeSystem = null;
+            data.systems.filter((system) => currentConstellation !== '' && key(system.constellation_id) === currentConstellation).forEach((system) => {
+                selected.set(key(system.id), {power: number(system.power), workforce: number(system.workforce), upgrades: []});
+            });
+            activeSystem = selected.keys().next().value || null;
             transfers = [];
             savedPlan = '';
             message.textContent = '';

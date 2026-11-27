@@ -75,10 +75,16 @@ async function setup() {
     const mapNode = (id) => descendants(get('sov-map')).find((item) => item.dataset.systemId === id);
     get('sov-constellation').value = '1';
     get('sov-constellation').dispatch('change');
-    get('sov-system').value = '1';
-    get('sov-add-system').click();
     return { get, findButton, mapNode, window, listeners, exported: () => exported };
 }
+
+test('selecting a constellation adds every system in it', async () => {
+    const { get, mapNode } = await setup();
+    assert.ok(mapNode('1'));
+    assert.ok(mapNode('2'));
+    assert.match(get('sov-systems').textContent, /Alpha/);
+    assert.match(get('sov-systems').textContent, /Beta/);
+});
 
 test('dialog searches, adds and removes upgrades with read-only detailed cards', async () => {
     const { get, findButton, mapNode } = await setup();
@@ -100,7 +106,6 @@ test('dialog searches, adds and removes upgrades with read-only detailed cards',
 
 test('map colors track production, transfers, unknown values and known deficits', async () => {
     const { get, findButton, mapNode } = await setup();
-    findButton(get('sov-map'), 'Add Beta').click();
     assert.match(mapNode('2').className, /btn-outline-secondary/);
     mapNode('1').click();
     findButton(get('sov-dialog-available'), 'Add Factory').click();
@@ -123,6 +128,8 @@ test('map colors track production, transfers, unknown values and known deficits'
 
 test('adjacent systems can be hidden without preventing selection', async () => {
     const { get, findButton, mapNode } = await setup();
+    mapNode('2').click();
+    findButton(get('sov-dialog-actions'), 'Remove system from plan').click();
     findButton(get('sov-map'), 'Hide Beta').click();
     assert.equal(descendants(get('sov-map')).some((item) => item.textContent === 'Add Beta'), false);
     assert.ok(descendants(get('sov-system')).some((item) => item.value === '2'));
@@ -136,7 +143,6 @@ test('adjacent systems can be hidden without preventing selection', async () => 
 
 test('plans export and restore safely and warn before discarding changes', async () => {
     const { get, findButton, mapNode, window, listeners, exported } = await setup();
-    findButton(get('sov-map'), 'Add Beta').click();
     mapNode('1').click();
     findButton(get('sov-dialog-available'), 'Add Factory').click();
     get('sov-dialog-close').click();

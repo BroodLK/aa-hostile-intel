@@ -6,7 +6,7 @@ const vm = require('node:vm');
 
 // Reuse the interaction suite's DOM harness without changing that suite.
 let harness = fs.readFileSync(path.join(__dirname, 'sov_planner_interaction.test.js'), 'utf8');
-harness = harness.slice(0, harness.indexOf("test('dialog searches"));
+harness = harness.slice(0, harness.indexOf("test('selecting a constellation"));
 harness = harness.replace("'sov-controls'", "'sov-controls', 'sov-zoom-in', 'sov-zoom-out', 'sov-zoom-reset', 'sov-zoom-level'");
 harness = harness.replace('async function setup()', 'async function setup(extraSystems = [])');
 harness = harness.replace('    const document =', '    catalog.systems.push(...extraSystems);\n    catalog.systems[0].neighbors.push(...extraSystems.map((system) => system.id));\n    const document =');
@@ -16,7 +16,7 @@ vm.runInThisContext(`(function(require, module, __dirname) { ${harness}\n})`)(re
 const {setup, descendants} = harnessModule.exports;
 
 test('zoom remains bounded and preserves map interactions and viewport on rerender', async () => {
-    const {get, findButton, mapNode} = await setup();
+    const {get, findButton, mapNode} = await setup([{id: 3, name: 'Gamma', constellation_id: 2, neighbors: [1], x_2d: 2, y_2d: 0}]);
     const map = get('sov-map');
     map.clientWidth = 400;
     map.clientHeight = 200;
@@ -26,9 +26,9 @@ test('zoom remains bounded and preserves map interactions and viewport on rerend
     assert.equal(get('sov-zoom-level').textContent, '125%');
     assert.equal(map.children[0].children[0].style.transform, 'scale(1.25)');
     const left = map.scrollLeft;
-    findButton(map, 'Add Beta').click();
+    findButton(map, 'Add Gamma').click();
     assert.equal(map.scrollLeft, left);
-    assert.ok(mapNode('2'));
+    assert.ok(mapNode('3'));
     for (let i = 0; i < 20; i++) get('sov-zoom-out').click();
     assert.equal(get('sov-zoom-level').textContent, '50%');
     assert.equal(get('sov-zoom-out').disabled, true);
