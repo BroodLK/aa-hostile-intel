@@ -165,13 +165,14 @@
 
         const display = (value) => value === null ? 'Unknown' : `${value}${value < 0 ? ' (deficit)' : ''}`;
 
+        let transferAssessments = new Map();
         function balances(id, plan) {
             const incoming = transfers.filter((transfer) => transfer.to === id).reduce((sum, transfer) => sum + transfer.amount, 0);
             const outgoing = transfers.filter((transfer) => transfer.from === id).reduce((sum, transfer) => sum + transfer.amount, 0);
             return {
                 incoming, outgoing,
                 power: balance(plan.power, plan.upgrades.map((upgrade) => upgrade.power), plan.upgrades.map((upgrade) => upgrade.power_production), 0),
-                workforce: balance(plan.workforce, plan.upgrades.map((upgrade) => upgrade.workforce), plan.upgrades.map((upgrade) => upgrade.workforce_production), incoming - outgoing),
+                workforce: transferAssessments.get(id).incomingStatus === 'unknown' || (incoming && outgoing) ? null : balance(plan.workforce, plan.upgrades.map((upgrade) => upgrade.workforce), plan.upgrades.map((upgrade) => upgrade.workforce_production), incoming - outgoing),
             };
         }
 
@@ -372,7 +373,8 @@
                 const item = isSelected ? button(systems.get(id).name, () => openDialog(id)) : button(`Add ${systems.get(id).name}`, () => addSystem(id));
                 if (isSelected) {
                     const remaining = balances(id, selected.get(id));
-                    const state = remaining.power < 0 || remaining.workforce < 0 ? 'danger' : remaining.power === null || remaining.workforce === null ? 'secondary' : 'success';
+                    const transferStatus = transferAssessments.get(id).status;
+                    const state = remaining.power < 0 || remaining.workforce < 0 || transferStatus === 'invalid' ? 'danger' : remaining.power === null || remaining.workforce === null || transferStatus === 'unknown' ? 'secondary' : 'success';
                     item.className = `btn btn-sm btn-outline-${state} sov-map-system`;
                     item.dataset.systemId = id;
                     item.append(node('span', `Power: ${display(remaining.power)} | Workforce: ${display(remaining.workforce)}`, 'sov-map-resources'));
@@ -421,6 +423,7 @@
         }
 
         function render() {
+            transferAssessments = window.SovPlannerAccuracy.assessTransfers(selected, transfers);
             const available = data.systems.filter((system) => !selected.has(key(system.id)) && (selected.size === 0 ? constellation.value !== '' && key(system.constellation_id) === constellation.value : [...selected.keys()].some((id) => linked(id, key(system.id)))));
             options(systemSelect, available, 'Select a system');
             el('sov-add-system').disabled = !available.length;
@@ -440,13 +443,9 @@
                 body.append(node('p', `Security: ${system.security == null ? 'Unknown' : system.security}`, 'small text-secondary'));
                 body.append(node('p', `SDE power capacity: ${display(plan.power)} | SDE workforce capacity: ${display(plan.workforce)}`, 'small'));
                 const {incoming, outgoing, power, workforce} = balances(id, plan);
-                body.append(node('p', `Estimated power remaining: ${display(power)} | Estimated workforce remaining (assuming transfers succeed): ${display(workforce)}`, 'small fw-bold'));
+                body.append(node('p', `Estimated power remaining: ${display(power)} | Estimated workforce remaining: ${display(workforce)}`, 'small fw-bold'));
                 body.append(node('p', `Workforce in: ${incoming} / out: ${outgoing}`, 'small text-secondary'));
-                const sources = new Set(transfers.filter((transfer) => transfer.to === id).map((transfer) => transfer.from));
-                const destinations = new Set(transfers.filter((transfer) => transfer.from === id).map((transfer) => transfer.to));
-                const warnings = window.SovPlannerAccuracy.transferWarnings(plan.workforce, incoming, outgoing);
-                if (sources.size > 3) warnings.push('more than 3 source neighbors');
-                if (destinations.size > 1) warnings.push('more than one export neighbor');
+                const warnings = transferAssessments.get(id).warnings;
                 if (warnings.length) body.append(node('p', `Transfer warning: ${warnings.join('; ')}. Verify in game.`, 'small text-warning'));
                 if (!plan.upgrades.length) body.append(node('p', 'No upgrades selected.', 'small text-secondary'));
                 plan.upgrades.forEach((upgrade) => {

@@ -133,7 +133,8 @@ test('map colors track production, transfers, unknown values and known deficits'
     get('sov-to').value = '1';
     get('sov-amount').value = '50';
     get('sov-add-transfer').click();
-    assert.match(mapNode('1').textContent, /Workforce: 120/);
+    assert.match(mapNode('1').textContent, /Workforce: Unknown/);
+    assert.match(mapNode('1').className, /btn-outline-secondary/);
     assert.match(mapNode('2').textContent, /Power: Unknown \| Workforce: -10 \(deficit\)/);
     assert.match(mapNode('2').className, /btn-outline-danger/);
     findButton(get('sov-transfers'), 'Remove').click();

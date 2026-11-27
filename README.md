@@ -80,8 +80,8 @@ ______________________________________________________________________
 - **🌐 Sovereignty Upgrade Calculator**:
 
   - Start with a constellation and add gate-linked systems, including systems in neighboring constellations. Choose upgrades from the installed SDE and compare power and workforce balances, including manually entered workforce transfers.
-  - System resources and upgrade values are calculated from the SDE and cannot be edited. SDE resources describe potential production, not installed skyhooks or live hub state; missing SDE values remain unknown and partial imports can yield incomplete totals. Balances assume selected upgrades operate and transfers succeed; ownership, priorities, fuel, routing and upstream availability are not validated. Verify plans in game. Plans remain in the browser until the page is reloaded.
-  - Workforce transit is entered hop by hop. Workforce from Mecha-Tooling cannot be exported; see [CCP's sovereignty routing guidance](https://www.eveonline.com/news/view/sovereignty-updates-transition-and-upgrades). Transfer warnings do not prove a route is valid.
+  - System resources and upgrade values are calculated from the SDE and cannot be edited. The planner assumes all SDE resources are available, not live hub state; missing SDE values remain unknown and partial imports can yield incomplete totals. Balances assume selected upgrades operate; ownership, priorities and fuel are not validated. Verify plans in game. Plans remain in the browser until the page is reloaded.
+  - Workforce transit is entered hop by hop. Impossible or uncertain upstream exports make downstream imports uncertain; transit and cycles require in-game verification. Workforce from Mecha-Tooling cannot be exported; see [CCP's sovereignty routing guidance](https://www.eveonline.com/news/view/sovereignty-updates-transition-and-upgrades). Transfer checks do not prove a route is valid.
   - Requires imported `eve_sde` map, stargate, sovereignty upgrade and celestial resource data; incomplete imports can leave systems, links or values unavailable.
 
 - **🎯 Local Threat Scanner & Drop Risk Engine**:
