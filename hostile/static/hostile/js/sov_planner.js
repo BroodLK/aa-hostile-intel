@@ -445,6 +445,7 @@
                 const {incoming, outgoing, power, workforce} = balances(id, plan);
                 body.append(node('p', `Estimated power remaining: ${display(power)} | Estimated workforce remaining: ${display(workforce)}`, 'small fw-bold'));
                 body.append(node('p', `Workforce in: ${incoming} / out: ${outgoing}`, 'small text-secondary'));
+                if (incoming && outgoing) body.append(node('p', 'Planned transit: configure this hub for transit in game.', 'small text-warning'));
                 const warnings = transferAssessments.get(id).warnings;
                 if (warnings.length) body.append(node('p', `Transfer warning: ${warnings.join('; ')}. Verify in game.`, 'small text-warning'));
                 if (!plan.upgrades.length) body.append(node('p', 'No upgrades selected.', 'small text-secondary'));
@@ -561,13 +562,18 @@
         });
         el('sov-add-transfer').addEventListener('click', () => {
             const amount = number(el('sov-amount').value);
-            if (!selected.has(from.value) || !selected.has(to.value) || from.value === to.value || !linked(from.value, to.value) || amount === null || amount <= 0) {
-                message.textContent = 'Choose two different linked systems and a positive workforce amount.';
+            if (!selected.has(from.value) || !selected.has(to.value) || from.value === to.value || amount === null || amount <= 0) {
+                message.textContent = 'Choose two different selected systems and a positive workforce amount.';
                 return;
             }
-            transfers.push({from: from.value, to: to.value, amount});
+            const route = window.SovPlannerRoutes.findRoute(systems, selected, transfers, from.value, to.value);
+            if (!route) {
+                message.textContent = 'No compatible route through selected systems. Add intermediate systems or resolve conflicting transfers.';
+                return;
+            }
+            for (let i = 0; i < route.length - 1; i++) transfers.push({from: route[i], to: route[i + 1], amount});
             el('sov-amount').value = '';
-            message.textContent = '';
+            message.textContent = route.length > 2 ? `Planned route: ${route.map((id) => systems.get(id).name).join(' → ')}. Configure intermediate hubs for transit in game.` : '';
             render();
         });
         el('sov-controls').hidden = false;

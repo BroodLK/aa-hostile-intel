@@ -70,7 +70,7 @@
         </dialog>
         <div class="card hostile-card mb-3"><div class="card-body">
             <h5>{% translate "Workforce transfers" %}</h5>
-            <p class="small text-secondary">{% translate "Enter each direct transfer between neighboring systems, including transit hops. Workforce produced by Mecha-Tooling cannot be exported. Impossible or uncertain transfers make downstream balances unknown; transit and cycles require verification. This estimate does not model hub modes or live routing. Verify alliance ownership, available workforce and upgrade state in game." %}</p>
+            <p class="small text-secondary">{% translate "Choose two selected systems to create a route through selected neighbors. Intermediate hubs are planned for transit; configure them in game. Remove individual links to change a route. Workforce produced by Mecha-Tooling cannot be exported. Impossible or uncertain transfers make downstream balances unknown; transit requires verification. The planner does not change live hub settings. Verify alliance ownership, available workforce and upgrade state in game." %}</p>
             <div class="row g-2 align-items-end">
                 <div class="col-md-3"><label for="sov-from" class="form-label">{% translate "From" %}</label><select id="sov-from" class="form-select no-searchable"></select></div>
                 <div class="col-md-3"><label for="sov-to" class="form-label">{% translate "To" %}</label><select id="sov-to" class="form-select no-searchable"></select></div>
@@ -87,6 +87,7 @@
 {% block extra_javascript %}
 {{ block.super }}
 <script src="{% static 'hostile/js/sov_planner_accuracy.js' %}"></script>
+<script src="{% static 'hostile/js/sov_planner_routes.js' %}"></script>
 <script src="{% static 'hostile/js/sov_planner_plan.js' %}"></script>
 <script src="{% static 'hostile/js/sov_combat_sites.js' %}"></script>
 <script src="{% static 'hostile/js/sov_planner.js' %}"></script>

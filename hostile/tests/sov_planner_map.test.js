@@ -8,7 +8,7 @@ const vm = require('node:vm');
 let harness = fs.readFileSync(path.join(__dirname, 'sov_planner_interaction.test.js'), 'utf8');
 harness = harness.slice(0, harness.indexOf("test('selecting a constellation"));
 harness = harness.replace("'sov-controls'", "'sov-controls', 'sov-zoom-in', 'sov-zoom-out', 'sov-zoom-reset', 'sov-zoom-level'");
-harness = harness.replace('async function setup()', 'async function setup(extraSystems = [])');
+harness = harness.replace('async function setup(chain = false)', 'async function setup(extraSystems = [], chain = false)');
 harness = harness.replace('    const document =', '    catalog.systems.push(...extraSystems);\n    catalog.systems[0].neighbors.push(...extraSystems.map((system) => system.id));\n    const document =');
 harness += '\nmodule.exports = { setup, descendants };';
 const harnessModule = {exports: {}};

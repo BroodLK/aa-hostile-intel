@@ -6,6 +6,7 @@ const path = require('node:path');
 const accuracy = require('../static/hostile/js/sov_planner_accuracy.js');
 const planApi = require('../static/hostile/js/sov_planner_plan.js');
 const combatSites = require('../static/hostile/js/sov_combat_sites.js');
+const routes = require('../static/hostile/js/sov_planner_routes.js');
 
 class Element {
     constructor(tag) {
@@ -42,7 +43,7 @@ function descendants(element) {
     return element.children.flatMap((child) => [child, ...descendants(child)]);
 }
 
-async function setup() {
+async function setup(chain = false) {
     const ids = ['sov-planner', 'sov-error', 'sov-loading', 'sov-retry', 'sov-constellation', 'sov-system', 'sov-from', 'sov-to', 'sov-transfer-message', 'sov-upgrade-dialog', 'sov-upgrade-search', 'sov-dialog-title', 'sov-dialog-selected', 'sov-dialog-available', 'sov-dialog-actions', 'sov-dialog-close', 'sov-map', 'sov-map-details', 'sov-systems', 'sov-add-system', 'sov-catalog-warning', 'sov-transfers', 'sov-add-transfer', 'sov-amount', 'sov-controls', 'sov-export', 'sov-import', 'sov-plan-message'];
     const elements = Object.fromEntries(ids.map((id) => [id, new Element(['sov-constellation', 'sov-system', 'sov-from', 'sov-to'].includes(id) ? 'select' : 'div')]));
     elements['sov-planner'].dataset.catalogUrl = '/catalog';
@@ -59,11 +60,15 @@ async function setup() {
             { id: 4, name: 'Major Threat Detection Array 2', power: 0, workforce: 0, power_production: 0, workforce_production: 0 },
         ],
     };
+    if (chain) {
+        catalog.systems[1].neighbors.push(3);
+        catalog.systems.push({ id: 3, name: 'Gamma', constellation_id: 1, neighbors: [2], power: 100, workforce: 10, x_2d: 2, y_2d: 0 });
+    }
     const document = { getElementById: (id) => elements[id], createElement: (tag) => new Element(tag), createElementNS: (_, tag) => new Element(tag) };
     class Option extends Element { constructor(label, value) { super('option'); this.textContent = label; this.value = value; } }
     const source = fs.readFileSync(path.join(__dirname, '../static/hostile/js/sov_planner.js'), 'utf8');
     const listeners = {};
-    const window = { SovPlannerAccuracy: accuracy, SovPlannerPlan: planApi, SovCombatSites: combatSites, addEventListener: (name, callback) => { listeners[name] = callback; }, confirm: () => true };
+    const window = { SovPlannerAccuracy: accuracy, SovPlannerPlan: planApi, SovCombatSites: combatSites, SovPlannerRoutes: routes, addEventListener: (name, callback) => { listeners[name] = callback; }, confirm: () => true };
     let exported;
     const URL = { createObjectURL: (blob) => { exported = blob; return 'blob:test'; }, revokeObjectURL: () => {} };
     vm.runInNewContext(source, { document, Option, URL, Blob, CSS: { escape: (value) => value }, DOMParser: class { parseFromString(text) { return { body: { textContent: text } }; } }, window, fetch: async () => ({ ok: true, redirected: false, json: async () => catalog }) });
@@ -86,6 +91,22 @@ test('selecting a constellation adds every system in it', async () => {
     assert.ok(mapNode('2'));
     assert.match(get('sov-systems').textContent, /Alpha/);
     assert.match(get('sov-systems').textContent, /Beta/);
+});
+
+test('multi-hop transfer creates links and identifies planned transit', async () => {
+    const { get, findButton, mapNode, exported } = await setup(true);
+    get('sov-from').value = '1';
+    get('sov-to').value = '3';
+    get('sov-amount').value = '20';
+    get('sov-add-transfer').click();
+    assert.match(get('sov-transfers').textContent, /Alpha → Beta: 20/);
+    assert.match(get('sov-transfers').textContent, /Beta → Gamma: 20/);
+    assert.match(get('sov-systems').textContent, /Planned transit/);
+    assert.match(mapNode('3').textContent, /Workforce: Unknown/);
+    get('sov-export').click();
+    assert.equal(JSON.parse(await exported().text()).transfers.length, 2);
+    findButton(get('sov-transfers'), 'Remove').click();
+    assert.doesNotMatch(get('sov-systems').textContent, /Planned transit/);
 });
 
 test('dialog searches, adds and removes upgrades with read-only detailed cards', async () => {
