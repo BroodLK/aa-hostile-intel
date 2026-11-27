@@ -256,7 +256,7 @@
             mapSize = null;
             details.replaceChildren();
             if (!selected.size) {
-                container.append(node('p', 'Select a starting system to view its neighbors.', 'text-secondary mb-0'));
+                container.append(node('p', 'Select a constellation to view its systems and neighbors.', 'sov-map-empty'));
                 return;
             }
             const visible = [...selected.keys(), ...available.map((system) => key(system.id)).filter((id) => !hiddenNeighbors.has(id))];
@@ -327,7 +327,7 @@
                 if (!linked(id, other)) return;
                 const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
                 const a = positions.get(id), b = positions.get(other);
-                [['x1', a.x], ['y1', a.y], ['x2', b.x], ['y2', b.y], ['stroke', '#6c757d'], ['stroke-width', '2']].forEach(([name, value]) => line.setAttribute(name, value));
+                [['x1', a.x], ['y1', a.y], ['x2', b.x], ['y2', b.y], ['class', 'sov-map-link']].forEach(([name, value]) => line.setAttribute(name, value));
                 svg.append(line);
             }));
             map.append(svg);
@@ -337,13 +337,14 @@
                 if (isSelected) {
                     const remaining = balances(id, selected.get(id));
                     const state = remaining.power < 0 || remaining.workforce < 0 ? 'danger' : remaining.power === null || remaining.workforce === null ? 'secondary' : 'success';
-                    item.className = `btn btn-sm btn-outline-${state}`;
+                    item.className = `btn btn-sm btn-outline-${state} sov-map-system`;
                     item.dataset.systemId = id;
-                    item.append(node('span', `Power: ${display(remaining.power)} | Workforce: ${display(remaining.workforce)}`, 'd-block'));
+                    item.append(node('span', `Power: ${display(remaining.power)} | Workforce: ${display(remaining.workforce)}`, 'sov-map-resources'));
                     const blurbs = selected.get(id).upgrades.map(upgradeBlurb);
                     item.title = blurbs.length ? blurbs.join('\n') : 'No upgrades selected';
                     item.setAttribute('aria-label', `${systems.get(id).name}, power remaining ${display(remaining.power)}, workforce remaining ${display(remaining.workforce)}. Manage upgrades`);
                 }
+                if (!isSelected) item.className += ' sov-map-neighbor';
                 const position = positions.get(id);
                 const wrapper = node('div', null, 'd-flex align-items-center gap-1');
                 wrapper.style.position = 'absolute';
@@ -359,6 +360,7 @@
                         render();
                         systemSelect.focus();
                     });
+                    hide.className += ' sov-map-hide';
                     wrapper.append(hide);
                 }
                 map.append(wrapper);

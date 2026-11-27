@@ -1,6 +1,11 @@
 {% extends 'hostile/base.html' %}
 {% load i18n static %}
 
+{% block extra_css %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'hostile/css/sov_planner.css' %}">
+{% endblock %}
+
 {% block details %}
 <div id="sov-planner" data-catalog-url="{% url 'hostile:api_sov_planner' %}">
     <div class="mb-3">
@@ -32,17 +37,23 @@
             <div id="sov-plan-message" class="small mt-2" role="status"></div>
         </div></div>
         <div class="card hostile-card mb-3"><div class="card-body">
-            <h5>{% translate "System map" %}</h5>
-            <p class="small text-secondary">{% translate "Select a system on the map to manage its upgrades and see their SDE descriptions. Choose a neighboring system to add it to the plan. Hidden neighbors can still be added using the system selector." %}</p>
-            <p class="small text-secondary">{% translate "Positions use SDE 2D coordinates with the same scale on both axes. Systems without coordinates, sharing a position, or too close to display at the maximum map size are arranged separately below." %}</p>
-            <div class="d-flex align-items-center gap-2 mb-2" role="group" aria-label="{% translate 'Map zoom' %}">
-                <button type="button" id="sov-zoom-out" class="btn btn-outline-secondary btn-sm" aria-label="{% translate 'Zoom out' %}">−</button>
-                <span id="sov-zoom-level" aria-live="polite">100%</span>
-                <button type="button" id="sov-zoom-in" class="btn btn-outline-secondary btn-sm" aria-label="{% translate 'Zoom in' %}">+</button>
-                <button type="button" id="sov-zoom-reset" class="btn btn-outline-secondary btn-sm">{% translate "Reset zoom" %}</button>
+            <div class="sov-map-heading">
+                <div><h5 class="mb-1">{% translate "System map" %}</h5><p class="small text-secondary mb-0">{% translate "Select a system to manage upgrades, or add a neighboring system." %}</p></div>
+                <div class="sov-map-zoom" role="group" aria-label="{% translate 'Map zoom' %}">
+                    <button type="button" id="sov-zoom-out" class="btn btn-outline-secondary btn-sm" aria-label="{% translate 'Zoom out' %}">−</button>
+                    <span id="sov-zoom-level" aria-live="polite">100%</span>
+                    <button type="button" id="sov-zoom-in" class="btn btn-outline-secondary btn-sm" aria-label="{% translate 'Zoom in' %}">+</button>
+                    <button type="button" id="sov-zoom-reset" class="btn btn-outline-secondary btn-sm">{% translate "Reset zoom" %}</button>
+                </div>
             </div>
-            <p class="small text-secondary">{% translate "Drag the map background to pan, or focus the map and use the arrow keys to scroll." %}</p>
-            <div id="sov-map" class="overflow-auto border rounded" style="height: 42rem; max-width: 100%; touch-action: none;" tabindex="0" role="region" aria-label="{% translate 'System map' %}"></div>
+            <div class="sov-map-legend small" aria-label="{% translate 'Map legend' %}">
+                <span><i class="sov-legend-dot sov-legend-good" aria-hidden="true"></i>{% translate "Within capacity" %}</span>
+                <span><i class="sov-legend-dot sov-legend-bad" aria-hidden="true"></i>{% translate "Deficit" %}</span>
+                <span><i class="sov-legend-dot sov-legend-unknown" aria-hidden="true"></i>{% translate "Unknown" %}</span>
+                <span><i class="sov-legend-dot sov-legend-neighbor" aria-hidden="true"></i>{% translate "Available neighbor" %}</span>
+            </div>
+            <div id="sov-map" class="sov-map overflow-auto" tabindex="0" role="region" aria-label="{% translate 'System map' %}" aria-describedby="sov-map-help"></div>
+            <p id="sov-map-help" class="small text-secondary mt-2 mb-0">{% translate "Drag the background to pan, or focus the map and use the arrow keys. Positions use SDE 2D coordinates; missing or overlapping positions are arranged separately. Hidden neighbors remain available in the system selector." %}</p>
             <div id="sov-map-details" class="mt-3" aria-live="polite"></div>
         </div></div>
         <div id="sov-systems" class="row g-3 mb-3"></div>
