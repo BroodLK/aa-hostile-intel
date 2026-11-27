@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [0.0.41] - 2026-11-27
+
+### Changed
+
+- **Sovereignty Map**: Enlarged and refreshed the map with clearer system indicators and navigation guidance.
+- **Constellation Selection**: Automatically add all systems in the selected constellation to the plan.
+
 ## [0.0.40] - 2026-11-27
 
 ### Fixed
