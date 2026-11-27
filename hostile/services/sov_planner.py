@@ -35,10 +35,10 @@ def _resource(body):
 def get_sov_planner_catalog():
     """Return the imported map and sovereignty upgrades as JSON-ready data.
 
-    Resource totals are static potential, not connected hub resources. A total
-    is unknown unless a star, at least one planet, and all their resource
-    values for that dimension are present. An incomplete import cannot be
-    detected, including missing gates or planets.
+    Resource totals are static potential, not connected hub resources.
+    Power requires a star and planets; workforce comes from planets only.
+    Missing relevant resource values make a total unknown. An incomplete
+    import cannot be detected, including missing gates or planets.
     """
     constellations = list(
         Constellation.objects.order_by("name", "id").values("id", "name")
@@ -49,6 +49,7 @@ def get_sov_planner_catalog():
         )
     )
     bodies = {system["id"]: [] for system in systems}
+    planet_bodies = {system["id"]: [] for system in systems}
     stars = set()
     planets = set()
     for star in Star.objects.select_related("resource").exclude(solar_system_id=None):
@@ -60,7 +61,9 @@ def get_sov_planner_catalog():
     ):
         if planet.solar_system_id in bodies:
             planets.add(planet.solar_system_id)
-            bodies[planet.solar_system_id].append(_resource(planet))
+            resource = _resource(planet)
+            bodies[planet.solar_system_id].append(resource)
+            planet_bodies[planet.solar_system_id].append(resource)
 
     neighbors = {system["id"]: set() for system in systems}
     for source, destination in (
@@ -76,10 +79,12 @@ def get_sov_planner_catalog():
         system["security"] = system.pop("security_status")
         system["neighbors"] = sorted(neighbors[system_id])
         for field in ("power", "workforce"):
-            resources = bodies[system_id]
+            resources = (
+                bodies[system_id] if field == "power" else planet_bodies[system_id]
+            )
             system[field] = (
                 sum(resource[field] for resource in resources)
-                if system_id in stars
+                if (field != "power" or system_id in stars)
                 and system_id in planets
                 and all(
                     resource is not None and resource[field] is not None

@@ -105,6 +105,29 @@ class TestSovPlanner(TestCase):
             {"constellations": [], "systems": [], "upgrades": []},
         )
 
+    def test_catalog_uses_planets_for_workforce_and_star_for_power(self):
+        constellation = Constellation.objects.create(id=1, name="A")
+        system = SolarSystem.objects.create(
+            id=2, name="System", constellation=constellation
+        )
+        star = Star.objects.create(id=3, solar_system=system)
+        star_resource = StarResource.objects.create(star=star, power=620)
+        planet = Planet.objects.create(id=4, name="Planet", solar_system=system)
+        planet_resource = PlanetResource.objects.create(
+            planet=planet, power=600, workforce=32060
+        )
+
+        def resources():
+            row = get_sov_planner_catalog()["systems"][0]
+            return row["power"], row["workforce"]
+
+        self.assertEqual(resources(), (1220, 32060))
+        star_resource.delete()
+        self.assertEqual(resources(), (None, 32060))
+        planet_resource.workforce = None
+        planet_resource.save()
+        self.assertEqual(resources(), (None, None))
+
     def test_catalog_keeps_long_cross_constellation_gate_chains(self):
         first = Constellation.objects.create(id=1, name="First")
         second = Constellation.objects.create(id=2, name="Second")
