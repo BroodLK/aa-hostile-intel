@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [0.0.39] - 2026-11-27
+
+### Added
+
+- **Sovereignty Plans**: Export and import plans as JSON, with warnings before discarding changes.
+- **System Map Navigation**: Zoom and pan the map; overlapping systems are separated when necessary.
+
+### Changed
+
+- **Sovereignty Upgrade Calculator**: Manage upgrades in a system dialog and see estimated remaining resources on the map. System details and SDE resource values are read-only; adjacent systems can be hidden.
+
 ## [0.0.38] - 2026-11-26
 
 ### Changed
