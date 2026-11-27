@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [0.0.43] - 2026-11-27
+
+### Changed
+
+- **Workforce Transfers**: Plan multi-hop routes through selected systems and identify intermediate hubs for transit; configure hub modes in game.
+
 ## [0.0.42] - 2026-11-27
 
 ### Added
