@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [0.0.40] - 2026-11-27
+
+### Fixed
+
+- **Sovereignty Workforce**: Calculate SDE workforce potential from planets without requiring a star workforce value; power continues to include stars and planets.
+
 ## [0.0.39] - 2026-11-27
 
 ### Added
