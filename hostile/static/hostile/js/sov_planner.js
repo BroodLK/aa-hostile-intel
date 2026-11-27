@@ -180,6 +180,39 @@
             return `${upgrade.name}: ${description || 'No SDE description available.'}`;
         }
 
+        function combatTable(system, upgrade) {
+            const droneRegions = ['Cobalt Edge', 'Etherium Reach', 'Malpais', 'Oasa', 'Outer Passage', 'Perrigen Falls', 'The Kalevala Expanse', 'The Spire'];
+            const pirateRegions = ['Aridia', 'Black Rise', 'Branch', 'Cache', 'Catch', 'Cloud Ring', 'Curse', 'Deklein', 'Delve', 'Derelik', 'Detorid', 'Devoid', 'Domain', 'Esoteria', 'Essence', 'Everyshore', 'Fade', 'Feythabolis', 'Fountain', 'Geminate', 'Genesis', 'Great Wildlands', 'Heimatar', 'Immensea', 'Impass', 'Insmother', 'Khanid', 'Kor-Azor', 'Lonetrek', 'Metropolis', 'Molden Heath', 'Omist', 'Outer Ring', 'Paragon Soul', 'Period Basis', 'Placid', 'Providence', 'Pure Blind', 'Querious', 'Scalding Pass', 'Sinq Laison', 'Solitude', 'Stain', 'Tash-Murkon', 'Tenal', 'Tenerifis', 'The Bleak Lands', 'The Citadel', 'The Forge', 'The Marches', 'Tribute', 'Vale of the Silent', 'Venal', 'Verge Vendor', 'Wicked Creek'];
+            const region = droneRegions.includes(system.region_name) ? 'drone' : pirateRegions.includes(system.region_name) ? 'non-drone' : null;
+            const result = window.SovCombatSites.combatSites(upgrade.name, system.security, region);
+            if (result.reason === 'noncombat-or-unknown-upgrade') return null;
+            const section = node('div', null, 'small mb-2');
+            section.append(node('strong', `Published combat sites — ${upgrade.name}`));
+            if (result.status !== 'ok') {
+                const reasons = {'unknown-region': 'Region classification is unavailable.', 'unknown-security': 'True security is unavailable or outside the published range.', 'security-boundary': 'CCP’s published bands overlap at this exact security boundary.'};
+                section.append(node('p', `${reasons[result.reason]} Site counts are unknown.`, 'text-warning mb-1'));
+                return section;
+            }
+            const table = node('table', null, 'table table-sm mb-1');
+            const header = node('tr');
+            header.append(node('th', 'Site'), node('th', 'Count'));
+            const head = node('thead');
+            head.append(header);
+            const body = node('tbody');
+            result.rows.forEach(({name, count}) => {
+                const row = node('tr');
+                row.append(node('td', name), node('td', String(count)));
+                body.append(row);
+            });
+            table.append(head, body);
+            const source = node('a', 'CCP combat anomaly table');
+            source.href = window.SovCombatSites.SOURCE_URL;
+            source.target = '_blank';
+            source.rel = 'noopener noreferrer';
+            section.append(table, node('p', `True security: ${system.security}; ${region} region. Counts are per online upgrade, not guaranteed live spawns; non-drone names omit the faction prefix. `, 'text-secondary mb-0'), source);
+            return section;
+        }
+
         function addSystem(id) {
             const system = systems.get(id);
             if (!system || selected.has(id)) return;
@@ -206,6 +239,8 @@
                     search.focus();
                 }));
                 chosen.append(row);
+                const table = combatTable(systems.get(id), upgrade);
+                if (table) chosen.append(table);
             });
             const available = el('sov-dialog-available');
             available.replaceChildren();
@@ -236,6 +271,7 @@
             activeSystem = id;
             dialogSystem = id;
             search.value = '';
+            renderMap(data.systems.filter((system) => !selected.has(key(system.id)) && [...selected.keys()].some((selectedId) => linked(selectedId, key(system.id)))));
             renderDialog();
             dialog.showModal();
             search.focus();
@@ -378,6 +414,8 @@
                 if (!plan.upgrades.length) details.append(node('p', 'No upgrades selected.', 'small text-secondary mb-0'));
                 plan.upgrades.forEach((upgrade) => {
                     details.append(node('p', upgradeBlurb(upgrade), 'small text-secondary mb-1'));
+                    const table = combatTable(systems.get(activeSystem), upgrade);
+                    if (table) details.append(table);
                 });
             }
         }

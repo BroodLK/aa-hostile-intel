@@ -5,6 +5,7 @@ const vm = require('node:vm');
 const path = require('node:path');
 const accuracy = require('../static/hostile/js/sov_planner_accuracy.js');
 const planApi = require('../static/hostile/js/sov_planner_plan.js');
+const combatSites = require('../static/hostile/js/sov_combat_sites.js');
 
 class Element {
     constructor(tag) {
@@ -48,20 +49,21 @@ async function setup() {
     const catalog = {
         constellations: [{ id: 1, name: 'Constellation' }],
         systems: [
-            { id: 1, name: 'Alpha', constellation_id: 1, neighbors: [2], power: 100, workforce: 100, x_2d: 0, y_2d: 0 },
+            { id: 1, name: 'Alpha', constellation_id: 1, neighbors: [2], power: 100, workforce: 100, x_2d: 0, y_2d: 0, security: -0.71, region_name: 'The Spire' },
             { id: 2, name: 'Beta', constellation_id: 1, neighbors: [1], power: null, workforce: 40, x_2d: 1, y_2d: 0 },
         ],
         upgrades: [
             { id: 1, name: 'Factory', description: 'Makes things', power: 80, workforce: 30, power_production: 0, workforce_production: 0 },
             { id: 2, name: 'Generator', description: 'Produces power', power: 0, workforce: 0, power_production: 30, workforce_production: 0 },
             { id: 3, name: 'Unknown cost', description: '', power: null, workforce: 0, power_production: 0, workforce_production: 0 },
+            { id: 4, name: 'Major Threat Detection Array 2', power: 0, workforce: 0, power_production: 0, workforce_production: 0 },
         ],
     };
     const document = { getElementById: (id) => elements[id], createElement: (tag) => new Element(tag), createElementNS: (_, tag) => new Element(tag) };
     class Option extends Element { constructor(label, value) { super('option'); this.textContent = label; this.value = value; } }
     const source = fs.readFileSync(path.join(__dirname, '../static/hostile/js/sov_planner.js'), 'utf8');
     const listeners = {};
-    const window = { SovPlannerAccuracy: accuracy, SovPlannerPlan: planApi, addEventListener: (name, callback) => { listeners[name] = callback; }, confirm: () => true };
+    const window = { SovPlannerAccuracy: accuracy, SovPlannerPlan: planApi, SovCombatSites: combatSites, addEventListener: (name, callback) => { listeners[name] = callback; }, confirm: () => true };
     let exported;
     const URL = { createObjectURL: (blob) => { exported = blob; return 'blob:test'; }, revokeObjectURL: () => {} };
     vm.runInNewContext(source, { document, Option, URL, Blob, CSS: { escape: (value) => value }, DOMParser: class { parseFromString(text) { return { body: { textContent: text } }; } }, window, fetch: async () => ({ ok: true, redirected: false, json: async () => catalog }) });
@@ -102,6 +104,21 @@ test('dialog searches, adds and removes upgrades with read-only detailed cards',
     findButton(get('sov-dialog-selected'), 'Remove Factory').click();
     assert.match(get('sov-systems').textContent, /No upgrades selected/);
     assert.match(mapNode('1').textContent, /Power: 100 \| Workforce: 100/);
+});
+
+test('combat sites appear for the selected map system and disappear on removal', async () => {
+    const { get, findButton, mapNode } = await setup();
+    mapNode('1').click();
+    findButton(get('sov-dialog-available'), 'Add Major Threat Detection Array 2').click();
+    assert.match(get('sov-dialog-selected').textContent, /Drone Squad2Drone Patrol6Drone Horde4/);
+    assert.match(get('sov-map-details').textContent, /Drone Squad2Drone Patrol6Drone Horde4/);
+    assert.match(get('sov-map-details').textContent, /not guaranteed live spawns/);
+    findButton(get('sov-dialog-selected'), 'Remove Major Threat Detection Array 2').click();
+    assert.doesNotMatch(get('sov-map-details').textContent, /Drone Horde/);
+    get('sov-dialog-close').click();
+    mapNode('2').click();
+    findButton(get('sov-dialog-available'), 'Add Major Threat Detection Array 2').click();
+    assert.match(get('sov-dialog-selected').textContent, /Region classification is unavailable/);
 });
 
 test('map colors track production, transfers, unknown values and known deficits', async () => {

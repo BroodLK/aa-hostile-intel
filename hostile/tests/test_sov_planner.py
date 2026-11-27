@@ -9,6 +9,7 @@ from eve_sde.models import (
     ItemType,
     Planet,
     PlanetResource,
+    Region,
     SolarSystem,
     SovereigntyUpgrade,
     Star,
@@ -25,7 +26,8 @@ from hostile.services.sov_planner import get_sov_planner_catalog, get_sov_planne
 
 class TestSovPlanner(TestCase):
     def test_catalog_topology_resources_and_upgrades(self):
-        constellation = Constellation.objects.create(id=1, name="A")
+        region = Region.objects.create(id=100, name="The Spire")
+        constellation = Constellation.objects.create(id=1, name="A", region=region)
         other_constellation = Constellation.objects.create(id=2, name="B")
         system = SolarSystem.objects.create(
             id=3,
@@ -74,12 +76,14 @@ class TestSovPlanner(TestCase):
                 "x_2d": -123.5,
                 "y_2d": 0,
                 "security": -0.5,
+                "region_name": "The Spire",
                 "power": 30,
                 "workforce": 12,
                 "neighbors": [4],
             },
         )
         self.assertEqual(systems[4]["neighbors"], [])
+        self.assertIsNone(systems[4]["region_name"])
         self.assertIsNone(systems[4]["x_2d"])
         self.assertIsNone(systems[4]["y_2d"])
         self.assertIsNone(systems[4]["power"])

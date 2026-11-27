@@ -45,7 +45,13 @@ def get_sov_planner_catalog():
     )
     systems = list(
         SolarSystem.objects.order_by("name", "id").values(
-            "id", "name", "constellation_id", "security_status", "x_2d", "y_2d"
+            "id",
+            "name",
+            "constellation_id",
+            "constellation__region__name",
+            "security_status",
+            "x_2d",
+            "y_2d",
         )
     )
     bodies = {system["id"]: [] for system in systems}
@@ -77,6 +83,7 @@ def get_sov_planner_catalog():
     for system in systems:
         system_id = system["id"]
         system["security"] = system.pop("security_status")
+        system["region_name"] = system.pop("constellation__region__name")
         system["neighbors"] = sorted(neighbors[system_id])
         for field in ("power", "workforce"):
             resources = (
