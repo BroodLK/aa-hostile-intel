@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
 const accuracy = require('../static/hostile/js/sov_planner_accuracy.js');
+const planApi = require('../static/hostile/js/sov_planner_plan.js');
 
 class Element {
     constructor(tag) {
@@ -41,7 +42,7 @@ function descendants(element) {
 }
 
 async function setup() {
-    const ids = ['sov-planner', 'sov-error', 'sov-loading', 'sov-retry', 'sov-constellation', 'sov-system', 'sov-from', 'sov-to', 'sov-transfer-message', 'sov-upgrade-dialog', 'sov-upgrade-search', 'sov-dialog-title', 'sov-dialog-selected', 'sov-dialog-available', 'sov-dialog-actions', 'sov-dialog-close', 'sov-map', 'sov-map-details', 'sov-systems', 'sov-add-system', 'sov-catalog-warning', 'sov-transfers', 'sov-add-transfer', 'sov-amount', 'sov-controls'];
+    const ids = ['sov-planner', 'sov-error', 'sov-loading', 'sov-retry', 'sov-constellation', 'sov-system', 'sov-from', 'sov-to', 'sov-transfer-message', 'sov-upgrade-dialog', 'sov-upgrade-search', 'sov-dialog-title', 'sov-dialog-selected', 'sov-dialog-available', 'sov-dialog-actions', 'sov-dialog-close', 'sov-map', 'sov-map-details', 'sov-systems', 'sov-add-system', 'sov-catalog-warning', 'sov-transfers', 'sov-add-transfer', 'sov-amount', 'sov-controls', 'sov-export', 'sov-import', 'sov-plan-message'];
     const elements = Object.fromEntries(ids.map((id) => [id, new Element(['sov-constellation', 'sov-system', 'sov-from', 'sov-to'].includes(id) ? 'select' : 'div')]));
     elements['sov-planner'].dataset.catalogUrl = '/catalog';
     const catalog = {
@@ -59,7 +60,11 @@ async function setup() {
     const document = { getElementById: (id) => elements[id], createElement: (tag) => new Element(tag), createElementNS: (_, tag) => new Element(tag) };
     class Option extends Element { constructor(label, value) { super('option'); this.textContent = label; this.value = value; } }
     const source = fs.readFileSync(path.join(__dirname, '../static/hostile/js/sov_planner.js'), 'utf8');
-    vm.runInNewContext(source, { document, Option, CSS: { escape: (value) => value }, DOMParser: class { parseFromString(text) { return { body: { textContent: text } }; } }, window: { SovPlannerAccuracy: accuracy }, fetch: async () => ({ ok: true, redirected: false, json: async () => catalog }) });
+    const listeners = {};
+    const window = { SovPlannerAccuracy: accuracy, SovPlannerPlan: planApi, addEventListener: (name, callback) => { listeners[name] = callback; }, confirm: () => true };
+    let exported;
+    const URL = { createObjectURL: (blob) => { exported = blob; return 'blob:test'; }, revokeObjectURL: () => {} };
+    vm.runInNewContext(source, { document, Option, URL, Blob, CSS: { escape: (value) => value }, DOMParser: class { parseFromString(text) { return { body: { textContent: text } }; } }, window, fetch: async () => ({ ok: true, redirected: false, json: async () => catalog }) });
     await new Promise((resolve) => setImmediate(resolve));
     const get = (id) => elements[id];
     const findButton = (parent, text) => {
@@ -72,7 +77,7 @@ async function setup() {
     get('sov-constellation').dispatch('change');
     get('sov-system').value = '1';
     get('sov-add-system').click();
-    return { get, findButton, mapNode };
+    return { get, findButton, mapNode, window, listeners, exported: () => exported };
 }
 
 test('dialog searches, adds and removes upgrades with read-only detailed cards', async () => {
@@ -127,4 +132,39 @@ test('adjacent systems can be hidden without preventing selection', async () => 
     mapNode('2').click();
     findButton(get('sov-dialog-actions'), 'Remove system from plan').click();
     assert.ok(findButton(get('sov-map'), 'Add Beta'));
+});
+
+test('plans export and restore safely and warn before discarding changes', async () => {
+    const { get, findButton, mapNode, window, listeners, exported } = await setup();
+    findButton(get('sov-map'), 'Add Beta').click();
+    mapNode('1').click();
+    findButton(get('sov-dialog-available'), 'Add Factory').click();
+    get('sov-dialog-close').click();
+    const event = { preventDefault() { this.prevented = true; } };
+    listeners.beforeunload(event);
+    assert.equal(event.prevented, true);
+    get('sov-export').click();
+    const text = await exported().text();
+    assert.equal(JSON.parse(text).systems.length, 2);
+    const clean = { preventDefault() { this.prevented = true; } };
+    listeners.beforeunload(clean);
+    assert.equal(clean.prevented, undefined);
+    window.confirm = () => false;
+    get('sov-constellation').value = '';
+    get('sov-constellation').dispatch('change');
+    assert.equal(get('sov-constellation').value, '1');
+    assert.ok(mapNode('2'));
+    window.confirm = () => true;
+    get('sov-constellation').value = '';
+    get('sov-constellation').dispatch('change');
+    get('sov-import').files = [{ size: text.length, text: async () => text }];
+    get('sov-import').dispatch('change');
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.ok(mapNode('2'));
+    assert.match(get('sov-systems').textContent, /Factory/);
+    get('sov-import').files = [{ size: 2, text: async () => '{}' }];
+    get('sov-import').dispatch('change');
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.match(get('sov-plan-message').textContent, /Could not load plan/);
+    assert.ok(mapNode('2'));
 });

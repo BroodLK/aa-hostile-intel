@@ -23,12 +23,26 @@
             <p class="small text-secondary mt-2 mb-0">{% translate "Choose a starting constellation and system, then add linked systems from any constellation. Changing the starting constellation clears the plan." %}</p>
             <p class="small text-secondary mb-0">{% translate "System resources are SDE potential, not live skyhook or hub state; incomplete imports may produce incomplete totals. Missing values are unknown, not zero. Balances assume all selected upgrades operate; priorities, eligibility, fuel, ownership and live state are not validated." %}</p>
             <div id="sov-catalog-warning" class="text-warning small mt-2" role="status"></div>
+            <div class="d-flex flex-wrap gap-2 mt-3 align-items-center">
+                <button type="button" id="sov-export" class="btn btn-outline-info">{% translate "Export plan" %}</button>
+                <label for="sov-import" class="form-label mb-0">{% translate "Import plan" %}</label>
+                <input type="file" id="sov-import" accept=".json,application/json" class="form-control" style="max-width: 22rem;">
+            </div>
+            <p class="small text-secondary mb-0">{% translate "Export a JSON file to save your plan. Loading uses current SDE values and replaces the current plan." %}</p>
+            <div id="sov-plan-message" class="small mt-2" role="status"></div>
         </div></div>
         <div class="card hostile-card mb-3"><div class="card-body">
             <h5>{% translate "System map" %}</h5>
             <p class="small text-secondary">{% translate "Select a system on the map to manage its upgrades and see their SDE descriptions. Choose a neighboring system to add it to the plan. Hidden neighbors can still be added using the system selector." %}</p>
-            <p class="small text-secondary">{% translate "Positions use SDE 2D coordinates with the same scale on both axes. Systems without coordinates or sharing a position are arranged separately below." %}</p>
-            <div id="sov-map" class="overflow-auto" aria-label="{% translate 'System map' %}"></div>
+            <p class="small text-secondary">{% translate "Positions use SDE 2D coordinates with the same scale on both axes. Systems without coordinates, sharing a position, or too close to display at the maximum map size are arranged separately below." %}</p>
+            <div class="d-flex align-items-center gap-2 mb-2" role="group" aria-label="{% translate 'Map zoom' %}">
+                <button type="button" id="sov-zoom-out" class="btn btn-outline-secondary btn-sm" aria-label="{% translate 'Zoom out' %}">−</button>
+                <span id="sov-zoom-level" aria-live="polite">100%</span>
+                <button type="button" id="sov-zoom-in" class="btn btn-outline-secondary btn-sm" aria-label="{% translate 'Zoom in' %}">+</button>
+                <button type="button" id="sov-zoom-reset" class="btn btn-outline-secondary btn-sm">{% translate "Reset zoom" %}</button>
+            </div>
+            <p class="small text-secondary">{% translate "Drag the map background to pan, or focus the map and use the arrow keys to scroll." %}</p>
+            <div id="sov-map" class="overflow-auto border rounded" style="height: 28rem; max-width: 100%; touch-action: none;" tabindex="0" role="region" aria-label="{% translate 'System map' %}"></div>
             <div id="sov-map-details" class="mt-3" aria-live="polite"></div>
         </div></div>
         <div id="sov-systems" class="row g-3 mb-3"></div>
@@ -62,5 +76,6 @@
 {% block extra_javascript %}
 {{ block.super }}
 <script src="{% static 'hostile/js/sov_planner_accuracy.js' %}"></script>
+<script src="{% static 'hostile/js/sov_planner_plan.js' %}"></script>
 <script src="{% static 'hostile/js/sov_planner.js' %}"></script>
 {% endblock %}
